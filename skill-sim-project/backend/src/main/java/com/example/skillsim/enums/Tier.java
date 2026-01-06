@@ -4,5 +4,7 @@ public enum Tier {
     IRON,
     BRONZE,
     SILVER,
-    GOLD
+    GOLD,
+    MOMENT,
+    HOF
 }

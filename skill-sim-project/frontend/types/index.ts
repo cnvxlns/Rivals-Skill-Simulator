@@ -1,4 +1,5 @@
 export enum Tier {
+  MOMENT = 'MOMENT',
   IRON = 'IRON',
   BRONZE = 'BRONZE',
   SILVER = 'SILVER',
@@ -19,10 +20,17 @@ export enum TicketType {
   SUPREME_SKILL_CHANGE = 'SUPREME_SKILL_CHANGE',
 }
 
+export enum CardType {
+  SIGNATURE = 'SIGNATURE',
+  PRIME = 'PRIME',
+  MOMENT = 'MOMENT',
+}
+
 export type Skill = {
   id: number;
   name: string;
   tier: Tier;
+  grade: Grade;
   description: string;
   weight: number;
 };
@@ -33,8 +41,11 @@ export type SkillSlot = {
 };
 
 export type RollRequest = {
+  cardType: CardType;
   ticketType: TicketType;
-  useProtection: boolean;
+  useLevelProtection: boolean;
+  lockedSlots: number[];
+  currentSkillIds: (number | null)[];
   currentGrades: Grade[];
 };
 

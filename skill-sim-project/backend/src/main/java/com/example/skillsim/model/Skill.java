@@ -1,5 +1,6 @@
 package com.example.skillsim.model;
 
+import com.example.skillsim.enums.Grade;
 import com.example.skillsim.enums.Tier;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -30,6 +31,10 @@ public class Skill {
 
     @Column(nullable = false)
     private String name;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Grade grade;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

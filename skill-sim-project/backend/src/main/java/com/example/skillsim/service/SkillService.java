@@ -3,6 +3,7 @@ package com.example.skillsim.service;
 import com.example.skillsim.dto.RollRequest;
 import com.example.skillsim.dto.RollResponse;
 import com.example.skillsim.dto.SkillSlot;
+import com.example.skillsim.enums.CardType;
 import com.example.skillsim.enums.Grade;
 import com.example.skillsim.enums.TicketType;
 import com.example.skillsim.enums.Tier;
@@ -11,10 +12,7 @@ import com.example.skillsim.repository.SkillRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -28,16 +26,28 @@ public class SkillService {
     private final SkillRepository skillRepository;
 
     public RollResponse rollSkills(RollRequest request) {
+        validateLockRules(request);
+
         List<Grade> normalizedGrades = normalizeGrades(request.getCurrentGrades());
+        List<Long> normalizedSkillIds = normalizeSkillIds(request.getCurrentSkillIds());
+        Set<Integer> locked = new HashSet<>(Optional.ofNullable(request.getLockedSlots()).orElse(List.of()));
+
         List<SkillSlot> slots = new ArrayList<>();
 
         for (int i = 0; i < SLOT_COUNT; i++) {
-            Grade currentGrade = normalizedGrades.get(i);
-            TicketType ticketType = request.getTicketType();
+            if (locked.contains(i)) {
+                Skill lockedSkill = resolveSkill(normalizedSkillIds.get(i));
+                slots.add(SkillSlot.builder()
+                        .skill(lockedSkill)
+                        .grade(normalizedGrades.get(i))
+                        .build());
+                continue;
+            }
 
+            TicketType ticketType = request.getTicketType();
             Tier tier = pickTier(ticketType);
             Skill skill = pickSkillByTier(tier);
-            Grade grade = pickGrade(ticketType, request.isUseProtection(), currentGrade);
+            Grade grade = pickGrade(ticketType, request.isUseLevelProtection(), normalizedGrades.get(i));
 
             slots.add(SkillSlot.builder()
                     .skill(skill)
@@ -46,6 +56,28 @@ public class SkillService {
         }
 
         return RollResponse.builder().slots(slots).build();
+    }
+
+    private void validateLockRules(RollRequest request) {
+        List<Integer> lockedSlots = Optional.ofNullable(request.getLockedSlots()).orElse(List.of());
+        if (!lockedSlots.contains(0)) {
+            return;
+        }
+
+        CardType cardType = request.getCardType();
+        switch (cardType) {
+            case PRIME -> {
+                // always allowed
+            }
+            case MOMENT -> {
+                Skill slotOneSkill = resolveSkill(firstSkillId(request.getCurrentSkillIds()));
+                if (slotOneSkill == null || slotOneSkill.getTier() != Tier.MOMENT) {
+                    throw new IllegalArgumentException("Slot 1 lock for MOMENT is only allowed when current slot 1 is MOMENT tier.");
+                }
+            }
+            case SIGNATURE -> throw new IllegalArgumentException("Slot 1 lock not allowed for SIGNATURE cards.");
+            default -> throw new IllegalArgumentException("Unsupported card type: " + cardType);
+        }
     }
 
     private Tier pickTier(TicketType ticketType) {
@@ -71,15 +103,17 @@ public class SkillService {
             weights.entrySet().removeIf(entry -> entry.getKey().ordinal() < currentGrade.ordinal());
         }
 
-        // If protection removed all lower grades, ensure we still have weights
         if (weights.isEmpty()) {
-            weights.put(currentGrade, 1);
+            weights.put(currentGrade != null ? currentGrade : Grade.D, 1);
         }
 
         return pickWeighted(weights, Grade.D);
     }
 
     private Skill pickWeightedSkill(List<Skill> skills) {
+        if (skills == null || skills.isEmpty()) {
+            return null;
+        }
         int total = skills.stream().mapToInt(this::safeWeight).sum();
         if (total <= 0) {
             return skills.get(ThreadLocalRandom.current().nextInt(skills.size()));
@@ -93,7 +127,7 @@ public class SkillService {
                 return skill;
             }
         }
-        return skills.get(0); // Fallback
+        return skills.get(0);
     }
 
     private <T> T pickWeighted(Map<T, Integer> weights, T defaultValue) {
@@ -128,8 +162,31 @@ public class SkillService {
         return normalized;
     }
 
+    private List<Long> normalizeSkillIds(List<Long> currentSkillIds) {
+        List<Long> normalized = new ArrayList<>();
+        for (int i = 0; i < SLOT_COUNT; i++) {
+            if (currentSkillIds != null && i < currentSkillIds.size()) {
+                normalized.add(currentSkillIds.get(i));
+            } else {
+                normalized.add(null);
+            }
+        }
+        return normalized;
+    }
+
+    private Long firstSkillId(List<Long> skillIds) {
+        return skillIds != null && !skillIds.isEmpty() ? skillIds.get(0) : null;
+    }
+
+    private Skill resolveSkill(Long id) {
+        if (id == null) {
+            return null;
+        }
+        return skillRepository.findById(id).orElse(null);
+    }
+
     private int safeWeight(Skill skill) {
-        return safeWeight(skill.getWeight());
+        return safeWeight(skill != null ? skill.getWeight() : 1);
     }
 
     private int safeWeight(Integer weight) {
@@ -140,16 +197,18 @@ public class SkillService {
         Map<TicketType, Map<Tier, Integer>> map = new EnumMap<>(TicketType.class);
 
         Map<Tier, Integer> normal = new EnumMap<>(Tier.class);
-        normal.put(Tier.IRON, 40);
+        normal.put(Tier.MOMENT, 1);
+        normal.put(Tier.IRON, 35);
         normal.put(Tier.BRONZE, 30);
         normal.put(Tier.SILVER, 20);
-        normal.put(Tier.GOLD, 10);
+        normal.put(Tier.GOLD, 14);
 
         Map<Tier, Integer> premium = new EnumMap<>(Tier.class);
+        premium.put(Tier.MOMENT, 2);
         premium.put(Tier.IRON, 20);
-        premium.put(Tier.BRONZE, 30);
-        premium.put(Tier.SILVER, 30);
-        premium.put(Tier.GOLD, 20);
+        premium.put(Tier.BRONZE, 28);
+        premium.put(Tier.SILVER, 28);
+        premium.put(Tier.GOLD, 22);
 
         map.put(TicketType.SKILL_CHANGE, normal);
         map.put(TicketType.PREMIUM_SKILL_CHANGE, premium);

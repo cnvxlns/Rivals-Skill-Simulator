@@ -1,3 +1,4 @@
+// 스킬 테이블과 매핑되는 JPA 엔티티
 package com.example.skillsim.model;
 
 import com.example.skillsim.enums.Grade;

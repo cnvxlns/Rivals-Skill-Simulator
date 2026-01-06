@@ -1,3 +1,4 @@
+// 스킬 뽑기 결과로 반환되는 슬롯 정보 목록을 담는 DTO
 package com.example.skillsim.dto;
 
 import lombok.AllArgsConstructor;

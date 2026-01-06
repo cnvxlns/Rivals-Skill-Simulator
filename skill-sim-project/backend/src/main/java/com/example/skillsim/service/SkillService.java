@@ -1,3 +1,4 @@
+// 스킬 뽑기 로직과 잠금/등급 보호 규칙을 처리하는 서비스 계층
 package com.example.skillsim.service;
 
 import com.example.skillsim.dto.RollRequest;
@@ -30,6 +31,7 @@ public class SkillService {
 
         List<Grade> normalizedGrades = normalizeGrades(request.getCurrentGrades());
         List<Long> normalizedSkillIds = normalizeSkillIds(request.getCurrentSkillIds());
+        List<Boolean> protectionFlags = normalizeProtectionFlags(request.getUseLevelProtectionSlots());
         Set<Integer> locked = new HashSet<>(Optional.ofNullable(request.getLockedSlots()).orElse(List.of()));
 
         List<SkillSlot> slots = new ArrayList<>();
@@ -47,7 +49,7 @@ public class SkillService {
             TicketType ticketType = request.getTicketType();
             Tier tier = pickTier(ticketType);
             Skill skill = pickSkillByTier(tier);
-            Grade grade = pickGrade(ticketType, request.isUseLevelProtection(), normalizedGrades.get(i));
+            Grade grade = pickGrade(ticketType, protectionFlags.get(i), normalizedGrades.get(i));
 
             slots.add(SkillSlot.builder()
                     .skill(skill)
@@ -169,6 +171,18 @@ public class SkillService {
                 normalized.add(currentSkillIds.get(i));
             } else {
                 normalized.add(null);
+            }
+        }
+        return normalized;
+    }
+
+    private List<Boolean> normalizeProtectionFlags(List<Boolean> useLevelProtectionSlots) {
+        List<Boolean> normalized = new ArrayList<>();
+        for (int i = 0; i < SLOT_COUNT; i++) {
+            if (useLevelProtectionSlots != null && i < useLevelProtectionSlots.size() && useLevelProtectionSlots.get(i) != null) {
+                normalized.add(useLevelProtectionSlots.get(i));
+            } else {
+                normalized.add(false);
             }
         }
         return normalized;

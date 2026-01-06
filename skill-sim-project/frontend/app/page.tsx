@@ -1,5 +1,6 @@
 'use client';
 
+// 스킬 변경 시뮬레이터 UI를 구성하고 상태 훅을 연결하는 메인 페이지
 import SkillCard from '../components/SkillCard';
 import { CardType, TicketType } from '../types';
 import { useSkillSimulator } from '../lib/useSkillSimulator';
@@ -10,8 +11,8 @@ export default function Page() {
         setCardType,
         ticketType,
         setTicketType,
-        useLevelProtection,
-        setUseLevelProtection,
+        useLevelProtectionSlots,
+        toggleLevelProtection,
         slots,
         loading,
         error,
@@ -68,15 +69,26 @@ export default function Page() {
                             </select>
                         </div>
 
-                        <label className="flex items-center justify-between rounded-lg bg-slate-50 p-3 text-sm font-medium text-slate-800">
-                            <span>Use Level Protection</span>
-                            <input
-                                type="checkbox"
-                                checked={useLevelProtection}
-                                onChange={(e) => setUseLevelProtection(e.target.checked)}
-                                className="h-4 w-4 text-indigo-600"
-                            />
-                        </label>
+                        <div>
+                            <h2 className="text-base font-semibold text-slate-900">Level Protection</h2>
+                            <p className="mt-1 text-xs text-slate-600">Apply protection per slot to prevent downgrades when rolling.</p>
+                            <div className="mt-3 space-y-2">
+                                {[0, 1, 2].map((idx) => (
+                                    <label
+                                        key={`protect-${idx}`}
+                                        className="flex items-center justify-between rounded-lg bg-slate-50 p-3 text-sm font-medium text-slate-800"
+                                    >
+                                        <span>Slot {idx + 1}</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={useLevelProtectionSlots[idx]}
+                                            onChange={() => toggleLevelProtection(idx)}
+                                            className="h-4 w-4 text-indigo-600"
+                                        />
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
                     </div>
 
                     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">

@@ -1,3 +1,4 @@
+// 하나의 스킬 슬롯 정보를 카드 형태로 표시하는 프레젠테이션 컴포넌트
 import { SkillSlot } from '../types';
 
 type Props = {

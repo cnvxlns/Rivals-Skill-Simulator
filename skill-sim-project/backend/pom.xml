@@ -1,3 +1,4 @@
+<!-- 백엔드 빌드와 의존성 관리를 정의하는 Maven 프로젝트 설정 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">

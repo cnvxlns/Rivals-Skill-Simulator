@@ -1,3 +1,4 @@
+-- 초기 스킬 목록을 애플리케이션 시작 시 삽입하는 SQL 스크립트
 INSERT INTO skill (name, tier, grade, description, weight) VALUES
 ('Record Holder', 'GOLD', 'S', 'Extends record-holding ability; boosts stamina and control.', 5),
 ('Bullpen Ace', 'GOLD', 'A', 'Thrives in relief situations; improves clutch pitching.', 4),

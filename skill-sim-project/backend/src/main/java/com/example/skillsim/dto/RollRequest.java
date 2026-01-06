@@ -1,3 +1,4 @@
+// 스킬 뽑기 요청 시 클라이언트가 전달하는 파라미터를 담는 DTO
 package com.example.skillsim.dto;
 
 import com.example.skillsim.enums.CardType;
@@ -23,7 +24,8 @@ public class RollRequest {
     @NotNull
     private CardType cardType;
 
-    private boolean useLevelProtection;
+    // Whether to apply level protection per slot (size should match slot count)
+    private List<Boolean> useLevelProtectionSlots;
 
     // Indices of slots to keep unchanged (0-based). Example: [0] locks first slot.
     private List<Integer> lockedSlots;

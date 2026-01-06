@@ -1,3 +1,4 @@
+// 스킬 변경 관련 API 엔드포인트를 제공하는 REST 컨트롤러
 package com.example.skillsim.controller;
 
 import com.example.skillsim.dto.RollRequest;

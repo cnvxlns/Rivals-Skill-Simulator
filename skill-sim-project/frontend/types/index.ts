@@ -1,3 +1,4 @@
+// 프론트엔드에서 사용하는 스킬 관련 타입 정의와 열거형 모음
 export enum Tier {
   MOMENT = 'MOMENT',
   IRON = 'IRON',
@@ -43,7 +44,7 @@ export type SkillSlot = {
 export type RollRequest = {
   cardType: CardType;
   ticketType: TicketType;
-  useLevelProtection: boolean;
+  useLevelProtectionSlots: boolean[];
   lockedSlots: number[];
   currentSkillIds: (number | null)[];
   currentGrades: Grade[];

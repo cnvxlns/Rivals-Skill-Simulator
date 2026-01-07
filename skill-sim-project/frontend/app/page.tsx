@@ -6,136 +6,167 @@ import { CardType, TicketType } from '../types';
 import { useSkillSimulator } from '../lib/useSkillSimulator';
 
 export default function Page() {
-    const {
-        cardType,
-        setCardType,
-        ticketType,
-        setTicketType,
-        useLevelProtectionSlots,
-        toggleLevelProtection,
-        slots,
-        loading,
-        error,
-        roll,
-        canLockSlot1,
-        isSlot1Locked,
-        toggleLockSlot1,
-    } = useSkillSimulator();
+  const {
+    cardType,
+    setCardType,
+    ticketType,
+    setTicketType,
+    useLevelProtectionSlots,
+    toggleLevelProtection,
+    slots,
+    loading,
+    error,
+    roll,
+    canLockSlot1,
+    isSlot1Locked,
+    toggleLockSlot1,
+    ticketUsageCount,
+    protectionUsageCount,
+    resetUsageCounts,
+  } = useSkillSimulator();
 
-    return (
-        <main className="min-h-screen bg-slate-50">
-            <div className="mx-auto max-w-5xl px-6 py-12">
-                <header className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                        <p className="text-sm font-medium uppercase tracking-wide text-indigo-700">MLB Rivals</p>
-                        <h1 className="text-3xl font-bold text-slate-900">Skill Change Simulator</h1>
-                        <p className="text-sm text-slate-600">Card-specific locking rules for Signature, Prime, and Moment.</p>
-                    </div>
-                    <button
-                        onClick={roll}
-                        disabled={loading}
-                        className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
-                    >
-                        {loading ? 'Rolling...' : 'Roll'}
-                    </button>
-                </header>
-
-                <section className="mt-8 grid gap-6 lg:grid-cols-3">
-                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-1 space-y-4">
-                        <div>
-                            <h2 className="text-base font-semibold text-slate-900">Card Type</h2>
-                            <p className="mt-1 text-xs text-slate-600">Prime allows locking slot 1; Moment allows it only if slot 1 is a Moment tier skill.</p>
-                            <select
-                                value={cardType}
-                                onChange={(e) => setCardType(e.target.value as CardType)}
-                                className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            >
-                                <option value={CardType.SIGNATURE}>Signature</option>
-                                <option value={CardType.PRIME}>Prime</option>
-                                <option value={CardType.MOMENT}>Moment</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <h2 className="text-base font-semibold text-slate-900">Ticket Type</h2>
-                            <select
-                                value={ticketType}
-                                onChange={(e) => setTicketType(e.target.value as TicketType)}
-                                className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            >
-                                <option value={TicketType.SKILL_CHANGE}>Skill Change Ticket</option>
-                                <option value={TicketType.PREMIUM_SKILL_CHANGE}>Premium Skill Change Ticket</option>
-                                <option value={TicketType.SUPREME_SKILL_CHANGE}>Supreme Skill Change Ticket</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <h2 className="text-base font-semibold text-slate-900">Level Protection</h2>
-                            <p className="mt-1 text-xs text-slate-600">Apply protection per slot to prevent downgrades when rolling.</p>
-                            <div className="mt-3 space-y-2">
-                                {[0, 1, 2].map((idx) => (
-                                    <label
-                                        key={`protect-${idx}`}
-                                        className="flex items-center justify-between rounded-lg bg-slate-50 p-3 text-sm font-medium text-slate-800"
-                                    >
-                                        <span>Slot {idx + 1}</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={useLevelProtectionSlots[idx]}
-                                            onChange={() => toggleLevelProtection(idx)}
-                                            className="h-4 w-4 text-indigo-600"
-                                        />
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-base font-semibold text-slate-900">Skill Slots</h2>
-                            <p className="text-xs text-slate-500">Slot 1 lock obeys Prime/Moment rules.</p>
-                        </div>
-                        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-                        {!slots.length && !error && <p className="mt-3 text-sm text-slate-600">Press “Roll” to generate skills.</p>}
-                        <div className="mt-4 grid gap-4 md:grid-cols-2">
-                            {[0, 1, 2].map((idx) => {
-                                const slot = slots[idx];
-                                const isFirst = idx === 0;
-                                return (
-                                    <div key={`slot-${idx}`} className="space-y-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm font-semibold text-slate-900">Slot {idx + 1}</span>
-                                            {isFirst ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={toggleLockSlot1}
-                                                    disabled={!canLockSlot1}
-                                                    className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                                                        isSlot1Locked
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : 'bg-slate-100 text-slate-700'
-                                                    } ${!canLockSlot1 ? 'cursor-not-allowed opacity-60' : 'hover:shadow-sm'}`}
-                                                >
-                                                    <span>{isSlot1Locked ? '🔒' : '🔓'}</span>
-                                                    {isSlot1Locked ? 'Locked' : 'Lock slot'}
-                                                </button>
-                                            ) : (
-                                                <span className="text-xs text-slate-400">Unlocked</span>
-                                            )}
-                                        </div>
-                                        {slot ? (
-                                            <SkillCard skillSlot={slot} slotNumber={idx + 1} />
-                                        ) : (
-                                            <p className="text-xs text-slate-500">No skill yet. Roll to populate.</p>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </section>
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-50">
+      <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+        <header className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-200">MLB Rivals</p>
+            <h1 className="text-4xl font-bold text-white">Skill Change Simulator</h1>
+            <p className="text-sm text-indigo-100">Card-specific locking rules for Signature, Prime, and Moment.</p>
+          </div>
+          <div className="flex flex-col items-end gap-3">
+            <div className="flex flex-wrap justify-end gap-2 text-xs font-semibold text-indigo-100">
+              <span className="rounded-full bg-white/10 px-3 py-1">Tickets used: {ticketUsageCount}</span>
+              <span className="rounded-full bg-white/10 px-3 py-1">Protection used: {protectionUsageCount}</span>
+              <button
+                type="button"
+                onClick={resetUsageCounts}
+                className="rounded-full border border-white/20 px-3 py-1 text-indigo-50 transition hover:bg-white/10"
+              >
+                Reset
+              </button>
             </div>
-        </main>
-    );
+            <button
+              onClick={roll}
+              disabled={loading}
+              className="rounded-lg bg-gradient-to-r from-indigo-500 to-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-indigo-600 hover:to-sky-600 disabled:cursor-not-allowed disabled:from-indigo-300 disabled:to-sky-300"
+            >
+              {loading ? 'Rolling...' : 'Roll new skills'}
+            </button>
+          </div>
+        </header>
+
+        <section className="grid items-start gap-6 lg:grid-cols-[360px_1fr]">
+          <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">Roll settings</h2>
+              <span className="rounded-full bg-indigo-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-100">
+                Setup
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white">Card Type</h3>
+                  <p className="text-[11px] text-indigo-100/80">Locking rules vary</p>
+                </div>
+                <p className="mt-1 text-xs text-indigo-100/70">Prime allows locking slot 1; Moment only if slot 1 is Moment tier.</p>
+                <select
+                  value={cardType}
+                  onChange={(e) => setCardType(e.target.value as CardType)}
+                  className="mt-3 w-full rounded-lg border border-indigo-200/60 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                >
+                  <option value={CardType.SIGNATURE}>Signature</option>
+                  <option value={CardType.PRIME}>Prime</option>
+                  <option value={CardType.MOMENT}>Moment</option>
+                </select>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <h3 className="text-sm font-semibold text-white">Ticket Type</h3>
+                <p className="mt-1 text-xs text-indigo-100/70">Choose a ticket to influence the pool and odds.</p>
+                <select
+                  value={ticketType}
+                  onChange={(e) => setTicketType(e.target.value as TicketType)}
+                  className="mt-3 w-full rounded-lg border border-indigo-200/60 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                >
+                  <option value={TicketType.SKILL_CHANGE}>Skill Change Ticket</option>
+                  <option value={TicketType.PREMIUM_SKILL_CHANGE}>Premium Skill Change Ticket</option>
+                  <option value={TicketType.SUPREME_SKILL_CHANGE}>Supreme Skill Change Ticket</option>
+                </select>
+              </div>
+
+            </div>
+          </div>
+
+          <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-indigo-200">Slot details</p>
+                <h2 className="text-xl font-semibold text-white">Skill Slots</h2>
+              </div>
+              <p className="text-xs text-indigo-100">Slot 1 lock obeys Prime/Moment rules.</p>
+            </div>
+            {error && <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p>}
+            {!slots.length && !error && <p className="mt-3 text-sm text-indigo-100/90">Press “Roll new skills” to populate your slots.</p>}
+
+            <div className="mt-4 space-y-3">
+              {[0, 1, 2].map((idx) => {
+                const slot = slots[idx];
+                const isFirst = idx === 0;
+                return (
+                  <div key={`slot-${idx}`} className="rounded-2xl border border-indigo-100/60 bg-white p-3 shadow-lg">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-base font-semibold text-slate-900">Slot {idx + 1}</p>
+                      </div>
+
+                      {isFirst ? (
+                        <button
+                          type="button"
+                          onClick={toggleLockSlot1}
+                          disabled={!canLockSlot1}
+                          className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                            isSlot1Locked ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                          } ${!canLockSlot1 ? 'cursor-not-allowed opacity-60' : 'hover:shadow-sm'}`}
+                        >
+                          <span>{isSlot1Locked ? '🔒' : '🔓'}</span>
+                          {isSlot1Locked ? 'Locked' : 'Lock slot 1'}
+                        </button>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Unlocked</span>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex items-stretch gap-3">
+                      <div className="flex-1">
+                        {slot ? (
+                          <SkillCard skillSlot={slot} slotNumber={idx + 1} className="border-indigo-100 shadow-md" />
+                        ) : (
+                          <div className="flex h-full min-h-[80px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                            No skill yet. Roll to populate.
+                          </div>
+                        )}
+                      </div>
+
+                      <label className="flex w-40 shrink-0 items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-3 text-[13px] font-semibold uppercase tracking-wide text-indigo-800 shadow-inner">
+                        <span>Protect</span>
+                        <input
+                          type="checkbox"
+                          checked={useLevelProtectionSlots[idx]}
+                          onChange={() => toggleLevelProtection(idx)}
+                          className="h-4 w-4 text-indigo-600"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
 }

@@ -1,18 +1,15 @@
-# 1. Base Image: 가볍고 성능 좋은 OpenJDK 17 (Alpine Linux) 사용
-FROM eclipse-temurin:17-jdk-alpine
+# 1. Maven과 Java 17이 미리 설치된 이미지를 사용합니다. (mvnw 필요 없음!)
+FROM maven:3.9.6-eclipse-temurin-17-alpine
 
-# 2. 작업 디렉토리 설정
+# 2. 작업 폴더 설정
 WORKDIR /app
 
-# 3. 프로젝트 파일 복사 (backend 폴더 내용물 전체)
+# 3. 프로젝트 전체 복사
 COPY . .
 
-# 4. 빌드 실행 (테스트 건너뛰고 jar 파일 생성)
-# 윈도우에서 작성된 파일일 경우 줄바꿈 문자 오류 방지를 위해 dos2unix 설치 및 변환 (선택사항이나 권장)
-RUN apk add --no-cache dos2unix && dos2unix mvnw
-RUN chmod +x mvnw
-RUN ./mvnw clean package -DskipTests
+# 4. 빌드 실행 (mvnw 대신 그냥 mvn 명령어를 씁니다)
+RUN mvn clean package -DskipTests
 
-# 5. 실행 명령어 (생성된 jar 실행)
-# target 폴더 안에 있는 jar 파일을 찾아서 실행
-CMD ["java", "-jar", "target/skill-sim-0.0.1-SNAPSHOT.jar"]
+# 5. 실행 (target 폴더 안에 생긴 jar 파일을 실행)
+# 주의: 실제 생성되는 파일명에 따라 이름이 다를 수 있으니 와일드카드(*) 사용
+CMD ["sh", "-c", "java -jar target/*.jar"]

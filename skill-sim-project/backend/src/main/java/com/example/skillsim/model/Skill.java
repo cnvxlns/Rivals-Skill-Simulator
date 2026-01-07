@@ -3,6 +3,7 @@ package com.example.skillsim.model;
 
 import com.example.skillsim.enums.Level;
 import com.example.skillsim.enums.Tier;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -38,6 +39,7 @@ public class Skill {
 
     @Enumerated(EnumType.STRING)
     // 데이터 파일에는 등급이 없으므로 nullable 허용
+    @JsonProperty("grade")
     private Level level;
 
     @Enumerated(EnumType.STRING)

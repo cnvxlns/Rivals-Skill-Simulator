@@ -2,8 +2,9 @@
 package com.example.skillsim.dto;
 
 import com.example.skillsim.enums.CardType;
-import com.example.skillsim.enums.Grade;
+import com.example.skillsim.enums.Level;
 import com.example.skillsim.enums.TicketType;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -35,7 +36,8 @@ public class RollRequest {
     private List<Long> currentSkillIds;
 
     // Expected size 3 to match the three slots, but validated defensively in service
-    private List<Grade> currentGrades;
+    @JsonAlias("currentGrades")
+    private List<Level> currentLevels;
 
     // Position filter (e.g., PITCHER, BATTER). When provided, rolls are limited to that position.
     @NotBlank(message = "Position selection is required.")

@@ -5,6 +5,7 @@ import com.example.skillsim.enums.CardType;
 import com.example.skillsim.enums.Grade;
 import com.example.skillsim.enums.TicketType;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -35,4 +36,8 @@ public class RollRequest {
 
     // Expected size 3 to match the three slots, but validated defensively in service
     private List<Grade> currentGrades;
+
+    // Position filter (e.g., PITCHER, BATTER). When provided, rolls are limited to that position.
+    @NotBlank(message = "Position selection is required.")
+    private String position;
 }

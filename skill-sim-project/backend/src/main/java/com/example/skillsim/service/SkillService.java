@@ -11,7 +11,9 @@ import com.example.skillsim.enums.Tier;
 import com.example.skillsim.model.Skill;
 import com.example.skillsim.repository.SkillRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -21,8 +23,6 @@ import java.util.concurrent.ThreadLocalRandom;
 public class SkillService {
 
     private static final int SLOT_COUNT = 3;
-    private static final Map<TicketType, Map<Tier, Integer>> TIER_WEIGHTS = buildTierWeights();
-    private static final Map<TicketType, Map<Grade, Integer>> GRADE_WEIGHTS = buildGradeWeights();
 
     private final SkillRepository skillRepository;
 
@@ -33,6 +33,11 @@ public class SkillService {
         List<Long> normalizedSkillIds = normalizeSkillIds(request.getCurrentSkillIds());
         List<Boolean> protectionFlags = normalizeProtectionFlags(request.getUseLevelProtectionSlots());
         Set<Integer> locked = new HashSet<>(Optional.ofNullable(request.getLockedSlots()).orElse(List.of()));
+        TicketType ticketType = request.getTicketType();
+        ProbabilityTable probabilityTable = ProbabilityTable.fromTicket(ticketType);
+        String position = normalizePosition(request.getPosition());
+        validatePositionRequired(position);
+        Set<Long> usedSkillIds = new HashSet<>();
 
         List<SkillSlot> slots = new ArrayList<>();
 
@@ -43,18 +48,23 @@ public class SkillService {
                         .skill(lockedSkill)
                         .grade(normalizedGrades.get(i))
                         .build());
+                if (lockedSkill != null) {
+                    usedSkillIds.add(lockedSkill.getId());
+                }
                 continue;
             }
 
-            TicketType ticketType = request.getTicketType();
-            Tier tier = pickTier(ticketType);
-            Skill skill = pickSkillByTier(tier);
-            Grade grade = pickGrade(ticketType, protectionFlags.get(i), normalizedGrades.get(i));
+            Tier tier = rollTier(probabilityTable, ticketType, i);
+            Skill skill = pickSkillByTier(tier, usedSkillIds, position);
+            Grade grade = rollGrade(probabilityTable, tier, protectionFlags.get(i), normalizedGrades.get(i));
 
             slots.add(SkillSlot.builder()
                     .skill(skill)
                     .grade(grade)
                     .build());
+            if (skill != null) {
+                usedSkillIds.add(skill.getId());
+            }
         }
 
         return RollResponse.builder().slots(slots).build();
@@ -82,34 +92,41 @@ public class SkillService {
         }
     }
 
-    private Tier pickTier(TicketType ticketType) {
-        if (ticketType == TicketType.SUPREME_SKILL_CHANGE) {
-            // Gold guarantee for Supreme tickets
+    private Tier rollTier(ProbabilityTable table, TicketType ticketType, int slotIndex) {
+        if (ticketType == TicketType.SUPREME_SKILL_CHANGE && slotIndex == 0) {
             return Tier.GOLD;
         }
-        return pickWeighted(TIER_WEIGHTS.get(ticketType), Tier.BRONZE);
+        return WeightedRandom.pick(table.tierWeights(), Tier.BRONZE);
     }
 
-    private Skill pickSkillByTier(Tier tier) {
-        List<Skill> skills = skillRepository.findByTier(tier);
+    private Skill pickSkillByTier(Tier tier, Set<Long> excludedIds, String position) {
+        List<Skill> skills = findAvailableSkills(tier, position, excludedIds);
         if (skills.isEmpty()) {
-            skills = skillRepository.findAll();
+            return null;
         }
-        return pickWeightedSkill(skills);
+
+        Skill picked = pickWeightedSkill(skills);
+        while (picked != null && picked.getId() != null && excludedIds.contains(picked.getId())) {
+            final Long pickedId = picked.getId();
+            List<Skill> remaining = skills.stream()
+                    .filter(skill -> skill != null && skill.getId() != null && !Objects.equals(skill.getId(), pickedId))
+                    .toList();
+            if (remaining.isEmpty()) {
+                return null;
+            }
+            picked = pickWeightedSkill(remaining);
+        }
+        return picked;
     }
 
-    private Grade pickGrade(TicketType ticketType, boolean useProtection, Grade currentGrade) {
-        Map<Grade, Integer> weights = new EnumMap<>(GRADE_WEIGHTS.get(ticketType));
+    private Grade rollGrade(ProbabilityTable table, Tier tier, boolean useProtection, Grade currentGrade) {
+        Grade defaultGrade = currentGrade != null ? currentGrade : Grade.D;
+        Grade rolledGrade = WeightedRandom.pick(table.gradeWeights(tier), defaultGrade);
 
-        if (useProtection && currentGrade != null) {
-            weights.entrySet().removeIf(entry -> entry.getKey().ordinal() < currentGrade.ordinal());
+        if (useProtection && currentGrade != null && rolledGrade.ordinal() < currentGrade.ordinal()) {
+            return currentGrade;
         }
-
-        if (weights.isEmpty()) {
-            weights.put(currentGrade != null ? currentGrade : Grade.D, 1);
-        }
-
-        return pickWeighted(weights, Grade.D);
+        return rolledGrade;
     }
 
     private Skill pickWeightedSkill(List<Skill> skills) {
@@ -130,26 +147,6 @@ public class SkillService {
             }
         }
         return skills.get(0);
-    }
-
-    private <T> T pickWeighted(Map<T, Integer> weights, T defaultValue) {
-        if (weights == null || weights.isEmpty()) {
-            return defaultValue;
-        }
-
-        int totalWeight = weights.values().stream()
-                .mapToInt(this::safeWeight)
-                .sum();
-
-        int roll = ThreadLocalRandom.current().nextInt(totalWeight) + 1;
-        int cumulative = 0;
-        for (Map.Entry<T, Integer> entry : weights.entrySet()) {
-            cumulative += safeWeight(entry.getValue());
-            if (roll <= cumulative) {
-                return entry.getKey();
-            }
-        }
-        return defaultValue;
     }
 
     private List<Grade> normalizeGrades(List<Grade> currentGrades) {
@@ -213,58 +210,44 @@ public class SkillService {
         return weight;
     }
 
-    private static Map<TicketType, Map<Tier, Integer>> buildTierWeights() {
-        Map<TicketType, Map<Tier, Integer>> map = new EnumMap<>(TicketType.class);
+    private List<Skill> findAvailableSkills(Tier tier, String position, Set<Long> excludedIds) {
+        List<List<Skill>> pools = new ArrayList<>();
+        pools.add(skillRepository.findByTierAndPositionIgnoreCase(tier, position));
+        pools.add(skillRepository.findByPositionIgnoreCase(position));
+        pools.add(skillRepository.findByTier(tier));
+        pools.add(skillRepository.findAll());
 
-        Map<Tier, Integer> normal = new EnumMap<>(Tier.class);
-        normal.put(Tier.MOMENT, 1);
-        normal.put(Tier.IRON, 35);
-        normal.put(Tier.BRONZE, 30);
-        normal.put(Tier.SILVER, 20);
-        normal.put(Tier.GOLD, 14);
-
-        Map<Tier, Integer> premium = new EnumMap<>(Tier.class);
-        premium.put(Tier.MOMENT, 2);
-        premium.put(Tier.IRON, 20);
-        premium.put(Tier.BRONZE, 28);
-        premium.put(Tier.SILVER, 28);
-        premium.put(Tier.GOLD, 22);
-
-        map.put(TicketType.SKILL_CHANGE, normal);
-        map.put(TicketType.PREMIUM_SKILL_CHANGE, premium);
-        // Supreme handled as guaranteed gold in pickTier
-        map.put(TicketType.SUPREME_SKILL_CHANGE, premium);
-
-        return map;
+        for (List<Skill> pool : pools) {
+            List<Skill> filtered = pool.stream()
+                    .filter(Objects::nonNull)
+                    .filter(skill -> skill.getId() != null && !excludedIds.contains(skill.getId()))
+                    .collect(LinkedHashMap<Long, Skill>::new,
+                            (map, skill) -> map.putIfAbsent(skill.getId(), skill),
+                            LinkedHashMap::putAll)
+                    .values()
+                    .stream()
+                    .toList();
+            if (!filtered.isEmpty()) {
+                return filtered;
+            }
+        }
+        return List.of();
     }
 
-    private static Map<TicketType, Map<Grade, Integer>> buildGradeWeights() {
-        Map<TicketType, Map<Grade, Integer>> map = new EnumMap<>(TicketType.class);
+    private String normalizePosition(String position) {
+        if (position == null) {
+            return null;
+        }
+        String trimmed = position.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return trimmed.toUpperCase(Locale.ROOT);
+    }
 
-        Map<Grade, Integer> normal = new EnumMap<>(Grade.class);
-        normal.put(Grade.D, 40);
-        normal.put(Grade.C, 30);
-        normal.put(Grade.B, 20);
-        normal.put(Grade.A, 8);
-        normal.put(Grade.S, 2);
-
-        Map<Grade, Integer> premium = new EnumMap<>(Grade.class);
-        premium.put(Grade.D, 20);
-        premium.put(Grade.C, 25);
-        premium.put(Grade.B, 25);
-        premium.put(Grade.A, 20);
-        premium.put(Grade.S, 10);
-
-        Map<Grade, Integer> supreme = new EnumMap<>(Grade.class);
-        supreme.put(Grade.D, 5);
-        supreme.put(Grade.C, 10);
-        supreme.put(Grade.B, 25);
-        supreme.put(Grade.A, 30);
-        supreme.put(Grade.S, 30);
-
-        map.put(TicketType.SKILL_CHANGE, normal);
-        map.put(TicketType.PREMIUM_SKILL_CHANGE, premium);
-        map.put(TicketType.SUPREME_SKILL_CHANGE, supreme);
-        return map;
+    private void validatePositionRequired(String position) {
+        if (position == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Position selection is required to roll skills.");
+        }
     }
 }

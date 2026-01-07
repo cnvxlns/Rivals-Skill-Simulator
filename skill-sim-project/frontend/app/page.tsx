@@ -2,7 +2,7 @@
 
 // 스킬 변경 시뮬레이터 UI를 구성하고 상태 훅을 연결하는 메인 페이지
 import SkillCard from '../components/SkillCard';
-import { CardType, TicketType } from '../types';
+import { CardType, Position, TicketType } from '../types';
 import { useSkillSimulator } from '../lib/useSkillSimulator';
 
 export default function Page() {
@@ -11,6 +11,8 @@ export default function Page() {
     setCardType,
     ticketType,
     setTicketType,
+    position,
+    setPosition,
     useLevelProtectionSlots,
     toggleLevelProtection,
     slots,
@@ -94,6 +96,19 @@ export default function Page() {
                   <option value={TicketType.SKILL_CHANGE}>Skill Change Ticket</option>
                   <option value={TicketType.PREMIUM_SKILL_CHANGE}>Premium Skill Change Ticket</option>
                   <option value={TicketType.SUPREME_SKILL_CHANGE}>Supreme Skill Change Ticket</option>
+                </select>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <h3 className="text-sm font-semibold text-white">Position</h3>
+                <p className="mt-1 text-xs text-indigo-100/70">Only roll skills valid for the selected role.</p>
+                <select
+                  value={position ?? ''}
+                  onChange={(e) => setPosition(e.target.value as Position)}
+                  className="mt-3 w-full rounded-lg border border-indigo-200/60 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                >
+                  <option value={Position.PITCHER}>Pitcher</option>
+                  <option value={Position.BATTER}>Batter</option>
                 </select>
               </div>
 

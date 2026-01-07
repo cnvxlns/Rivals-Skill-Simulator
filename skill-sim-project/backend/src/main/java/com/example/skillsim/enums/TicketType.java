@@ -2,7 +2,7 @@
 package com.example.skillsim.enums;
 
 public enum TicketType {
-    SKILL_CHANGE,
-    PREMIUM_SKILL_CHANGE,
-    SUPREME_SKILL_CHANGE
+    SKILL_CHANGE,           // 스킬 변경권
+    PREMIUM_SKILL_CHANGE,   // 고급 스킬 변경권
+    SUPREME_SKILL_CHANGE    // 최고급 스킬 변경권
 }

@@ -82,6 +82,12 @@ skill-sim-project/
   ]
 }
 ```
+## TODO
+- 포지션별 등장 스킬 세부 구현(ex. 더블스토퍼는 중계, 마무리 투수에게만 등장, 포수리드는 포수에가만 등장)
+- 모먼트, HOF스킬 추가
+- 스킬 설명 추가
+- 스킬 점수 계산
+
 
 ## 참고
 - 프론트엔드 UI/사용법 상세: `skill-sim-project/frontend/README.md`

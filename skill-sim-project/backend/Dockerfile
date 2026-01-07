@@ -1,15 +1,29 @@
-# 1. Maven과 Java 17이 미리 설치된 이미지를 사용합니다. (mvnw 필요 없음!)
-FROM maven:3.9.6-eclipse-temurin-17-alpine
+# [Stage 1] 빌드 단계: Maven이 포함된 이미지를 사용 (mvnw 필요 없음!)
+FROM maven:3.9.6-eclipse-temurin-17-alpine AS build
 
-# 2. 작업 폴더 설정
+# 작업 디렉토리 설정
 WORKDIR /app
 
-# 3. 프로젝트 전체 복사
-COPY . .
+# 1. 의존성 파일(pom.xml)만 먼저 복사 (캐싱 효율을 위해)
+COPY pom.xml .
 
-# 4. 빌드 실행 (mvnw 대신 그냥 mvn 명령어를 씁니다)
+# 2. 라이브러리 다운로드 (소스코드가 바뀌어도 이 단계는 캐시됨)
+RUN mvn dependency:go-offline -B
+
+# 3. 소스코드 복사 및 빌드 실행 (테스트 건너뛰기)
+COPY src ./src
 RUN mvn clean package -DskipTests
 
-# 5. 실행 (target 폴더 안에 생긴 jar 파일을 실행)
-# 주의: 실제 생성되는 파일명에 따라 이름이 다를 수 있으니 와일드카드(*) 사용
-CMD ["sh", "-c", "java -jar target/*.jar"]
+# --------------------------------------------------------
+
+# [Stage 2] 실행 단계: 가벼운 JRE 이미지만 사용
+FROM eclipse-temurin:17-jre-alpine
+
+WORKDIR /app
+
+# 빌드 단계(Stage 1)에서 생성된 JAR 파일만 쏙 가져옴
+# (파일명이 달라도 *.jar로 자동으로 찾아서 app.jar로 복사함)
+COPY --from=build /app/target/*.jar app.jar
+
+# 실행 명령어
+ENTRYPOINT ["java", "-jar", "app.jar"]

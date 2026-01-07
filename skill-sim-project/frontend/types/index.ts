@@ -27,6 +27,11 @@ export enum CardType {
   MOMENT = 'MOMENT',
 }
 
+export enum Position {
+  PITCHER = 'PITCHER',
+  BATTER = 'BATTER',
+}
+
 export type Skill = {
   id: number;
   name: string;
@@ -34,6 +39,7 @@ export type Skill = {
   grade: Grade;
   description: string;
   weight: number;
+  position?: Position | string;
 };
 
 export type SkillSlot = {
@@ -48,6 +54,7 @@ export type RollRequest = {
   lockedSlots: number[];
   currentSkillIds: (number | null)[];
   currentGrades: Grade[];
+  position?: Position | string | null;
 };
 
 export type RollResponse = {

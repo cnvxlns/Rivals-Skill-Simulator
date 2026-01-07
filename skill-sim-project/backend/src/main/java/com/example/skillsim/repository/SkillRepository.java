@@ -9,4 +9,6 @@ import java.util.List;
 
 public interface SkillRepository extends JpaRepository<Skill, Long> {
     List<Skill> findByTier(Tier tier);
+    List<Skill> findByTierAndPositionIgnoreCase(Tier tier, String position);
+    List<Skill> findByPositionIgnoreCase(String position);
 }

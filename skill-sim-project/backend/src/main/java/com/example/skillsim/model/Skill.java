@@ -33,8 +33,11 @@ public class Skill {
     @Column(nullable = false)
     private String name;
 
+    // 현재 DB에는 포지션 컬럼만 존재하므로 문자열로 그대로 저장한다.
+    private String position;
+
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    // 데이터 파일에는 등급이 없으므로 nullable 허용
     private Grade grade;
 
     @Enumerated(EnumType.STRING)
@@ -44,6 +47,6 @@ public class Skill {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(nullable = false)
+    // 데이터에는 없을 수 있으므로 nullable 허용
     private Integer weight;
 }

@@ -200,11 +200,17 @@ public class SkillService {
     }
 
     private int safeWeight(Skill skill) {
-        return safeWeight(skill != null ? skill.getWeight() : 1);
+        if (skill == null) {
+            return 1;
+        }
+        return safeWeight(skill.getWeight());
     }
 
     private int safeWeight(Integer weight) {
-        return Math.max(1, weight != null ? weight : 1);
+        if (weight == null || weight <= 0) {
+            return 1;
+        }
+        return weight;
     }
 
     private static Map<TicketType, Map<Tier, Integer>> buildTierWeights() {

@@ -32,7 +32,7 @@ export default function Page() {
       <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-200">MLB Rivals</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-200">Rivals</p>
             <h1 className="text-4xl font-bold text-white">Skill Change Simulator</h1>
             <p className="text-sm text-indigo-100">Card-specific locking rules for Signature, Prime, and Moment.</p>
           </div>
@@ -182,6 +182,12 @@ export default function Page() {
           </div>
         </section>
       </div>
+
+      <footer className="border-t border-white/10 bg-slate-950/80 text-slate-200">
+        <div className="mx-auto max-w-6xl px-6 py-6 text-xs leading-relaxed">
+          This project is an unofficial fan-made application and is not affiliated with, endorsed, sponsored, or specifically approved by Com2uS Corp., MLB, or MLB Players Inc. All game data, skill names, and intellectual property are the sole property of their respective owners. This tool is intended for educational and portfolio purposes only.
+        </div>
+      </footer>
     </main>
   );
 }

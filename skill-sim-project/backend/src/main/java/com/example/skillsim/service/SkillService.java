@@ -18,19 +18,33 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class SkillService {
 
-    private static final int SLOT_COUNT = 3;
+    private static final int DEFAULT_SLOT_COUNT = 3;
     private static final Map<Level, Double> MOMENT_GOLD_GRADE_WEIGHTS = Map.of(
             Level.D, 37.60D,
             Level.C, 28.20D,
             Level.B, 18.80D,
             Level.A, 6.58D,
             Level.S, 2.82D
+    );
+    private static final Map<Level, Double> BLACK_GRADE_WEIGHTS = Map.of(
+            Level.D, 40.0D,
+            Level.C, 30.0D,
+            Level.B, 20.0D,
+            Level.A, 7.0D,
+            Level.S, 3.0D
+    );
+    private static final Map<Tier, Double> SIGNATURE_BLACK_NON_BLACK_TIER_WEIGHTS = Map.of(
+            Tier.GOLD, 40.0D,
+            Tier.SILVER, 20.0D,
+            Tier.BRONZE, 12.0D,
+            Tier.IRON, 23.0D
     );
 
     private final SkillRepository skillRepository;
@@ -40,13 +54,16 @@ public class SkillService {
 
         boolean isMomentCard = request.getCardType() == CardType.MOMENT;
         boolean isHofCard = request.getCardType() == CardType.HOF;
+        boolean isSignatureBlack = request.getCardType() == CardType.SIGNATURE_BLACK;
+        int slotCount = resolveSlotCount(request.getCardType());
         String selectedTheme = request.getSelectedTheme();
-        List<Level> normalizedLevels = normalizeGrades(request.getCurrentLevels());
-        List<Long> normalizedSkillIds = normalizeSkillIds(request.getCurrentSkillIds());
-        List<Boolean> protectionFlags = normalizeProtectionFlags(request.getUseLevelProtectionSlots());
+        List<Level> normalizedLevels = normalizeGrades(request.getCurrentLevels(), slotCount);
+        List<Long> normalizedSkillIds = normalizeSkillIds(request.getCurrentSkillIds(), slotCount);
+        List<Boolean> protectionFlags = normalizeProtectionFlags(request.getUseLevelProtectionSlots(), slotCount);
 
         // 잠금 요청된 슬롯 인덱스 (null 방지)
         Set<Integer> lockedIndices = new HashSet<>(Optional.ofNullable(request.getLockedSlots()).orElse(List.of()));
+        lockedIndices.removeIf(idx -> idx == null || idx < 0 || idx >= slotCount);
 
         TicketType ticketType = request.getTicketType();
         ProbabilityTable probabilityTable = ProbabilityTable.fromTicket(ticketType);
@@ -62,12 +79,12 @@ public class SkillService {
         Set<Long> usedSkillIds = new HashSet<>();
 
         // 결과 슬롯을 담을 리스트 (크기 3으로 초기화)
-        List<SkillSlot> slots = Arrays.asList(new SkillSlot[SLOT_COUNT]);
+        List<SkillSlot> slots = Arrays.asList(new SkillSlot[slotCount]);
 
         // ==========================================
         // STEP 1: 잠금(Lock) 슬롯 먼저 확정 짓기
         // ==========================================
-        for (int i = 0; i < SLOT_COUNT; i++) {
+        for (int i = 0; i < slotCount; i++) {
             if (lockedIndices.contains(i)) {
                 // 기존 스킬 유지
                 Skill lockedSkill = resolveSkill(normalizedSkillIds.get(i));
@@ -86,9 +103,17 @@ public class SkillService {
         }
 
         // ==========================================
-        // STEP 2: 나머지 슬롯 랜덤 뽑기
+        // STEP 2: 시그니처 블랙 전용 로직 (최고급권)
         // ==========================================
-        for (int i = 0; i < SLOT_COUNT; i++) {
+        if (isSignatureBlack && ticketType == TicketType.SUPREME_SKILL_CHANGE) {
+            rollSignatureBlackSupreme(slotCount, slots, normalizedLevels, protectionFlags, usedSkillIds, lockedIndices, position, subPosition);
+            return RollResponse.builder().slots(slots).build();
+        }
+
+        // ==========================================
+        // STEP 3: 나머지 슬롯 랜덤 뽑기 (일반 카드)
+        // ==========================================
+        for (int i = 0; i < slotCount; i++) {
             // 이미 채워진(잠긴) 슬롯은 패스
             if (slots.get(i) != null) {
                 continue;
@@ -183,6 +208,89 @@ public class SkillService {
         Tier tier = WeightedRandom.pick(table.tierWeights(), Tier.GOLD);
         Skill skill = pickSkillByTier(tier, usedSkillIds, position, subPosition);
         Level level = rollHofGrade(table, tier, protectionFlag, currentLevel);
+
+        return SkillSlot.builder()
+                .skill(skill)
+                .level(level)
+                .build();
+    }
+
+    private void rollSignatureBlackSupreme(int slotCount,
+                                           List<SkillSlot> slots,
+                                           List<Level> normalizedLevels,
+                                           List<Boolean> protectionFlags,
+                                           Set<Long> usedSkillIds,
+                                           Set<Integer> lockedIndices,
+                                           String position,
+                                           String subPosition) {
+        boolean hasBlackAlready = slots.stream()
+                .filter(Objects::nonNull)
+                .map(SkillSlot::getSkill)
+                .filter(Objects::nonNull)
+                .anyMatch(skill -> skill.getTier() == Tier.BLACK);
+
+        List<Integer> availableSlots = IntStream.range(0, slotCount)
+                .filter(idx -> !lockedIndices.contains(idx))
+                .boxed()
+                .collect(Collectors.toList());
+
+        Integer blackSlotIndex = null;
+        if (!hasBlackAlready) {
+            if (availableSlots.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Black tier must appear, but all slots are locked.");
+            }
+            blackSlotIndex = availableSlots.get(ThreadLocalRandom.current().nextInt(availableSlots.size()));
+        }
+
+        for (int i = 0; i < slotCount; i++) {
+            if (slots.get(i) != null) continue;
+
+            boolean forceBlack = blackSlotIndex != null && blackSlotIndex == i;
+            SkillSlot rolledSlot;
+
+            if (forceBlack) {
+                rolledSlot = rollBlackSlot(normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition);
+                hasBlackAlready = true;
+            } else {
+                rolledSlot = rollSignatureBlackNonBlackSlot(normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition);
+            }
+
+            slots.set(i, rolledSlot);
+            Skill rolledSkill = rolledSlot.getSkill();
+            if (rolledSkill != null && rolledSkill.getId() != null) {
+                usedSkillIds.add(rolledSkill.getId());
+            }
+        }
+
+        if (!hasBlackAlready) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to assign Black tier skill.");
+        }
+    }
+
+    private SkillSlot rollSignatureBlackNonBlackSlot(Level currentLevel,
+                                                     boolean useProtection,
+                                                     Set<Long> usedSkillIds,
+                                                     String position,
+                                                     String subPosition) {
+        Tier tier = WeightedRandom.pick(SIGNATURE_BLACK_NON_BLACK_TIER_WEIGHTS, Tier.GOLD);
+        ProbabilityTable gradeTable = (tier == Tier.IRON) ? ProbabilityTable.NORMAL_PREMIUM : ProbabilityTable.SUPREME;
+        Skill skill = pickSkillByTier(tier, usedSkillIds, position, subPosition);
+        Level level = rollGrade(gradeTable, tier, useProtection, currentLevel);
+
+        return SkillSlot.builder()
+                .skill(skill)
+                .level(level)
+                .build();
+    }
+
+    private SkillSlot rollBlackSlot(Level currentLevel,
+                                    boolean useProtection,
+                                    Set<Long> usedSkillIds,
+                                    String position,
+                                    String subPosition) {
+        Skill skill = pickSkillByTier(Tier.BLACK, usedSkillIds, position, subPosition);
+        Level rolledLevel = WeightedRandom.pick(BLACK_GRADE_WEIGHTS, Level.D);
+        Level level = applyProtection(rolledLevel, currentLevel, useProtection);
 
         return SkillSlot.builder()
                 .skill(skill)
@@ -335,26 +443,30 @@ public class SkillService {
         return false;
     }
 
+    private int resolveSlotCount(CardType cardType) {
+        return cardType == CardType.SIGNATURE_BLACK ? 4 : DEFAULT_SLOT_COUNT;
+    }
+
     // Normalization Helpers
-    private List<Level> normalizeGrades(List<Level> list) {
+    private List<Level> normalizeGrades(List<Level> list, int slotCount) {
         List<Level> normalized = new ArrayList<>();
-        for (int i = 0; i < SLOT_COUNT; i++) {
+        for (int i = 0; i < slotCount; i++) {
             normalized.add((list != null && i < list.size()) ? list.get(i) : Level.D);
         }
         return normalized;
     }
 
-    private List<Long> normalizeSkillIds(List<Long> list) {
+    private List<Long> normalizeSkillIds(List<Long> list, int slotCount) {
         List<Long> normalized = new ArrayList<>();
-        for (int i = 0; i < SLOT_COUNT; i++) {
+        for (int i = 0; i < slotCount; i++) {
             normalized.add((list != null && i < list.size()) ? list.get(i) : null);
         }
         return normalized;
     }
 
-    private List<Boolean> normalizeProtectionFlags(List<Boolean> list) {
+    private List<Boolean> normalizeProtectionFlags(List<Boolean> list, int slotCount) {
         List<Boolean> normalized = new ArrayList<>();
-        for (int i = 0; i < SLOT_COUNT; i++) {
+        for (int i = 0; i < slotCount; i++) {
             normalized.add((list != null && i < list.size() && list.get(i) != null) ? list.get(i) : false);
         }
         return normalized;

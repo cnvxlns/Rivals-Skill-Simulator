@@ -1,10 +1,11 @@
 // 프론트엔드에서 사용하는 스킬 관련 타입 정의와 열거형 모음
 export enum Tier {
-  MOMENT = 'MOMENT',
   IRON = 'IRON',
   BRONZE = 'BRONZE',
   SILVER = 'SILVER',
   GOLD = 'GOLD',
+  BLACK = 'BLACK',
+  MOMENT = 'MOMENT',
   HOF = 'HOF',
 }
 
@@ -24,6 +25,7 @@ export enum TicketType {
 
 export enum CardType {
   SIGNATURE = 'SIGNATURE',
+  SIGNATURE_BLACK = 'SIGNATURE_BLACK',
   PRIME = 'PRIME',
   MOMENT = 'MOMENT',
   HOF = 'HOF',

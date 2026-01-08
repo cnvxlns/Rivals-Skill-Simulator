@@ -59,7 +59,7 @@ public enum ProbabilityTable {
         return Collections.unmodifiableMap(table);
     }
 
-    private static Map<Level, Double> gradeRow(double d, double c, double b, double a, double s) {
+    static Map<Level, Double> gradeRow(double d, double c, double b, double a, double s) {
         Map<Level, Double> row = new EnumMap<>(Level.class);
         row.put(Level.D, d);
         row.put(Level.C, c);
@@ -69,7 +69,7 @@ public enum ProbabilityTable {
         return Collections.unmodifiableMap(row);
     }
 
-    private static Map<Tier, Double> calculateTierTotals(Map<Tier, Map<Level, Double>> weights) {
+    static Map<Tier, Double> calculateTierTotals(Map<Tier, Map<Level, Double>> weights) {
         Map<Tier, Double> totals = new EnumMap<>(Tier.class);
         weights.forEach((tier, gradeMap) -> {
             double sum = gradeMap.values().stream()

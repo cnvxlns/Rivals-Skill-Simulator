@@ -1,4 +1,5 @@
 /mnt/c/Users/김동현/Documents/GitHub/Rivals-Skill-Simulator/skill-sim-project/backend/src/main/java/com/example/skillsim/model/Skill.java
+/mnt/c/Users/김동현/Documents/GitHub/Rivals-Skill-Simulator/skill-sim-project/backend/src/main/java/com/example/skillsim/service/HofProbabilityTable.java
 /mnt/c/Users/김동현/Documents/GitHub/Rivals-Skill-Simulator/skill-sim-project/backend/src/main/java/com/example/skillsim/repository/SkillRepository.java
 /mnt/c/Users/김동현/Documents/GitHub/Rivals-Skill-Simulator/skill-sim-project/backend/src/main/java/com/example/skillsim/config/CsvDataLoader.java
 /mnt/c/Users/김동현/Documents/GitHub/Rivals-Skill-Simulator/skill-sim-project/backend/src/main/java/com/example/skillsim/enums/Level.java

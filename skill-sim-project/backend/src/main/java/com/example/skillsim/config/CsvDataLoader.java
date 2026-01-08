@@ -49,7 +49,8 @@ public class CsvDataLoader implements CommandLineRunner {
         }
 
         skillRepository.saveAll(skills);
-        log.info("Loaded {} skills from CSV.", skills.size());
+        long momentCount = skills.stream().filter(s -> s.getTier() == Tier.MOMENT).count();
+        log.info("Loaded {} skills from CSV. Moment tier count={}", skills.size(), momentCount);
     }
 
     private List<Skill> readSkills(ClassPathResource resource) throws IOException {

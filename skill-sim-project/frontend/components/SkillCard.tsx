@@ -8,7 +8,7 @@ type Props = {
 };
 
 const tierBorderClasses: Record<Tier, string> = {
-  [Tier.MOMENT]: 'border-indigo-400',
+  [Tier.MOMENT]: 'border-emerald-400',
   [Tier.IRON]: 'border-slate-300',
   [Tier.BRONZE]: 'border-amber-300',
   [Tier.SILVER]: 'border-gray-300',
@@ -16,7 +16,7 @@ const tierBorderClasses: Record<Tier, string> = {
 };
 
 const tierTextClasses: Record<Tier, string> = {
-  [Tier.MOMENT]: 'text-indigo-700',
+  [Tier.MOMENT]: 'text-emerald-700',
   [Tier.IRON]: 'text-slate-700',
   [Tier.BRONZE]: 'text-amber-800',
   [Tier.SILVER]: 'text-gray-700',

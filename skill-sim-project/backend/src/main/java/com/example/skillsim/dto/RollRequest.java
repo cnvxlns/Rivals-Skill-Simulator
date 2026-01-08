@@ -39,6 +39,9 @@ public class RollRequest {
     @JsonAlias("currentGrades")
     private List<Level> currentLevels;
 
+    // Optional: user-chosen Moment theme skill name when cardType == MOMENT
+    private String selectedTheme;
+
     // Position filter (e.g., PITCHER, BATTER). When provided, rolls are limited to that position.
     @NotBlank(message = "Position selection is required.")
     private String position;

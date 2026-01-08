@@ -51,6 +51,7 @@ public class SkillService {
         TicketType ticketType = request.getTicketType();
         ProbabilityTable probabilityTable = ProbabilityTable.fromTicket(ticketType);
         String position = normalizePosition(request.getPosition());
+        String subPosition = normalizeSubPosition(request.getSubPosition());
         validatePositionRequired(position);
         if (isMomentCard && ticketType == TicketType.SUPREME_SKILL_CHANGE
                 && (selectedTheme == null || selectedTheme.trim().isEmpty())) {
@@ -95,15 +96,15 @@ public class SkillService {
 
             SkillSlot rolledSlot;
             if (isMomentCard && ticketType == TicketType.SUPREME_SKILL_CHANGE && i == 0) {
-                rolledSlot = rollMomentSlotOne(selectedTheme, position, normalizedLevels.get(i), usedSkillIds);
+                rolledSlot = rollMomentSlotOne(selectedTheme, position, subPosition, normalizedLevels.get(i), usedSkillIds);
             } else if (isHofCard) {
-                rolledSlot = rollHofSlot(i, ticketType, normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position);
+                rolledSlot = rollHofSlot(i, ticketType, normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition);
             } else {
                 // 1. 티어 결정 (최고급권 1슬롯 골드 보장 로직 포함)
                 Tier tier = rollTier(probabilityTable, ticketType, i);
 
                 // 2. 스킬 결정 (중복 방지 적용)
-                Skill skill = pickSkillByTier(tier, usedSkillIds, position);
+                Skill skill = pickSkillByTier(tier, usedSkillIds, position, subPosition);
 
                 // 3. 등급 결정 (Moment 카드는 자동 보호 적용)
                 boolean effectiveProtection = isMomentCard || protectionFlags.get(i);
@@ -130,7 +131,7 @@ public class SkillService {
     /**
      * 티어와 포지션에 맞는 스킬을 가져오되, 이미 사용된(excludedIds) 스킬은 후보군에서 배제한다.
      */
-    private Skill pickSkillByTier(Tier tier, Set<Long> excludedIds, String position) {
+    private Skill pickSkillByTier(Tier tier, Set<Long> excludedIds, String position, String subPosition) {
         List<Skill> candidates = skillRepository.findByTierAndPositionIgnoreCase(tier, position);
         if (candidates == null || candidates.isEmpty()) {
             return null;
@@ -138,6 +139,7 @@ public class SkillService {
 
         List<Skill> availableSkills = candidates.stream()
                 .filter(s -> s.getId() != null && !excludedIds.contains(s.getId()))
+                .filter(s -> matchesSubPosition(s, subPosition))
                 .collect(Collectors.toList());
 
         if (availableSkills.isEmpty()) {
@@ -147,8 +149,9 @@ public class SkillService {
         return pickWeightedSkill(availableSkills);
     }
 
-    private SkillSlot rollMomentSlotOne(String selectedTheme, String position, Level currentLevel, Set<Long> usedSkillIds) {
-        Skill exclusiveSkill = findMomentSkillByName(selectedTheme, position);
+    private SkillSlot rollMomentSlotOne(String selectedTheme, String position, String subPosition,
+                                        Level currentLevel, Set<Long> usedSkillIds) {
+        Skill exclusiveSkill = findMomentSkillByName(selectedTheme, position, subPosition);
         if (exclusiveSkill == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected theme was not found for the chosen position.");
         }
@@ -161,7 +164,7 @@ public class SkillService {
                     .build();
         }
 
-        Skill goldSkill = pickSkillByTier(Tier.GOLD, usedSkillIds, position);
+        Skill goldSkill = pickSkillByTier(Tier.GOLD, usedSkillIds, position, subPosition);
         Level level = rollMomentGoldGrade(currentLevel);
         return SkillSlot.builder()
                 .skill(goldSkill)
@@ -175,10 +178,10 @@ public class SkillService {
     }
 
     private SkillSlot rollHofSlot(int slotIndex, TicketType ticketType, Level currentLevel, boolean protectionFlag,
-                                  Set<Long> usedSkillIds, String position) {
+                                  Set<Long> usedSkillIds, String position, String subPosition) {
         HofProbabilityTable table = resolveHofTable(ticketType, slotIndex);
         Tier tier = WeightedRandom.pick(table.tierWeights(), Tier.GOLD);
-        Skill skill = pickSkillByTier(tier, usedSkillIds, position);
+        Skill skill = pickSkillByTier(tier, usedSkillIds, position, subPosition);
         Level level = rollHofGrade(table, tier, protectionFlag, currentLevel);
 
         return SkillSlot.builder()
@@ -203,29 +206,32 @@ public class SkillService {
         return applyProtection(rolledLevel, currentLevel, useProtection);
     }
 
-    private Skill findMomentSkillByName(String selectedTheme, String position) {
+    private Skill findMomentSkillByName(String selectedTheme, String position, String subPosition) {
         if (selectedTheme == null || selectedTheme.trim().isEmpty()) {
             return null;
         }
         List<Skill> candidates = skillRepository.findMomentThemesByPositionOrShared(Tier.MOMENT, position);
         return candidates.stream()
                 .filter(Objects::nonNull)
+                .filter(skill -> matchesSubPosition(skill, subPosition))
                 .filter(skill -> skill.getName() != null && skill.getName().equalsIgnoreCase(selectedTheme.trim()))
                 .findFirst()
                 .orElse(null);
     }
 
-    public List<String> getMomentThemeNames(String position) {
-        log.info("[themes] raw position='{}'", position);
+    public List<String> getMomentThemeNames(String position, String subPosition) {
+        log.info("[themes] raw position='{}', subPosition='{}'", position, subPosition);
         String normalizedPosition = normalizePosition(position);
+        String normalizedSubPosition = normalizeSubPosition(subPosition);
         validatePositionRequired(normalizedPosition);
-        log.info("[themes] normalized position='{}'", normalizedPosition);
+        log.info("[themes] normalized position='{}', normalized subPosition='{}'", normalizedPosition, normalizedSubPosition);
 
         List<Skill> jpqlResult = skillRepository.findMomentThemesByPositionOrShared(Tier.MOMENT, normalizedPosition);
         log.info("[themes] JPQL result size={}", jpqlResult.size());
 
         List<String> names = jpqlResult.stream()
                 .filter(skill -> skill != null && skill.getName() != null && !skill.getName().isBlank())
+                .filter(skill -> matchesSubPosition(skill, normalizedSubPosition))
                 .sorted(Comparator.comparing(skill -> skill.getName().toLowerCase(Locale.ROOT)))
                 .map(Skill::getName)
                 .collect(Collectors.toList());
@@ -307,6 +313,28 @@ public class SkillService {
         return weight;
     }
 
+    private boolean matchesSubPosition(Skill skill, String requestedSubPosition) {
+        if (skill == null) {
+            return false;
+        }
+        if (requestedSubPosition == null || requestedSubPosition.isBlank()) {
+            return true; // ALL
+        }
+
+        String skillSubPositions = skill.getSubPositions();
+        if (skillSubPositions == null || skillSubPositions.isBlank()) {
+            return true; // 공용 스킬
+        }
+
+        String[] tokens = skillSubPositions.split("[/|]");
+        for (String token : tokens) {
+            if (token != null && token.trim().equalsIgnoreCase(requestedSubPosition)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Normalization Helpers
     private List<Level> normalizeGrades(List<Level> list) {
         List<Level> normalized = new ArrayList<>();
@@ -345,6 +373,15 @@ public class SkillService {
         if (position == null) return null;
         String trimmed = position.trim();
         return trimmed.isEmpty() ? null : trimmed.toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeSubPosition(String subPosition) {
+        if (subPosition == null) return null;
+        String trimmed = subPosition.trim();
+        if (trimmed.isEmpty() || trimmed.equalsIgnoreCase("ALL")) {
+            return null;
+        }
+        return trimmed.toUpperCase(Locale.ROOT);
     }
 
     private void validatePositionRequired(String position) {

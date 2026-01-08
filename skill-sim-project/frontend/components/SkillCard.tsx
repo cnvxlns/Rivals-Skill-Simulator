@@ -8,7 +8,7 @@ type Props = {
 };
 
 const tierBorderClasses: Record<Tier, string> = {
-  [Tier.MOMENT]: 'border-emerald-400',
+  [Tier.MOMENT]: 'border-emerald-500',
   [Tier.HOF]: 'border-red-600',
   [Tier.IRON]: 'border-slate-300',
   [Tier.BRONZE]: 'border-amber-300',

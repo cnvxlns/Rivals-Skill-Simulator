@@ -37,6 +37,10 @@ public class Skill {
     // 현재 DB에는 포지션 컬럼만 존재하므로 문자열로 그대로 저장한다.
     private String position;
 
+    // 특정 보직(예: SP, RP/CP)에만 허용되는 경우에 사용. 비어 있으면 전 포지션 공용.
+    @Column(name = "sub_positions")
+    private String subPositions;
+
     @Enumerated(EnumType.STRING)
     // 데이터 파일에는 등급이 없으므로 nullable 허용
     @JsonProperty("grade")

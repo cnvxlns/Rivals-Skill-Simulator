@@ -18,7 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/skills")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(
+    origins = {"http://localhost:3000"},
+    allowedOriginPatterns = {"https://*.vercel.app"}
+)
 @RequiredArgsConstructor
 @Slf4j
 public class SkillController {

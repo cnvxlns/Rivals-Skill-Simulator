@@ -2,13 +2,16 @@
 import axios from 'axios';
 import { RollRequest, RollResponse } from '../types';
 
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'https://rivals-skill-random-generator-api.onrender.com';
+
 const api = axios.create({
-    baseURL: 'http://localhost:8080',
+  baseURL: API_BASE_URL,
 });
 
 export async function rollSkills(payload: RollRequest): Promise<RollResponse> {
-    const res = await api.post<RollResponse>('/api/skills/roll', payload);
-    return res.data;
+  const res = await api.post<RollResponse>('/api/skills/roll', payload);
+  return res.data;
 }
 
 export default api;

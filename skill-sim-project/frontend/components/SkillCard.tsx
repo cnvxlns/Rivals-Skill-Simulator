@@ -8,6 +8,7 @@ type Props = {
 };
 
 const tierBorderClasses: Record<Tier, string> = {
+  [Tier.BLACK]: 'border-black shadow-[0_0_12px_rgba(76,29,149,0.45)]',
   [Tier.MOMENT]: 'border-emerald-500',
   [Tier.HOF]: 'border-red-600',
   [Tier.IRON]: 'border-slate-300',
@@ -17,6 +18,7 @@ const tierBorderClasses: Record<Tier, string> = {
 };
 
 const tierTextClasses: Record<Tier, string> = {
+  [Tier.BLACK]: 'text-white bg-slate-900 shadow-[0_0_8px_rgba(76,29,149,0.5)]',
   [Tier.MOMENT]: 'text-emerald-700',
   [Tier.HOF]: 'text-red-700',
   [Tier.IRON]: 'text-slate-700',
@@ -60,16 +62,19 @@ const SkillCard = ({ skillSlot, slotNumber, className }: Props) => {
   const hideTierText = [Tier.BRONZE, Tier.SILVER, Tier.GOLD, Tier.IRON].includes(skill.tier);
   const tierLabel = hideTierText ? '' : skill.tier;
   const gradeStyle = gradeClasses[grade] ?? 'bg-slate-100 text-slate-700';
+  const isBlackTier = skill.tier === Tier.BLACK;
+  const containerTone = isBlackTier ? 'bg-slate-950 text-slate-50 shadow-[0_0_20px_rgba(76,29,149,0.5)]' : 'bg-white/95 text-slate-900';
+  const slotLabelTone = isBlackTier ? 'text-indigo-100/80' : 'text-slate-500';
 
   return (
     <div
       title={skill.description}
-      className={`rounded-xl border bg-white/95 p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md ${tierBorder} ${className ?? ''}`}
+      className={`rounded-xl border p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md ${containerTone} ${tierBorder} ${className ?? ''}`}
     >
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Slot {slotNumber}</p>
-          <h3 className="text-lg font-semibold text-slate-900">{skill.name}</h3>
+          <p className={`text-xs uppercase tracking-wide ${slotLabelTone}`}>Slot {slotNumber}</p>
+          <h3 className="text-lg font-semibold">{skill.name}</h3>
         </div>
         <div className="flex flex-col items-end gap-1">
           {!hideTierText && (

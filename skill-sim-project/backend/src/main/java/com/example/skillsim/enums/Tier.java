@@ -6,6 +6,7 @@ public enum Tier {
     BRONZE,
     SILVER,
     GOLD,
+    BLACK,
     MOMENT,
     HOF
 }

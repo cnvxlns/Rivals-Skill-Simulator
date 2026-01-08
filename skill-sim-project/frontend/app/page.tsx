@@ -11,6 +11,7 @@ export default function Page() {
     setCardType,
     ticketType,
     setTicketType,
+    slotCount,
     position,
     setPosition,
     subPosition,
@@ -98,6 +99,7 @@ export default function Page() {
                   className="mt-3 w-full rounded-lg border border-indigo-200/60 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 >
                   <option value={CardType.SIGNATURE}>Signature</option>
+                  <option value={CardType.SIGNATURE_BLACK}>Signature Black</option>
                   <option value={CardType.PRIME}>Prime</option>
                   <option value={CardType.HOF}>HOF</option>
                   <option value={CardType.MOMENT}>Moment</option>
@@ -187,7 +189,7 @@ export default function Page() {
             {!slots.length && !error && <p className="mt-3 text-sm text-indigo-100/90">Press “Roll new skills” to populate your slots.</p>}
 
             <div className="mt-4 space-y-3">
-              {[0, 1, 2].map((idx) => {
+              {Array.from({ length: slotCount }, (_, idx) => idx).map((idx) => {
                 const slot = slots[idx];
                 const isFirst = idx === 0;
                 const protectionHidden = cardType === CardType.MOMENT;
@@ -235,7 +237,7 @@ export default function Page() {
                         <span>Protect</span>
                         <input
                           type="checkbox"
-                          checked={useLevelProtectionSlots[idx]}
+                          checked={useLevelProtectionSlots[idx] ?? false}
                           onChange={() => toggleLevelProtection(idx)}
                           disabled={protectionHidden}
                           className="h-4 w-4 text-indigo-600"

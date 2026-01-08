@@ -10,6 +10,7 @@ import com.example.skillsim.enums.Tier;
 import com.example.skillsim.model.Skill;
 import com.example.skillsim.repository.SkillRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -20,15 +21,25 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SkillService {
 
     private static final int SLOT_COUNT = 3;
+    private static final Map<Level, Double> MOMENT_GOLD_GRADE_WEIGHTS = Map.of(
+            Level.D, 37.60D,
+            Level.C, 28.20D,
+            Level.B, 18.80D,
+            Level.A, 6.58D,
+            Level.S, 2.82D
+    );
 
     private final SkillRepository skillRepository;
 
     public RollResponse rollSkills(RollRequest request) {
         validateLockRules(request);
 
+        boolean isMomentCard = request.getCardType() == CardType.MOMENT;
+        String selectedTheme = request.getSelectedTheme();
         List<Level> normalizedLevels = normalizeGrades(request.getCurrentLevels());
         List<Long> normalizedSkillIds = normalizeSkillIds(request.getCurrentSkillIds());
         List<Boolean> protectionFlags = normalizeProtectionFlags(request.getUseLevelProtectionSlots());
@@ -40,6 +51,10 @@ public class SkillService {
         ProbabilityTable probabilityTable = ProbabilityTable.fromTicket(ticketType);
         String position = normalizePosition(request.getPosition());
         validatePositionRequired(position);
+        if (isMomentCard && ticketType == TicketType.SUPREME_SKILL_CHANGE
+                && (selectedTheme == null || selectedTheme.trim().isEmpty())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected theme is required for MOMENT cards.");
+        }
 
         // [중복 방지 핵심] 이번 롤에서 확정된 스킬 ID들을 저장하는 공간
         Set<Long> usedSkillIds = new HashSet<>();
@@ -77,24 +92,32 @@ public class SkillService {
                 continue;
             }
 
-            // 1. 티어 결정 (최고급권 1슬롯 골드 보장 로직 포함)
-            Tier tier = rollTier(probabilityTable, ticketType, i);
+            SkillSlot rolledSlot;
+            if (isMomentCard && ticketType == TicketType.SUPREME_SKILL_CHANGE && i == 0) {
+                rolledSlot = rollMomentSlotOne(selectedTheme, position, normalizedLevels.get(i), usedSkillIds);
+            } else {
+                // 1. 티어 결정 (최고급권 1슬롯 골드 보장 로직 포함)
+                Tier tier = rollTier(probabilityTable, ticketType, i);
 
-            // 2. 스킬 결정 (중복 방지 적용)
-            Skill skill = pickSkillByTier(tier, usedSkillIds, position);
+                // 2. 스킬 결정 (중복 방지 적용)
+                Skill skill = pickSkillByTier(tier, usedSkillIds, position);
 
-            // 3. 등급 결정
-            Level level = rollGrade(probabilityTable, tier, protectionFlags.get(i), normalizedLevels.get(i));
+                // 3. 등급 결정 (Moment 카드는 자동 보호 적용)
+                boolean effectiveProtection = isMomentCard || protectionFlags.get(i);
+                Level level = rollGrade(probabilityTable, tier, effectiveProtection, normalizedLevels.get(i));
 
-            // 슬롯 확정
-            slots.set(i, SkillSlot.builder()
-                    .skill(skill)
-                    .level(level)
-                    .build());
+                rolledSlot = SkillSlot.builder()
+                        .skill(skill)
+                        .level(level)
+                        .build();
+            }
+
+            slots.set(i, rolledSlot);
 
             // 뽑힌 스킬 ID 등록 (다음 루프에서 중복 안 나오게)
-            if (skill != null && skill.getId() != null) {
-                usedSkillIds.add(skill.getId());
+            Skill rolledSkill = rolledSlot.getSkill();
+            if (rolledSkill != null && rolledSkill.getId() != null) {
+                usedSkillIds.add(rolledSkill.getId());
             }
         }
 
@@ -102,32 +125,84 @@ public class SkillService {
     }
 
     /**
-     * [핵심 수정] 티어와 포지션에 맞는 스킬을 가져오되,
-     * 이미 사용된(excludedIds) 스킬은 후보군에서 원천 배제합니다.
+     * 티어와 포지션에 맞는 스킬을 가져오되, 이미 사용된(excludedIds) 스킬은 후보군에서 배제한다.
      */
     private Skill pickSkillByTier(Tier tier, Set<Long> excludedIds, String position) {
-        // 1. DB에서 조건에 맞는 후보군 조회
         List<Skill> candidates = skillRepository.findByTierAndPositionIgnoreCase(tier, position);
-
         if (candidates == null || candidates.isEmpty()) {
             return null;
         }
 
-        // 2. 이미 뽑힌 스킬 제거 (Filter)
         List<Skill> availableSkills = candidates.stream()
                 .filter(s -> s.getId() != null && !excludedIds.contains(s.getId()))
                 .collect(Collectors.toList());
 
-        // 3. 남은 후보가 없으면 null 리턴 (해당 티어 스킬 고갈)
         if (availableSkills.isEmpty()) {
             return null;
         }
 
-        // 4. 가중치 랜덤 선택
         return pickWeightedSkill(availableSkills);
     }
 
-    // ... (이하 기존 Helper 메서드들은 그대로 유지) ...
+    private SkillSlot rollMomentSlotOne(String selectedTheme, String position, Level currentLevel, Set<Long> usedSkillIds) {
+        Skill exclusiveSkill = findMomentSkillByName(selectedTheme, position);
+        if (exclusiveSkill == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected theme was not found for the chosen position.");
+        }
+        boolean hitExclusive = ThreadLocalRandom.current().nextDouble(100) < 6.0;
+
+        if (hitExclusive) {
+            return SkillSlot.builder()
+                    .skill(exclusiveSkill)
+                    .level(Level.S)
+                    .build();
+        }
+
+        Skill goldSkill = pickSkillByTier(Tier.GOLD, usedSkillIds, position);
+        Level level = rollMomentGoldGrade(currentLevel);
+        return SkillSlot.builder()
+                .skill(goldSkill)
+                .level(level)
+                .build();
+    }
+
+    private Level rollMomentGoldGrade(Level currentLevel) {
+        Level rolledLevel = WeightedRandom.pick(MOMENT_GOLD_GRADE_WEIGHTS, Level.D);
+        return applyProtection(rolledLevel, currentLevel, true);
+    }
+
+    private Skill findMomentSkillByName(String selectedTheme, String position) {
+        if (selectedTheme == null || selectedTheme.trim().isEmpty()) {
+            return null;
+        }
+        List<Skill> candidates = skillRepository.findMomentThemesByPositionOrShared(Tier.MOMENT, position);
+        return candidates.stream()
+                .filter(Objects::nonNull)
+                .filter(skill -> skill.getName() != null && skill.getName().equalsIgnoreCase(selectedTheme.trim()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    public List<String> getMomentThemeNames(String position) {
+        log.info("[themes] raw position='{}'", position);
+        String normalizedPosition = normalizePosition(position);
+        validatePositionRequired(normalizedPosition);
+        log.info("[themes] normalized position='{}'", normalizedPosition);
+
+        List<Skill> jpqlResult = skillRepository.findMomentThemesByPositionOrShared(Tier.MOMENT, normalizedPosition);
+        log.info("[themes] JPQL result size={}", jpqlResult.size());
+
+        List<String> names = jpqlResult.stream()
+                .filter(skill -> skill != null && skill.getName() != null && !skill.getName().isBlank())
+                .sorted(Comparator.comparing(skill -> skill.getName().toLowerCase(Locale.ROOT)))
+                .map(Skill::getName)
+                .collect(Collectors.toList());
+
+        List<String> nativeNames = skillRepository.findMomentThemeNamesNative(Tier.MOMENT.name(), normalizedPosition);
+        log.info("[themes] Native result size={} (tier={}, position={})", nativeNames.size(), Tier.MOMENT.name(), normalizedPosition);
+
+        return names;
+    }
 
     private void validateLockRules(RollRequest request) {
         List<Integer> lockedSlots = Optional.ofNullable(request.getLockedSlots()).orElse(List.of());
@@ -160,7 +235,10 @@ public class SkillService {
     private Level rollGrade(ProbabilityTable table, Tier tier, boolean useProtection, Level currentLevel) {
         Level defaultLevel = currentLevel != null ? currentLevel : Level.D;
         Level rolledLevel = WeightedRandom.pick(table.gradeWeights(tier), defaultLevel);
+        return applyProtection(rolledLevel, currentLevel, useProtection);
+    }
 
+    private Level applyProtection(Level rolledLevel, Level currentLevel, boolean useProtection) {
         if (useProtection && currentLevel != null && rolledLevel.ordinal() < currentLevel.ordinal()) {
             return currentLevel;
         }

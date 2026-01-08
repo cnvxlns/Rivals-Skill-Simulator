@@ -54,6 +54,7 @@ export type RollRequest = {
   lockedSlots: number[];
   currentSkillIds: (number | null)[];
   currentGrades: Grade[];
+  selectedTheme?: string | null;
   position?: Position | string | null;
 };
 

@@ -13,6 +13,9 @@ export default function Page() {
     setTicketType,
     position,
     setPosition,
+    availableThemes,
+    selectedTheme,
+    setSelectedTheme,
     useLevelProtectionSlots,
     toggleLevelProtection,
     slots,
@@ -22,10 +25,16 @@ export default function Page() {
     canLockSlot1,
     isSlot1Locked,
     toggleLockSlot1,
-    ticketUsageCount,
+    ticketUsageCounts,
     protectionUsageCount,
     resetUsageCounts,
   } = useSkillSimulator();
+
+  const ticketLabels: Record<TicketType, string> = {
+    [TicketType.SKILL_CHANGE]: 'Skill Change',
+    [TicketType.PREMIUM_SKILL_CHANGE]: 'Advanced Skill Change',
+    [TicketType.SUPREME_SKILL_CHANGE]: 'Superior Skill Change',
+  };
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-50">
@@ -38,7 +47,11 @@ export default function Page() {
           </div>
           <div className="flex flex-col items-end gap-3">
             <div className="flex flex-wrap justify-end gap-2 text-xs font-semibold text-indigo-100">
-              <span className="rounded-full bg-white/10 px-3 py-1">Tickets used: {ticketUsageCount}</span>
+              {Object.entries(ticketUsageCounts).map(([type, count]) => (
+                <span key={type} className="rounded-full bg-white/10 px-3 py-1">
+                  {ticketLabels[type as TicketType]}: {count}
+                </span>
+              ))}
               <span className="rounded-full bg-white/10 px-3 py-1">Protection used: {protectionUsageCount}</span>
               <button
                 type="button"
@@ -94,8 +107,8 @@ export default function Page() {
                   className="mt-3 w-full rounded-lg border border-indigo-200/60 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 >
                   <option value={TicketType.SKILL_CHANGE}>Skill Change Ticket</option>
-                  <option value={TicketType.PREMIUM_SKILL_CHANGE}>Premium Skill Change Ticket</option>
-                  <option value={TicketType.SUPREME_SKILL_CHANGE}>Supreme Skill Change Ticket</option>
+                  <option value={TicketType.PREMIUM_SKILL_CHANGE}>Advanced Skill Change Ticket</option>
+                  <option value={TicketType.SUPREME_SKILL_CHANGE}>Superior Skill Change Ticket</option>
                 </select>
               </div>
 
@@ -112,6 +125,30 @@ export default function Page() {
                 </select>
               </div>
 
+              {cardType === CardType.MOMENT && (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-white">Select Theme</h3>
+                    <p className="text-[11px] text-indigo-100/80">Moment exclusive skill</p>
+                  </div>
+                  <p className="mt-1 text-xs text-indigo-100/70">Choose the Moment-tier skill to target for slot 1 rolls.</p>
+                  <select
+                    value={selectedTheme ?? ''}
+                    onChange={(e) => setSelectedTheme(e.target.value)}
+                    disabled={!availableThemes.length}
+                    className="mt-3 w-full rounded-lg border border-indigo-200/60 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:cursor-not-allowed"
+                  >
+                    {availableThemes.map((theme) => (
+                      <option key={theme} value={theme}>
+                        {theme}
+                      </option>
+                    ))}
+                  </select>
+                  {!availableThemes.length && (
+                    <p className="mt-2 text-xs text-amber-100/80">No Moment tier skills found for this position.</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -130,6 +167,7 @@ export default function Page() {
               {[0, 1, 2].map((idx) => {
                 const slot = slots[idx];
                 const isFirst = idx === 0;
+                const protectionHidden = cardType === CardType.MOMENT;
                 return (
                   <div key={`slot-${idx}`} className="rounded-2xl border border-indigo-100/60 bg-white p-3 shadow-lg">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -165,12 +203,18 @@ export default function Page() {
                         )}
                       </div>
 
-                      <label className="flex w-40 shrink-0 items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-3 text-[13px] font-semibold uppercase tracking-wide text-indigo-800 shadow-inner">
+                      <label
+                        className={`flex w-40 shrink-0 items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-3 text-[13px] font-semibold uppercase tracking-wide text-indigo-800 shadow-inner ${
+                          protectionHidden ? 'invisible' : ''
+                        }`}
+                        aria-hidden={protectionHidden}
+                      >
                         <span>Protect</span>
                         <input
                           type="checkbox"
                           checked={useLevelProtectionSlots[idx]}
                           onChange={() => toggleLevelProtection(idx)}
+                          disabled={protectionHidden}
                           className="h-4 w-4 text-indigo-600"
                         />
                       </label>

@@ -34,6 +34,21 @@ export enum Position {
   BATTER = 'BATTER',
 }
 
+export type SubPosition =
+  | 'ALL'
+  | 'SP'
+  | 'RP'
+  | 'CP'
+  | 'C'
+  | '1B'
+  | '2B'
+  | '3B'
+  | 'SS'
+  | 'LF'
+  | 'CF'
+  | 'RF'
+  | 'DH';
+
 export type Skill = {
   id: number;
   name: string;
@@ -42,6 +57,7 @@ export type Skill = {
   description: string;
   weight: number;
   position?: Position | string;
+  subPositions?: string | null;
 };
 
 export type SkillSlot = {
@@ -58,6 +74,7 @@ export type RollRequest = {
   currentGrades: Grade[];
   selectedTheme?: string | null;
   position?: Position | string | null;
+  subPosition?: SubPosition | string | null;
 };
 
 export type RollResponse = {

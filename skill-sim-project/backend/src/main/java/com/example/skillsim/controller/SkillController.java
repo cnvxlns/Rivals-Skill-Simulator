@@ -32,8 +32,8 @@ public class SkillController {
 
     // New endpoint: fetch Moment tier themes filtered by position (case-insensitive, includes SHARED)
     @GetMapping("/themes")
-    public List<String> getThemes(@RequestParam String position) {
-        log.info("[GET /themes] raw position='{}'", position);
-        return skillService.getMomentThemeNames(position);
+    public List<String> getThemes(@RequestParam String position, @RequestParam(required = false) String subPosition) {
+        log.info("[GET /themes] raw position='{}', raw subPosition='{}'", position, subPosition);
+        return skillService.getMomentThemeNames(position, subPosition);
     }
 }

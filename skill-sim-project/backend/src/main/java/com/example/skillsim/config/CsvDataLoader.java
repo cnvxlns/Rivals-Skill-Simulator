@@ -67,16 +67,18 @@ public class CsvDataLoader implements CommandLineRunner {
                     lineNumber++;
 
                     if (row.length < 4) {
-                        log.warn("Skipping line {} in skills.csv: expected 4 columns but found {}", lineNumber, row.length);
+                        log.warn("Skipping line {} in skills.csv: expected at least 4 columns but found {}", lineNumber, row.length);
                         continue;
                     }
 
+                    String subPositions = (row.length >= 5) ? parseSubPositions(row[4]) : null;
                     try {
                         Skill skill = Skill.builder()
                                 .name(normalize(row[0]))
                                 .tier(parseTier(row[1]))
                                 .position(normalize(row[2]).toUpperCase())
                                 .description(normalize(row[3]))
+                                .subPositions(subPositions)
                                 .build();
                         skills.add(skill);
                     } catch (IllegalArgumentException ex) {
@@ -97,5 +99,13 @@ public class CsvDataLoader implements CommandLineRunner {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String parseSubPositions(String value) {
+        String normalized = normalize(value);
+        if (normalized.isEmpty()) {
+            return null; // 빈 값은 전 보직 공용
+        }
+        return normalized.toUpperCase();
     }
 }

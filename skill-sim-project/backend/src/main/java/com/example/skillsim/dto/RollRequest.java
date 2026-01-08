@@ -45,4 +45,7 @@ public class RollRequest {
     // Position filter (e.g., PITCHER, BATTER). When provided, rolls are limited to that position.
     @NotBlank(message = "Position selection is required.")
     private String position;
+
+    // Sub-position filter (e.g., SP, RP, CP, C, LF). Optional; when null or empty, all sub-positions are allowed.
+    private String subPosition;
 }

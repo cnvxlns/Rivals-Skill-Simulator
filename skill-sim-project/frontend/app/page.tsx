@@ -2,7 +2,7 @@
 
 // 스킬 변경 시뮬레이터 UI를 구성하고 상태 훅을 연결하는 메인 페이지
 import SkillCard from '../components/SkillCard';
-import { CardType, Position, TicketType } from '../types';
+import { CardType, Position, SubPosition, TicketType } from '../types';
 import { useSkillSimulator } from '../lib/useSkillSimulator';
 
 export default function Page() {
@@ -13,6 +13,8 @@ export default function Page() {
     setTicketType,
     position,
     setPosition,
+    subPosition,
+    setSubPosition,
     availableThemes,
     selectedTheme,
     setSelectedTheme,
@@ -35,6 +37,9 @@ export default function Page() {
     [TicketType.PREMIUM_SKILL_CHANGE]: 'Advanced Skill Change',
     [TicketType.SUPREME_SKILL_CHANGE]: 'Superior Skill Change',
   };
+  const pitcherSubPositions: SubPosition[] = ['ALL', 'SP', 'RP', 'CP'];
+  const batterSubPositions: SubPosition[] = ['ALL', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
+  const subPositionOptions = position === Position.PITCHER ? pitcherSubPositions : batterSubPositions;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-50">
@@ -115,7 +120,7 @@ export default function Page() {
 
               <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                 <h3 className="text-sm font-semibold text-white">Position</h3>
-                <p className="mt-1 text-xs text-indigo-100/70">Only roll skills valid for the selected role.</p>
+                <p className="mt-1 text-xs text-indigo-100/70">Only roll skills valid for the selected role and sub-role.</p>
                 <select
                   value={position ?? ''}
                   onChange={(e) => setPosition(e.target.value as Position)}
@@ -124,6 +129,23 @@ export default function Page() {
                   <option value={Position.PITCHER}>Pitcher</option>
                   <option value={Position.BATTER}>Batter</option>
                 </select>
+                <div className="mt-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold text-white">Sub-Position</h4>
+                    <p className="text-[11px] text-indigo-100/70">Filters SP/RP/fielding spots</p>
+                  </div>
+                  <select
+                    value={subPosition}
+                    onChange={(e) => setSubPosition(e.target.value as SubPosition)}
+                    className="mt-2 w-full rounded-lg border border-indigo-200/60 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  >
+                    {subPositionOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option === 'ALL' ? 'All Sub-Positions' : option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {cardType === CardType.MOMENT && (

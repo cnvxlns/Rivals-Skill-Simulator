@@ -9,6 +9,7 @@ type Props = {
 
 const tierBorderClasses: Record<Tier, string> = {
   [Tier.MOMENT]: 'border-emerald-400',
+  [Tier.HOF]: 'border-red-600',
   [Tier.IRON]: 'border-slate-300',
   [Tier.BRONZE]: 'border-amber-300',
   [Tier.SILVER]: 'border-gray-300',
@@ -17,6 +18,7 @@ const tierBorderClasses: Record<Tier, string> = {
 
 const tierTextClasses: Record<Tier, string> = {
   [Tier.MOMENT]: 'text-emerald-700',
+  [Tier.HOF]: 'text-red-700',
   [Tier.IRON]: 'text-slate-700',
   [Tier.BRONZE]: 'text-amber-800',
   [Tier.SILVER]: 'text-gray-700',
@@ -33,6 +35,26 @@ const gradeClasses: Record<Grade, string> = {
 
 const SkillCard = ({ skillSlot, slotNumber, className }: Props) => {
   const { skill, grade } = skillSlot;
+
+  if (!skill) {
+    return (
+      <div
+        className={`rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm ${className ?? ''}`}
+        title="Skill not available"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Slot {slotNumber}</p>
+            <h3 className="text-lg font-semibold text-slate-900">No skill</h3>
+          </div>
+          <span className="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide bg-slate-100 text-slate-700">
+            Grade {grade}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   const tierBorder = tierBorderClasses[skill.tier] ?? 'border-slate-200';
   const tierText = tierTextClasses[skill.tier] ?? 'text-slate-700';
   const hideTierText = [Tier.BRONZE, Tier.SILVER, Tier.GOLD, Tier.IRON].includes(skill.tier);

@@ -86,11 +86,6 @@ skill-sim-project/
 - 스킬 설명 추가
 - 스킬 점수 계산
 
-
-## 참고
-- 프론트엔드 UI/사용법 상세: `skill-sim-project/frontend/README.md`
-- CORS는 기본으로 `http://localhost:3000`에서 허용되도록 설정되어 있습니다.
-
 ## 면책 조항 (Disclaimer)
 This involves an unofficial fan-made project. 본 프로젝트는 팬심으로 제작된 비공식 시뮬레이터이며, 게임 개발사(Com2uS) 및 MLB와 어떠한 공식적인 관계도 없습니다.
 

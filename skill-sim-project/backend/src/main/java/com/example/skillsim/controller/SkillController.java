@@ -18,10 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/skills")
-@CrossOrigin(
-    origins = {"http://localhost:3000"},
-    allowedOriginPatterns = {"https://*.vercel.app"}
-)
+@CrossOrigin(origins = {
+    "http://localhost:3000",
+    "https://rivals-skill-random-generator-api.onrender.com", // (선택: 자기 자신)
+    "https://your-frontend.vercel.app" // 👈 나중에 Vercel 배포 주소가 나오면 여기 추가해야 함 (지금은 localhost만 있어도 됨)
+})
 @RequiredArgsConstructor
 @Slf4j
 public class SkillController {

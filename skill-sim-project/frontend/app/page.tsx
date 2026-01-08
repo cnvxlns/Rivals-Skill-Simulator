@@ -94,6 +94,7 @@ export default function Page() {
                 >
                   <option value={CardType.SIGNATURE}>Signature</option>
                   <option value={CardType.PRIME}>Prime</option>
+                  <option value={CardType.HOF}>HOF</option>
                   <option value={CardType.MOMENT}>Moment</option>
                 </select>
               </div>

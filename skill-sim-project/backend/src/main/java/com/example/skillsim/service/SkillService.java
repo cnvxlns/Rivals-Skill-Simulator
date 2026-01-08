@@ -39,6 +39,7 @@ public class SkillService {
         validateLockRules(request);
 
         boolean isMomentCard = request.getCardType() == CardType.MOMENT;
+        boolean isHofCard = request.getCardType() == CardType.HOF;
         String selectedTheme = request.getSelectedTheme();
         List<Level> normalizedLevels = normalizeGrades(request.getCurrentLevels());
         List<Long> normalizedSkillIds = normalizeSkillIds(request.getCurrentSkillIds());
@@ -95,6 +96,8 @@ public class SkillService {
             SkillSlot rolledSlot;
             if (isMomentCard && ticketType == TicketType.SUPREME_SKILL_CHANGE && i == 0) {
                 rolledSlot = rollMomentSlotOne(selectedTheme, position, normalizedLevels.get(i), usedSkillIds);
+            } else if (isHofCard) {
+                rolledSlot = rollHofSlot(i, ticketType, normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position);
             } else {
                 // 1. 티어 결정 (최고급권 1슬롯 골드 보장 로직 포함)
                 Tier tier = rollTier(probabilityTable, ticketType, i);
@@ -171,6 +174,35 @@ public class SkillService {
         return applyProtection(rolledLevel, currentLevel, true);
     }
 
+    private SkillSlot rollHofSlot(int slotIndex, TicketType ticketType, Level currentLevel, boolean protectionFlag,
+                                  Set<Long> usedSkillIds, String position) {
+        HofProbabilityTable table = resolveHofTable(ticketType, slotIndex);
+        Tier tier = WeightedRandom.pick(table.tierWeights(), Tier.GOLD);
+        Skill skill = pickSkillByTier(tier, usedSkillIds, position);
+        Level level = rollHofGrade(table, tier, protectionFlag, currentLevel);
+
+        return SkillSlot.builder()
+                .skill(skill)
+                .level(level)
+                .build();
+    }
+
+    private HofProbabilityTable resolveHofTable(TicketType ticketType, int slotIndex) {
+        return switch (ticketType) {
+            case SUPREME_SKILL_CHANGE -> (slotIndex == 0)
+                    ? HofProbabilityTable.supremeSlotOne()
+                    : HofProbabilityTable.supremeOtherSlots();
+            case PREMIUM_SKILL_CHANGE -> HofProbabilityTable.advanced();
+            case SKILL_CHANGE -> HofProbabilityTable.advanced(); // default to advanced table for basic ticket on HOF
+        };
+    }
+
+    private Level rollHofGrade(HofProbabilityTable table, Tier tier, boolean useProtection, Level currentLevel) {
+        Level defaultLevel = currentLevel != null ? currentLevel : Level.D;
+        Level rolledLevel = WeightedRandom.pick(table.gradeWeights(tier), defaultLevel);
+        return applyProtection(rolledLevel, currentLevel, useProtection);
+    }
+
     private Skill findMomentSkillByName(String selectedTheme, String position) {
         if (selectedTheme == null || selectedTheme.trim().isEmpty()) {
             return null;
@@ -219,7 +251,7 @@ public class SkillService {
                     throw new IllegalArgumentException("Slot 1 lock for MOMENT is only allowed when current slot 1 is MOMENT tier.");
                 }
             }
-            case SIGNATURE -> throw new IllegalArgumentException("Slot 1 lock not allowed for SIGNATURE cards.");
+            case SIGNATURE, SIGNATURE_BLACK, HOF -> throw new IllegalArgumentException("Slot 1 lock not allowed for this card type: " + cardType);
             default -> throw new IllegalArgumentException("Unsupported card type: " + cardType);
         }
     }

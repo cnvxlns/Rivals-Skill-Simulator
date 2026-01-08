@@ -5,6 +5,7 @@ export enum Tier {
   BRONZE = 'BRONZE',
   SILVER = 'SILVER',
   GOLD = 'GOLD',
+  HOF = 'HOF',
 }
 
 export enum Grade {
@@ -25,6 +26,7 @@ export enum CardType {
   SIGNATURE = 'SIGNATURE',
   PRIME = 'PRIME',
   MOMENT = 'MOMENT',
+  HOF = 'HOF',
 }
 
 export enum Position {

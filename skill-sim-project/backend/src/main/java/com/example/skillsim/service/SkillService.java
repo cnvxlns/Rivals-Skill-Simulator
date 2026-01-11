@@ -2,6 +2,7 @@ package com.example.skillsim.service;
 
 import com.example.skillsim.dto.RollRequest;
 import com.example.skillsim.dto.RollResponse;
+import com.example.skillsim.dto.SkillDto;
 import com.example.skillsim.dto.SkillSlot;
 import com.example.skillsim.enums.CardType;
 import com.example.skillsim.enums.Level;
@@ -90,10 +91,7 @@ public class SkillService {
                 Skill lockedSkill = resolveSkill(normalizedSkillIds.get(i));
                 Level lockedLevel = normalizedLevels.get(i);
 
-                slots.set(i, SkillSlot.builder()
-                        .skill(lockedSkill)
-                        .level(lockedLevel)
-                        .build());
+                slots.set(i, buildSlot(lockedSkill, lockedLevel));
 
                 // 잠긴 스킬도 중복 방지 목록에 등록 (다른 슬롯에서 나오면 안 되니까)
                 if (lockedSkill != null && lockedSkill.getId() != null) {
@@ -135,16 +133,13 @@ public class SkillService {
                 boolean effectiveProtection = isMomentCard || protectionFlags.get(i);
                 Level level = rollGrade(probabilityTable, tier, effectiveProtection, normalizedLevels.get(i));
 
-                rolledSlot = SkillSlot.builder()
-                        .skill(skill)
-                        .level(level)
-                        .build();
+                rolledSlot = buildSlot(skill, level);
             }
 
             slots.set(i, rolledSlot);
 
             // 뽑힌 스킬 ID 등록 (다음 루프에서 중복 안 나오게)
-            Skill rolledSkill = rolledSlot.getSkill();
+            SkillDto rolledSkill = rolledSlot.getSkill();
             if (rolledSkill != null && rolledSkill.getId() != null) {
                 usedSkillIds.add(rolledSkill.getId());
             }
@@ -183,18 +178,12 @@ public class SkillService {
         boolean hitExclusive = ThreadLocalRandom.current().nextDouble(100) < 6.0;
 
         if (hitExclusive) {
-            return SkillSlot.builder()
-                    .skill(exclusiveSkill)
-                    .level(Level.S)
-                    .build();
+            return buildSlot(exclusiveSkill, Level.S);
         }
 
         Skill goldSkill = pickSkillByTier(Tier.GOLD, usedSkillIds, position, subPosition);
         Level level = rollMomentGoldGrade(currentLevel);
-        return SkillSlot.builder()
-                .skill(goldSkill)
-                .level(level)
-                .build();
+        return buildSlot(goldSkill, level);
     }
 
     private Level rollMomentGoldGrade(Level currentLevel) {
@@ -209,10 +198,7 @@ public class SkillService {
         Skill skill = pickSkillByTier(tier, usedSkillIds, position, subPosition);
         Level level = rollHofGrade(table, tier, protectionFlag, currentLevel);
 
-        return SkillSlot.builder()
-                .skill(skill)
-                .level(level)
-                .build();
+        return buildSlot(skill, level);
     }
 
     private void rollSignatureBlackSupreme(int slotCount,
@@ -256,7 +242,7 @@ public class SkillService {
             }
 
             slots.set(i, rolledSlot);
-            Skill rolledSkill = rolledSlot.getSkill();
+            SkillDto rolledSkill = rolledSlot.getSkill();
             if (rolledSkill != null && rolledSkill.getId() != null) {
                 usedSkillIds.add(rolledSkill.getId());
             }
@@ -277,10 +263,7 @@ public class SkillService {
         Skill skill = pickSkillByTier(tier, usedSkillIds, position, subPosition);
         Level level = rollGrade(gradeTable, tier, useProtection, currentLevel);
 
-        return SkillSlot.builder()
-                .skill(skill)
-                .level(level)
-                .build();
+        return buildSlot(skill, level);
     }
 
     private SkillSlot rollBlackSlot(Level currentLevel,
@@ -292,10 +275,7 @@ public class SkillService {
         Level rolledLevel = WeightedRandom.pick(BLACK_GRADE_WEIGHTS, Level.D);
         Level level = applyProtection(rolledLevel, currentLevel, useProtection);
 
-        return SkillSlot.builder()
-                .skill(skill)
-                .level(level)
-                .build();
+        return buildSlot(skill, level);
     }
 
     private HofProbabilityTable resolveHofTable(TicketType ticketType, int slotIndex) {
@@ -441,6 +421,13 @@ public class SkillService {
             }
         }
         return false;
+    }
+
+    private SkillSlot buildSlot(Skill skill, Level level) {
+        return SkillSlot.builder()
+                .skill(SkillDto.from(skill))
+                .level(level)
+                .build();
     }
 
     private int resolveSlotCount(CardType cardType) {

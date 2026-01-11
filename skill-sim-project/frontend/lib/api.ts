@@ -3,7 +3,7 @@ import axios from 'axios';
 import { RollRequest, RollResponse } from '../types';
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'https://rivals-skill-random-generator-api.onrender.com';
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

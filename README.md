@@ -10,6 +10,17 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 - 정적 데이터 시드: `src/main/resources/skills.csv`를 애플리케이션 시작 시 읽어 SQLite DB에 적재합니다.
 
 ## 기술 스택
+**Frontend**  
+![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=next.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat&logo=tailwindcss&logoColor=white)
+
+**Backend**  
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=flat&logo=springboot&logoColor=white)
+![Java](https://img.shields.io/badge/Java-007396?style=flat&logo=java&logoColor=white)
+![Maven](https://img.shields.io/badge/Maven-C71A36?style=flat&logo=apachemaven&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat&logo=sqlite&logoColor=white)
+
 - Frontend: Next.js 14(App Router), TypeScript, Tailwind CSS, axios, lucide-react 아이콘.
 - Backend: Spring Boot 3.2, Java 17, Maven, Spring Data JPA, SQLite, OpenCSV.
 - DB: SQLite(`simulator.db`) 사용, `hibernate.ddl-auto=create`로 부팅 시 테이블을 다시 생성합니다.

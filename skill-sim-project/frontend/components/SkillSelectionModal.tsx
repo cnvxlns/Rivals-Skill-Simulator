@@ -1,19 +1,19 @@
+import { useEffect, useState } from 'react';
 import { Position, SkillSlot } from '../types';
 import SkillCard from './SkillCard';
 import SkillSetEffect from './SkillSetEffect';
-import { useEffect, useState } from 'react';
 
 type Props = {
   isOpen: boolean;
   currentSlots: SkillSlot[];
-  candidateSlots: SkillSlot[] | null;
+  candidateSkills: SkillSlot[] | null;
   position?: Position | string | null;
   onKeepCurrent: () => void;
   onSelectNew: () => void;
 };
 
-const SkillSelectionModal = ({ isOpen, currentSlots, candidateSlots, position, onKeepCurrent, onSelectNew }: Props) => {
-  if (!isOpen || !candidateSlots) return null;
+const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, onKeepCurrent, onSelectNew }: Props) => {
+  if (!isOpen || !candidateSkills) return null;
 
   const [selectedSet, setSelectedSet] = useState<'current' | 'new' | null>(null);
 
@@ -21,9 +21,11 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSlots, position, o
     if (isOpen) {
       setSelectedSet(null);
     }
-  }, [isOpen, candidateSlots]);
+  }, [isOpen, candidateSkills]);
 
-  const totalSlots = Math.max(currentSlots?.length ?? 0, candidateSlots.length) || 3;
+  const totalSlots = Math.max(currentSlots?.length ?? 0, candidateSkills.length) || 3;
+  const isCurrentSelected = selectedSet === 'current';
+  const isNewSelected = selectedSet === 'new';
 
   const renderSlot = (slot: SkillSlot | undefined, slotNumber: number, accent?: boolean) => {
     if (slot) {
@@ -47,29 +49,23 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSlots, position, o
     <button
       type="button"
       onClick={onClick}
-      className="group inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-indigo-50 shadow-inner transition hover:border-indigo-300/60 hover:bg-indigo-500/10"
       aria-pressed={checked}
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition ${
+        checked
+          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-[0_0_0_3px_rgba(52,211,153,0.15)]'
+          : 'border-white/20 bg-white/5 text-indigo-100 hover:border-emerald-300/60 hover:bg-emerald-500/10'
+      }`}
     >
       <span
-        className={`flex h-5 w-5 items-center justify-center rounded-md border text-[12px] font-bold transition ${
-          checked
-            ? 'border-emerald-400 bg-emerald-500 text-slate-900 shadow-[0_0_0_3px_rgba(16,185,129,0.25)]'
-            : 'border-white/50 bg-white/5 text-transparent'
+        className={`flex h-5 w-5 items-center justify-center rounded-md border text-[12px] font-bold ${
+          checked ? 'border-emerald-400 bg-emerald-300 text-emerald-800' : 'border-white/40 bg-white/10 text-transparent'
         }`}
       >
         ✓
       </span>
-      <span className="text-indigo-50">{label}</span>
+      <span>{label}</span>
     </button>
   );
-
-  const handleConfirm = () => {
-    if (selectedSet === 'current') {
-      onKeepCurrent();
-    } else if (selectedSet === 'new') {
-      onSelectNew();
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur">
@@ -90,12 +86,16 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSlots, position, o
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner">
+          <div
+            className={`rounded-2xl border bg-white/5 p-4 shadow-inner transition ${
+              isCurrentSelected ? 'border-emerald-300/60 ring-2 ring-emerald-400/40' : 'border-white/10'
+            }`}
+          >
             <div className="mb-3 flex items-center justify-between gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-200">Before</p>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-indigo-100">Current</span>
-                {renderSelector(selectedSet === 'current', 'Select this set', () => setSelectedSet('current'))}
+                {renderSelector(isCurrentSelected, 'Choose', () => setSelectedSet('current'))}
               </div>
             </div>
             <div className="space-y-3">
@@ -106,43 +106,48 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSlots, position, o
             <SkillSetEffect slots={currentSlots} position={position} className="mt-4" />
           </div>
 
-          <div className="rounded-2xl border border-indigo-300/50 bg-indigo-900/30 p-4 shadow-[0_20px_60px_rgba(59,130,246,0.25)]">
+          <div
+            className={`rounded-2xl border bg-indigo-900/30 p-4 shadow-[0_20px_60px_rgba(59,130,246,0.25)] transition ${
+              isNewSelected ? 'border-emerald-300/60 ring-2 ring-emerald-400/40' : 'border-indigo-300/50'
+            }`}
+          >
             <div className="mb-3 flex items-center justify-between gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-100">After</p>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-indigo-500/20 px-3 py-1 text-xs font-semibold text-indigo-50 shadow-sm">New</span>
-                {renderSelector(selectedSet === 'new', 'Select this set', () => setSelectedSet('new'))}
+                {renderSelector(isNewSelected, 'Choose', () => setSelectedSet('new'))}
               </div>
             </div>
             <div className="space-y-3">
               {Array.from({ length: totalSlots }, (_, idx) => (
-                <div key={`candidate-${idx}`}>{renderSlot(candidateSlots[idx], idx + 1, true)}</div>
+                <div key={`candidate-${idx}`}>{renderSlot(candidateSkills[idx], idx + 1, true)}</div>
               ))}
             </div>
-            <SkillSetEffect slots={candidateSlots} position={position} className="mt-4" />
+            <SkillSetEffect slots={candidateSkills} position={position} className="mt-4" />
           </div>
         </div>
 
         <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-indigo-100/90 md:flex-row md:items-center md:justify-between">
           <p className="max-w-2xl leading-relaxed">
-            Choosing either option will still consume the ticket you just used. Keep the current set to retain your existing skills, or change to the
-            new set to adopt everything you rolled.
+            Advanced and Superior tickets let you compare rolls before committing. Keeping the current set discards the newly rolled skills, while
+            changing to the new set will overwrite all current slots with the right-side results.
           </p>
           <div className="flex flex-1 items-center justify-end gap-3">
             <button
               type="button"
               onClick={onKeepCurrent}
-              className="min-w-[120px] rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-indigo-50 transition hover:bg-white/20"
+              disabled={!isCurrentSelected}
+              className="min-w-[140px] rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-indigo-50 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Cancel
+              Keep Current
             </button>
             <button
               type="button"
-              onClick={handleConfirm}
-              disabled={!selectedSet}
-              className="min-w-[150px] rounded-xl bg-gradient-to-r from-emerald-500 to-lime-500 px-5 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:from-emerald-600 hover:to-lime-600 disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-600 disabled:text-slate-300"
+              onClick={onSelectNew}
+              disabled={!isNewSelected}
+              className="min-w-[150px] rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-indigo-600 disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-600 disabled:text-slate-300"
             >
-              Confirm Selection
+              Change to New
             </button>
           </div>
         </div>

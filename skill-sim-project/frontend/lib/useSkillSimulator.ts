@@ -24,6 +24,8 @@ export function useSkillSimulator() {
     [TicketType.SUPREME_SKILL_CHANGE]: 0,
   });
   const [protectionUsageCount, setProtectionUsageCount] = useState<number>(0);
+  const [candidateSkills, setCandidateSkills] = useState<SkillSlot[] | null>(null);
+  const [isSelectionModalOpen, setIsSelectionModalOpen] = useState<boolean>(false);
   const ticketUsageCount = ticketUsageCounts[ticketType] ?? 0;
 
   const slotCount = useMemo(() => slotCountForCard(cardType), [cardType]);
@@ -76,7 +78,16 @@ export function useSkillSimulator() {
       setLoading(true);
       setError(null);
       const res = await rollSkills(payload);
-      setSlots(res.slots);
+      const isPremiumFlow =
+        ticketType === TicketType.PREMIUM_SKILL_CHANGE || ticketType === TicketType.SUPREME_SKILL_CHANGE;
+
+      if (isPremiumFlow) {
+        setCandidateSkills(res.slots);
+        setIsSelectionModalOpen(true);
+      } else {
+        setCandidateSkills(null);
+        setSlots(res.slots);
+      }
       setTicketUsageCounts((prev) => ({
         ...prev,
         [ticketType]: prev[ticketType] + 1,
@@ -132,8 +143,23 @@ export function useSkillSimulator() {
     setSlots([]);
     setUseLevelProtectionSlots(Array(slotCount).fill(false));
     setLockSlot1(false);
+    setCandidateSkills(null);
+    setIsSelectionModalOpen(false);
     setError(null);
   }, [cardType, slotCount]);
+
+  const keepCurrentSkills = () => {
+    setCandidateSkills(null);
+    setIsSelectionModalOpen(false);
+  };
+
+  const applyCandidateSkills = () => {
+    if (candidateSkills) {
+      setSlots(candidateSkills);
+    }
+    setCandidateSkills(null);
+    setIsSelectionModalOpen(false);
+  };
 
   useEffect(() => {
     if (cardType !== CardType.MOMENT) {
@@ -193,6 +219,10 @@ export function useSkillSimulator() {
     loading,
     error,
     roll,
+    candidateSkills,
+    isSelectionModalOpen,
+    keepCurrentSkills,
+    applyCandidateSkills,
     canLockSlot1,
     isSlot1Locked: lockSlot1 && canLockSlot1,
     toggleLockSlot1,

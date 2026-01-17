@@ -3,6 +3,7 @@
 // 스킬 변경 시뮬레이터 UI를 구성하고 상태 훅을 연결하는 메인 페이지
 import SkillCard from '../components/SkillCard';
 import SkillSetEffect from '../components/SkillSetEffect';
+import SkillSelectionModal from '../components/SkillSelectionModal';
 import { CardType, Position, SubPosition, TicketType } from '../types';
 import { useSkillSimulator } from '../lib/useSkillSimulator';
 
@@ -26,6 +27,10 @@ export default function Page() {
     loading,
     error,
     roll,
+    candidateSkills,
+    isSelectionModalOpen,
+    keepCurrentSkills,
+    applyCandidateSkills,
     canLockSlot1,
     isSlot1Locked,
     toggleLockSlot1,
@@ -254,6 +259,15 @@ export default function Page() {
           </div>
         </section>
       </div>
+
+      <SkillSelectionModal
+        isOpen={isSelectionModalOpen}
+        currentSlots={slots}
+        candidateSkills={candidateSkills}
+        position={position}
+        onKeepCurrent={keepCurrentSkills}
+        onSelectNew={applyCandidateSkills}
+      />
 
       <footer className="border-t border-white/10 bg-slate-950/80 text-slate-200">
         <div className="mx-auto max-w-6xl px-6 py-6 text-xs leading-relaxed">

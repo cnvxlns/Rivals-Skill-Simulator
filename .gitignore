@@ -22,6 +22,10 @@ skill-sim-project/backend/.idea/
 # Frontend (Next.js)
 skill-sim-project/frontend/node_modules/
 skill-sim-project/frontend/.next/
+skill-sim-project/frontend/.next/**
+skill-sim-project/frontend/.next/cache/
+skill-sim-project/frontend/.next/server/
+skill-sim-project/frontend/.next/static/
 skill-sim-project/frontend/.turbo/
 skill-sim-project/frontend/.vercel/
 skill-sim-project/frontend/npm-debug.log*

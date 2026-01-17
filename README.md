@@ -18,11 +18,11 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 **Backend**  
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=flat&logo=springboot&logoColor=white)
 ![Java](https://img.shields.io/badge/Java-007396?style=flat&logo=java&logoColor=white)
-![Maven](https://img.shields.io/badge/Maven-C71A36?style=flat&logo=apachemaven&logoColor=white)
+![Gradle](https://img.shields.io/badge/Gradle-02303A?style=flat&logo=gradle&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat&logo=sqlite&logoColor=white)
 
 - Frontend: Next.js 14(App Router), TypeScript, Tailwind CSS, axios, lucide-react 아이콘.
-- Backend: Spring Boot 3.2, Java 17, Maven, Spring Data JPA, SQLite, OpenCSV.
+- Backend: Spring Boot 3.2, Java 17, Gradle(Wrapper), Spring Data JPA, SQLite, OpenCSV.
 - DB: SQLite(`simulator.db`) 사용, `hibernate.ddl-auto=create`로 부팅 시 테이블을 다시 생성합니다.
 
 ## 폴더 구조
@@ -35,12 +35,13 @@ skill-sim-project/
 
 ## 실행 방법
 ### 1) Backend (Spring Boot)
-1. 필수: JDK 17, Maven 3.9+
+1. 필수: JDK 17 (Gradle Wrapper 포함)
 2. 실행:
    ```bash
    cd skill-sim-project/backend
-   mvn spring-boot:run
+   ./gradlew bootRun
    ```
+   - Windows PowerShell/명령프롬프트에서는 `gradlew.bat bootRun`
 3. 기본 포트는 `http://localhost:8080`입니다. `simulator.db`는 루트에 생성되며, 부팅 시 `skills.csv`를 읽어 테이블을 초기화합니다(DDL create라 커스텀 데이터는 재시작 시 삭제될 수 있음).
 
 ### 2) Frontend (Next.js)
@@ -55,8 +56,8 @@ skill-sim-project/
 4. 프로덕션 빌드:
    ```bash
    npm run build
-   npm start
-   ```
+  npm start
+  ```
 
 ## API 개요
 - 엔드포인트: `POST /api/skills/roll`

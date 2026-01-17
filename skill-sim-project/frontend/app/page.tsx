@@ -2,6 +2,7 @@
 
 // 스킬 변경 시뮬레이터 UI를 구성하고 상태 훅을 연결하는 메인 페이지
 import SkillCard from '../components/SkillCard';
+import SkillSelectionModal from '../components/SkillSelectionModal';
 import { CardType, Position, SubPosition, TicketType } from '../types';
 import { useSkillSimulator } from '../lib/useSkillSimulator';
 
@@ -31,6 +32,10 @@ export default function Page() {
     ticketUsageCounts,
     protectionUsageCount,
     resetUsageCounts,
+    candidateSkills,
+    isSelectionModalOpen,
+    applyCandidateSkills,
+    dismissCandidateSkills,
   } = useSkillSimulator();
 
   const ticketLabels: Record<TicketType, string> = {
@@ -69,10 +74,10 @@ export default function Page() {
             </div>
             <button
               onClick={roll}
-              disabled={loading}
+              disabled={loading || isSelectionModalOpen}
               className="rounded-lg bg-gradient-to-r from-indigo-500 to-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-indigo-600 hover:to-sky-600 disabled:cursor-not-allowed disabled:from-indigo-300 disabled:to-sky-300"
             >
-              {loading ? 'Rolling...' : 'Roll new skills'}
+              {loading ? 'Rolling...' : isSelectionModalOpen ? 'Select rolled skills' : 'Roll new skills'}
             </button>
           </div>
         </header>
@@ -257,6 +262,15 @@ export default function Page() {
           This project is an unofficial fan-made application and is not affiliated with, endorsed, sponsored, or specifically approved by Com2uS Corp., MLB, or MLB Players Inc. All game data, skill names, and intellectual property are the sole property of their respective owners. This tool is intended for educational and portfolio purposes only.
         </div>
       </footer>
+
+      <SkillSelectionModal
+        isOpen={isSelectionModalOpen}
+        currentSlots={slots}
+        candidateSlots={candidateSkills}
+        position={position}
+        onKeepCurrent={dismissCandidateSkills}
+        onSelectNew={applyCandidateSkills}
+      />
     </main>
   );
 }

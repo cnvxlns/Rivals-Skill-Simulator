@@ -18,6 +18,8 @@ export function useSkillSimulator() {
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [candidateSkills, setCandidateSkills] = useState<SkillSlot[] | null>(null);
+  const [isSelectionModalOpen, setIsSelectionModalOpen] = useState<boolean>(false);
   const [ticketUsageCounts, setTicketUsageCounts] = useState<Record<TicketType, number>>({
     [TicketType.SKILL_CHANGE]: 0,
     [TicketType.PREMIUM_SKILL_CHANGE]: 0,
@@ -76,7 +78,17 @@ export function useSkillSimulator() {
       setLoading(true);
       setError(null);
       const res = await rollSkills(payload);
-      setSlots(res.slots);
+      const rolledSlots = res.slots;
+      const shouldDeferSelection =
+        ticketType === TicketType.PREMIUM_SKILL_CHANGE || ticketType === TicketType.SUPREME_SKILL_CHANGE;
+
+      if (shouldDeferSelection) {
+        setCandidateSkills(rolledSlots);
+        setIsSelectionModalOpen(true);
+      } else {
+        setSlots(rolledSlots);
+      }
+
       setTicketUsageCounts((prev) => ({
         ...prev,
         [ticketType]: prev[ticketType] + 1,
@@ -133,6 +145,8 @@ export function useSkillSimulator() {
     setUseLevelProtectionSlots(Array(slotCount).fill(false));
     setLockSlot1(false);
     setError(null);
+    setCandidateSkills(null);
+    setIsSelectionModalOpen(false);
   }, [cardType, slotCount]);
 
   useEffect(() => {
@@ -200,5 +214,18 @@ export function useSkillSimulator() {
     ticketUsageCounts,
     protectionUsageCount,
     resetUsageCounts,
+    candidateSkills,
+    isSelectionModalOpen,
+    applyCandidateSkills: () => {
+      if (candidateSkills) {
+        setSlots(candidateSkills);
+      }
+      setCandidateSkills(null);
+      setIsSelectionModalOpen(false);
+    },
+    dismissCandidateSkills: () => {
+      setCandidateSkills(null);
+      setIsSelectionModalOpen(false);
+    },
   };
 }

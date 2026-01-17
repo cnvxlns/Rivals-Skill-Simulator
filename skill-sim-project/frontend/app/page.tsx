@@ -2,6 +2,7 @@
 
 // 스킬 변경 시뮬레이터 UI를 구성하고 상태 훅을 연결하는 메인 페이지
 import SkillCard from '../components/SkillCard';
+import SkillSetEffect from '../components/SkillSetEffect';
 import { CardType, Position, SubPosition, TicketType } from '../types';
 import { useSkillSimulator } from '../lib/useSkillSimulator';
 
@@ -248,6 +249,8 @@ export default function Page() {
                 );
               })}
             </div>
+
+            <SkillSetEffect slots={slots} position={position} className="mt-6" />
           </div>
         </section>
       </div>

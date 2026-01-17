@@ -2,7 +2,6 @@
 package com.example.skillsim.dto;
 
 import com.example.skillsim.enums.Level;
-import com.example.skillsim.model.Skill;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,7 +13,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SkillSlot {
-    private Skill skill;
+    private SkillDto skill;
 
     @JsonProperty("grade")
     private Level level;

@@ -36,6 +36,12 @@ export enum Position {
   BATTER = 'BATTER',
 }
 
+export type SkillEffect = {
+  condition: string;
+  logic: string;
+  description?: string | null;
+};
+
 export type SubPosition =
   | 'ALL'
   | 'SP'
@@ -55,15 +61,15 @@ export type Skill = {
   id: number;
   name: string;
   tier: Tier;
-  grade: Grade;
-  description: string;
-  weight: number;
+  description?: string | null;
   position?: Position | string;
   subPositions?: string | null;
+  effects?: SkillEffect[];
+  levelEffects?: Record<string, string>;
 };
 
 export type SkillSlot = {
-  skill: Skill;
+  skill: Skill | null;
   grade: Grade;
 };
 

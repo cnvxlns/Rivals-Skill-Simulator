@@ -8,7 +8,7 @@ type Props = {
 };
 
 const tierBorderClasses: Record<Tier, string> = {
-  [Tier.BLACK]: 'border-black shadow-[0_0_12px_rgba(76,29,149,0.45)]',
+  [Tier.BLACK]: 'border-purple-600 shadow-[0_0_12px_rgba(126,34,206,0.35)]',
   [Tier.MOMENT]: 'border-emerald-500',
   [Tier.HOF]: 'border-red-600',
   [Tier.IRON]: 'border-slate-300',
@@ -18,7 +18,7 @@ const tierBorderClasses: Record<Tier, string> = {
 };
 
 const tierTextClasses: Record<Tier, string> = {
-  [Tier.BLACK]: 'text-white bg-slate-900 shadow-[0_0_8px_rgba(76,29,149,0.5)]',
+  [Tier.BLACK]: 'text-purple-700 bg-purple-50',
   [Tier.MOMENT]: 'text-emerald-700',
   [Tier.HOF]: 'text-red-700',
   [Tier.IRON]: 'text-slate-700',
@@ -62,9 +62,8 @@ const SkillCard = ({ skillSlot, slotNumber, className }: Props) => {
   const hideTierText = [Tier.BRONZE, Tier.SILVER, Tier.GOLD, Tier.IRON].includes(skill.tier);
   const tierLabel = hideTierText ? '' : skill.tier;
   const gradeStyle = gradeClasses[grade] ?? 'bg-slate-100 text-slate-700';
-  const isBlackTier = skill.tier === Tier.BLACK;
-  const containerTone = isBlackTier ? 'bg-slate-950 text-slate-50 shadow-[0_0_20px_rgba(76,29,149,0.5)]' : 'bg-white/95 text-slate-900';
-  const slotLabelTone = isBlackTier ? 'text-indigo-100/80' : 'text-slate-500';
+  const containerTone = 'bg-white/95 text-slate-900';
+  const slotLabelTone = 'text-slate-500';
   const hasEffectDetails = (skill.effects?.length ?? 0) > 0;
 
   return (

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Position, SkillSlot } from '../types';
 import SkillCard from './SkillCard';
-import SkillSetEffect from './SkillSetEffect';
 
 type Props = {
   isOpen: boolean;
@@ -67,6 +66,14 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, 
     </button>
   );
 
+  const handleConfirm = () => {
+    if (selectedSet === 'current') {
+      onKeepCurrent();
+    } else if (selectedSet === 'new') {
+      onSelectNew();
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur">
       <div className="w-full max-w-6xl rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-6 shadow-2xl">
@@ -74,7 +81,6 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, 
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-indigo-200">Compare Rolls</p>
             <h2 className="text-2xl font-bold text-white">Choose your skill set</h2>
-            <p className="text-sm text-indigo-100/80">High-tier tickets let you decide between the existing set and the freshly rolled one.</p>
           </div>
           <button
             type="button"
@@ -92,10 +98,9 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, 
             }`}
           >
             <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-200">Before</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-100">Current Skills</p>
               <div className="flex items-center gap-2">
-                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-indigo-100">Current</span>
-                {renderSelector(isCurrentSelected, 'Choose', () => setSelectedSet('current'))}
+                {renderSelector(isCurrentSelected, 'Select', () => setSelectedSet('current'))}
               </div>
             </div>
             <div className="space-y-3">
@@ -103,7 +108,6 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, 
                 <div key={`current-${idx}`}>{renderSlot(currentSlots[idx], idx + 1)}</div>
               ))}
             </div>
-            <SkillSetEffect slots={currentSlots} position={position} className="mt-4" />
           </div>
 
           <div
@@ -112,10 +116,9 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, 
             }`}
           >
             <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-100">After</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-100">New Skills</p>
               <div className="flex items-center gap-2">
-                <span className="rounded-full bg-indigo-500/20 px-3 py-1 text-xs font-semibold text-indigo-50 shadow-sm">New</span>
-                {renderSelector(isNewSelected, 'Choose', () => setSelectedSet('new'))}
+                {renderSelector(isNewSelected, 'Select', () => setSelectedSet('new'))}
               </div>
             </div>
             <div className="space-y-3">
@@ -123,33 +126,18 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, 
                 <div key={`candidate-${idx}`}>{renderSlot(candidateSkills[idx], idx + 1, true)}</div>
               ))}
             </div>
-            <SkillSetEffect slots={candidateSkills} position={position} className="mt-4" />
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-indigo-100/90 md:flex-row md:items-center md:justify-between">
-          <p className="max-w-2xl leading-relaxed">
-            Advanced and Superior tickets let you compare rolls before committing. Keeping the current set discards the newly rolled skills, while
-            changing to the new set will overwrite all current slots with the right-side results.
-          </p>
-          <div className="flex flex-1 items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onKeepCurrent}
-              disabled={!isCurrentSelected}
-              className="min-w-[140px] rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-indigo-50 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Keep Current
-            </button>
-            <button
-              type="button"
-              onClick={onSelectNew}
-              disabled={!isNewSelected}
-              className="min-w-[150px] rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-indigo-600 disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-600 disabled:text-slate-300"
-            >
-              Change to New
-            </button>
-          </div>
+        <div className="mt-6 flex items-center justify-center">
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={!selectedSet}
+            className="w-full max-w-sm rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-indigo-600 disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-700 disabled:text-slate-300"
+          >
+            CONFIRM
+          </button>
         </div>
       </div>
     </div>

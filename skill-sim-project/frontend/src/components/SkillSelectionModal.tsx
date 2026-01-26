@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Position, SkillSlot } from '../types';
 import SkillCard from './SkillCard';
+import { useTranslation } from '../lib/i18n';
 
 type Props = {
   isOpen: boolean;
@@ -13,6 +14,8 @@ type Props = {
 
 const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, onKeepCurrent, onSelectNew }: Props) => {
   if (!isOpen || !candidateSkills) return null;
+
+  const { t } = useTranslation();
 
   const [selectedSet, setSelectedSet] = useState<'current' | 'new' | null>(null);
 
@@ -79,15 +82,15 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, 
       <div className="w-full max-w-6xl rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-6 shadow-2xl">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-indigo-200">Compare Rolls</p>
-            <h2 className="text-2xl font-bold text-white">Choose your skill set</h2>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-indigo-200">{t('modal_tag')}</p>
+            <h2 className="text-2xl font-bold text-white">{t('modal_title')}</h2>
           </div>
           <button
             type="button"
             onClick={onKeepCurrent}
             className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-100 transition hover:bg-white/10"
           >
-            Close
+            {t('btn_close')}
           </button>
         </div>
 
@@ -98,9 +101,9 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, 
             }`}
           >
             <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-100">Current Skills</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-100">{t('current_skills')}</p>
               <div className="flex items-center gap-2">
-                {renderSelector(isCurrentSelected, 'Select', () => setSelectedSet('current'))}
+                {renderSelector(isCurrentSelected, t('select_action'), () => setSelectedSet('current'))}
               </div>
             </div>
             <div className="space-y-3">
@@ -116,9 +119,9 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, 
             }`}
           >
             <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-100">New Skills</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-100">{t('new_skills')}</p>
               <div className="flex items-center gap-2">
-                {renderSelector(isNewSelected, 'Select', () => setSelectedSet('new'))}
+                {renderSelector(isNewSelected, t('select_action'), () => setSelectedSet('new'))}
               </div>
             </div>
             <div className="space-y-3">
@@ -136,7 +139,7 @@ const SkillSelectionModal = ({ isOpen, currentSlots, candidateSkills, position, 
             disabled={!selectedSet}
             className="w-full max-w-sm rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-indigo-600 disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-700 disabled:text-slate-300"
           >
-            CONFIRM
+            {t('confirm_action')}
           </button>
         </div>
       </div>

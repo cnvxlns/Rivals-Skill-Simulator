@@ -105,6 +105,10 @@ public class ScoreCalculator {
             "CP", 0.75
     );
 
+    private static final double[] TOP_ORDER_PLATE_APPEARANCE_REACH = new double[]{1.0, 1.0, 0.95, 0.70, 0.25, 0.05, 0.01};
+    private static final double[] MIDDLE_ORDER_PLATE_APPEARANCE_REACH = new double[]{1.0, 1.0, 0.90, 0.55, 0.12, 0.02, 0.005};
+    private static final double[] LOWER_ORDER_PLATE_APPEARANCE_REACH = new double[]{1.0, 0.95, 0.80, 0.40, 0.06, 0.01, 0.00};
+
     private static final List<ConditionResolver> CONDITION_RESOLVERS = List.of(
             new StaticProbabilityResolver(STATIC_CONDITION_PROBABILITIES),
             new StaticProbabilityResolver(PLATE_SITUATION_PROBABILITIES),
@@ -115,10 +119,13 @@ public class ScoreCalculator {
             new DurationResolver(),
             new StatComparisonResolver(),
             new PositionGateResolver(),
-            new InningResolver()
+            new SlotGateResolver(),
+            new InningResolver(),
+            new InningRangeResolver(),
+            new PlateAppearanceResolver()
     );
 
-    private static final Map<String, Double> DEFAULT_CONDITION_PROBABILITIES = buildConditionProbabilities("BATTER", null);
+    private static final Map<String, Double> DEFAULT_CONDITION_PROBABILITIES = buildConditionProbabilities("BATTER", null, null);
 
     public Result calculate(List<Selection> selections, Map<String, Double> statWeights) {
         return calculate(selections, statWeights, DEFAULT_CONDITION_PROBABILITIES, Map.of());
@@ -196,18 +203,23 @@ public class ScoreCalculator {
     }
 
     public static Map<String, Double> conditionProbabilitiesForPosition(String position) {
-        return conditionProbabilitiesForPosition(position, null);
+        return conditionProbabilitiesForPosition(position, null, null);
     }
 
     public static Map<String, Double> conditionProbabilitiesForPosition(String position, Integer battingOrder) {
-        return buildConditionProbabilities(position, battingOrder);
+        return conditionProbabilitiesForPosition(position, battingOrder, null);
     }
 
-    private static Map<String, Double> buildConditionProbabilities(String position, Integer battingOrder) {
+    public static Map<String, Double> conditionProbabilitiesForPosition(String position, Integer battingOrder, Integer pitcherSlot) {
+        return buildConditionProbabilities(position, battingOrder, pitcherSlot);
+    }
+
+    private static Map<String, Double> buildConditionProbabilities(String position, Integer battingOrder, Integer pitcherSlot) {
         ConditionContext context = new ConditionContext(
                 SkillRules.normalizePosition(position),
                 SkillRules.roleForPosition(position),
-                battingOrder
+                battingOrder,
+                pitcherSlot
         );
         Map<String, Double> probabilities = new HashMap<>();
         CONDITION_RESOLVERS.forEach(resolver -> resolver.apply(probabilities, context));
@@ -218,7 +230,7 @@ public class ScoreCalculator {
         void apply(Map<String, Double> probabilities, ConditionContext context);
     }
 
-    private record ConditionContext(String normalizedPosition, String role, Integer battingOrder) {
+    private record ConditionContext(String normalizedPosition, String role, Integer battingOrder, Integer pitcherSlot) {
     }
 
     private record StaticProbabilityResolver(Map<String, Double> probabilities) implements ConditionResolver {
@@ -238,6 +250,23 @@ public class ScoreCalculator {
             probabilities.put("포지션_SS", "SS".equals(position) ? 1.0 : 0.0);
             probabilities.put("포지션_OF", Set.of("OF", "LF", "CF", "RF").contains(position) ? 1.0 : 0.0);
             probabilities.put("포지션_C", "C".equals(position) ? 1.0 : 0.0);
+        }
+    }
+
+    private static final class SlotGateResolver implements ConditionResolver {
+        @Override
+        public void apply(Map<String, Double> probabilities, ConditionContext context) {
+            String role = context.role();
+            Integer slot = context.pitcherSlot();
+            boolean isSP = "SP".equals(role);
+            boolean isRP = "RP".equals(role);
+
+            probabilities.put("선발1", (isSP && slot != null && slot == 1) ? 1.0 : 0.0);
+            probabilities.put("선발1_2", (isSP && slot != null && (slot == 1 || slot == 2)) ? 1.0 : 0.0);
+            probabilities.put("선발3_4", (isSP && slot != null && (slot == 3 || slot == 4)) ? 1.0 : 0.0);
+            probabilities.put("선발3_4_5", (isSP && slot != null && (slot == 3 || slot == 4 || slot == 5)) ? 1.0 : 0.0);
+            probabilities.put("선발4_5", (isSP && slot != null && (slot == 4 || slot == 5)) ? 1.0 : 0.0);
+            probabilities.put("중계3_4_5", (isRP && slot != null && (slot == 3 || slot == 4 || slot == 5)) ? 1.0 : 0.0);
         }
     }
 
@@ -315,6 +344,65 @@ public class ScoreCalculator {
         }
     }
 
+    private static final class InningRangeResolver implements ConditionResolver {
+        @Override
+        public void apply(Map<String, Double> probabilities, ConditionContext context) {
+            double[] inningWeights = INNING_WEIGHTS_BY_ROLE.getOrDefault(
+                    context.role(),
+                    INNING_WEIGHTS_BY_ROLE.get("BATTER")
+            );
+            for (int start = 1; start <= inningWeights.length; start++) {
+                double probability = 0.0;
+                for (int end = start; end <= inningWeights.length; end++) {
+                    probability += inningWeights[end - 1];
+                    double rounded = roundStatic(probability);
+                    probabilities.put(start + "_" + end + "회", rounded);
+                    if (start == 1) {
+                        probabilities.put(end + "회까지", rounded);
+                    }
+                }
+            }
+        }
+    }
+
+    private static final class PlateAppearanceResolver implements ConditionResolver {
+        @Override
+        public void apply(Map<String, Double> probabilities, ConditionContext context) {
+            double[] reachProbabilities = plateAppearanceReachProbabilities(context.battingOrder());
+            double totalReachProbability = 0.0;
+            for (double reachProbability : reachProbabilities) {
+                totalReachProbability += reachProbability;
+            }
+
+            for (int start = 1; start <= reachProbabilities.length; start++) {
+                double normalizedProbability = reachProbabilities[start - 1] / totalReachProbability;
+                probabilities.put("타석" + start, normalizedProbability);
+
+                double rangeProbability = 0.0;
+                for (int end = start; end <= reachProbabilities.length; end++) {
+                    rangeProbability += reachProbabilities[end - 1] / totalReachProbability;
+                    probabilities.put("타석" + start + "_" + end, rangeProbability);
+                }
+            }
+        }
+
+        private double[] plateAppearanceReachProbabilities(Integer battingOrder) {
+            if (battingOrder == null) {
+                return MIDDLE_ORDER_PLATE_APPEARANCE_REACH;
+            }
+            if (isBetween(battingOrder, 1, 2)) {
+                return TOP_ORDER_PLATE_APPEARANCE_REACH;
+            }
+            if (isBetween(battingOrder, 3, 5)) {
+                return MIDDLE_ORDER_PLATE_APPEARANCE_REACH;
+            }
+            if (isBetween(battingOrder, 6, 9)) {
+                return LOWER_ORDER_PLATE_APPEARANCE_REACH;
+            }
+            return MIDDLE_ORDER_PLATE_APPEARANCE_REACH;
+        }
+    }
+
     private static boolean isBetween(int value, int min, int max) {
         return value >= min && value <= max;
     }
@@ -341,7 +429,7 @@ public class ScoreCalculator {
             double probability = resolveConditionPart(part, safeOverrides);
             if (part.startsWith("모드_")) {
                 modeProbability = Math.max(modeProbability == null ? 0.0 : modeProbability, probability);
-            } else if (part.startsWith("포지션_")) {
+            } else if (part.startsWith("포지션_") || part.startsWith("선발") || part.startsWith("중계")) {
                 positionProbability = Math.max(positionProbability == null ? 0.0 : positionProbability, probability);
             } else {
                 nonModeProbability *= probability;

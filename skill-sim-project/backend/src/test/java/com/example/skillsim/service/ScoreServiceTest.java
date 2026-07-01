@@ -103,6 +103,7 @@ class ScoreServiceTest {
         ScoreResponse response = service.calculate(ScoreRequest.builder()
                 .cardType("NORMAL")
                 .position("BATTER")
+                .battingOrder(1)
                 .selections(List.of(ScoreSelection.builder().skillId("S_001").level(2).build()))
                 .build());
 
@@ -133,6 +134,7 @@ class ScoreServiceTest {
         ScoreResponse response = service.calculate(ScoreRequest.builder()
                 .cardType("NORMAL")
                 .position("RP")
+                .pitcherSlot(1)
                 .userStats(Map.of("지구력", 200.0))
                 .selections(List.of(ScoreSelection.builder().skillId("G_057").level(1).build()))
                 .build());
@@ -157,6 +159,7 @@ class ScoreServiceTest {
         ScoreResponse response = service.calculate(ScoreRequest.builder()
                 .cardType("WBC")
                 .position("BATTER")
+                .battingOrder(1)
                 .selections(List.of(ScoreSelection.builder().skillId("G_001").level(5).build()))
                 .build());
 
@@ -219,6 +222,7 @@ class ScoreServiceTest {
         ScoreResponse response = service.calculate(ScoreRequest.builder()
                 .cardType("NORMAL")
                 .position("BATTER")
+                .battingOrder(1)
                 .selections(List.of(ScoreSelection.builder().skillId("X_001").level(1).build()))
                 .build());
 
@@ -239,6 +243,7 @@ class ScoreServiceTest {
         ScoreRequest request = ScoreRequest.builder()
                 .cardType("NORMAL")
                 .position("BATTER")
+                .battingOrder(1)
                 .selections(List.of(
                         ScoreSelection.builder().skillId("S_001").level(1).build(),
                         ScoreSelection.builder().skillId("S_001").level(2).build()
@@ -248,6 +253,83 @@ class ScoreServiceTest {
         assertThatThrownBy(() -> service.calculate(request))
                 .isInstanceOfSatisfying(ResponseStatusException.class, ex ->
                         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void calculateRejectsMissingBattingOrderForBatter() {
+        ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
+        ScoreService service = new ScoreService(repository, new ScoreCalculator(), Map.of());
+
+        ScoreRequest request = ScoreRequest.builder()
+                .cardType("NORMAL")
+                .position("BATTER")
+                .selections(List.of(ScoreSelection.builder().skillId("S_001").level(1).build()))
+                .build();
+
+        assertThatThrownBy(() -> service.calculate(request))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex ->
+                        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void calculateRejectsMissingOrInvalidPitcherSlotForStartingPitcher() {
+        ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
+        ScoreService service = new ScoreService(repository, new ScoreCalculator(), Map.of());
+
+        ScoreRequest requestMissing = ScoreRequest.builder()
+                .cardType("NORMAL")
+                .position("SP")
+                .selections(List.of(ScoreSelection.builder().skillId("S_001").level(1).build()))
+                .build();
+
+        assertThatThrownBy(() -> service.calculate(requestMissing))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex ->
+                        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+
+        ScoreRequest requestInvalid = ScoreRequest.builder()
+                .cardType("NORMAL")
+                .position("SP")
+                .pitcherSlot(6)
+                .selections(List.of(ScoreSelection.builder().skillId("S_001").level(1).build()))
+                .build();
+
+        assertThatThrownBy(() -> service.calculate(requestInvalid))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex ->
+                        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void calculateRejectsMissingOrInvalidPitcherSlotForReliefPitcher() {
+        ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
+        ScoreService service = new ScoreService(repository, new ScoreCalculator(), Map.of());
+
+        ScoreRequest requestInvalid = ScoreRequest.builder()
+                .cardType("NORMAL")
+                .position("RP")
+                .pitcherSlot(7)
+                .selections(List.of(ScoreSelection.builder().skillId("S_001").level(1).build()))
+                .build();
+
+        assertThatThrownBy(() -> service.calculate(requestInvalid))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex ->
+                        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void calculateAllowsMissingSlotForCloserPitcher() {
+        ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
+        ScoreSkill skill = scoreSkill("S_001", "NORMAL", "PITCHER", "마무리",
+                effect("파워", "ALWAYS", "1"));
+        when(repository.findBySkillKey("S_001")).thenReturn(Optional.of(skill));
+        ScoreService service = new ScoreService(repository, new ScoreCalculator(), Map.of("파워", 1.0));
+
+        ScoreResponse response = service.calculate(ScoreRequest.builder()
+                .cardType("NORMAL")
+                .position("CP")
+                .selections(List.of(ScoreSelection.builder().skillId("S_001").level(1).build()))
+                .build());
+
+        assertThat(response.getTotal()).isEqualTo(1.00);
     }
 
     private ScoreSkill scoreSkill(String skillKey, String cardType, String position, String name, ScoreEffect... effects) {

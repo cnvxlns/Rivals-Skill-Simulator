@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 
 class ScoreCalculatorTest {
 
@@ -111,6 +112,98 @@ class ScoreCalculatorTest {
         assertThat(starter.total()).isEqualTo(1.20);
         assertThat(reliever.total()).isEqualTo(7.90);
         assertThat(closer.total()).isEqualTo(10.00);
+    }
+
+    @Test
+    void appliesRoleBasedInningRangeAndUntilProbabilities() {
+        Map<String, Double> starter = ScoreCalculator.conditionProbabilitiesForPosition("SP");
+        Map<String, Double> reliever = ScoreCalculator.conditionProbabilitiesForPosition("RP");
+
+        assertThat(starter).containsEntry("1_3회", 0.54);
+        assertThat(starter).containsEntry("4_6회", 0.34);
+        assertThat(starter).containsEntry("7_9회", 0.12);
+        assertThat(starter).containsEntry("6회까지", 0.88);
+        assertThat(starter).containsEntry("7회까지", 0.94);
+        assertThat(reliever).containsEntry("1_3회", 0.00);
+        assertThat(reliever).containsEntry("7_9회", 0.79);
+    }
+
+    @Test
+    void appliesPlateAppearanceProbabilitiesByBattingOrderGroup() {
+        Map<String, Double> defaultOrder = ScoreCalculator.conditionProbabilitiesForPosition("BATTER");
+        Map<String, Double> topOrder = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 1);
+        Map<String, Double> middleOrder = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 4);
+        Map<String, Double> lowerOrder = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 8);
+
+        assertThat(defaultOrder.get("타석1")).isCloseTo(1.0 / 3.595, within(0.0001));
+        assertThat(middleOrder.get("타석2")).isCloseTo(1.0 / 3.595, within(0.0001));
+        assertThat(middleOrder.get("타석3")).isCloseTo(0.90 / 3.595, within(0.0001));
+        assertThat(middleOrder.get("타석4_7")).isCloseTo(0.695 / 3.595, within(0.0001));
+        assertThat(topOrder.get("타석7")).isCloseTo(0.01 / 3.96, within(0.0001));
+        assertThat(lowerOrder.get("타석7")).isEqualTo(0.0);
+    }
+
+    @Test
+    void combinesPositionGateAndInningUntilConditionsAsMultiplication() {
+        ScoreSkill skill = scoreSkill("G_055", "퀄리티 스타트",
+                effect("파워", "포지션_SP+6회까지", "10")
+        );
+        ScoreCalculator calculator = new ScoreCalculator();
+
+        ScoreCalculator.Result starter = calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("파워", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("SP"),
+                Map.of()
+        );
+        ScoreCalculator.Result batter = calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("파워", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("BATTER"),
+                Map.of()
+        );
+
+        assertThat(starter.total()).isEqualTo(8.80);
+        assertThat(batter.total()).isEqualTo(0.00);
+    }
+
+    @Test
+    void calculatesPitcherOverpaceInningTierExpectedValueForStarter() {
+        ScoreSkill skill = scoreSkill("G_075", "오버페이스",
+                effect("구위", "1_3회", "7"),
+                effect("구위", "4_6회", "5"),
+                effect("구위", "7_9회", "2")
+        );
+        ScoreCalculator calculator = new ScoreCalculator();
+
+        ScoreCalculator.Result result = calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("구위", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("SP"),
+                Map.of()
+        );
+
+        assertThat(result.total()).isEqualTo(5.72);
+    }
+
+    @Test
+    void calculatesBatterOverpacePlateTierExpectedValueForMiddleOrder() {
+        ScoreSkill skill = scoreSkill("G_034", "오버페이스",
+                effect("파워", "타석1", "8"),
+                effect("파워", "타석2", "6"),
+                effect("파워", "타석3", "4"),
+                effect("파워", "타석4_7", "2")
+        );
+        ScoreCalculator calculator = new ScoreCalculator();
+
+        ScoreCalculator.Result result = calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("파워", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 4),
+                Map.of()
+        );
+
+        assertThat(result.total()).isEqualTo(5.28);
     }
 
     @Test
@@ -421,6 +514,63 @@ class ScoreCalculatorTest {
         assertThat(breakdown.weight()).isEqualTo(1.2);
         assertThat(breakdown.conditionProbability()).isEqualTo(0.37);
         assertThat(breakdown.subtotal()).isEqualTo(2.22);
+    }
+
+    @Test
+    void verifiesSlotGateResolverValues() {
+        Map<String, Double> sp1 = ScoreCalculator.conditionProbabilitiesForPosition("SP", null, 1);
+        assertThat(sp1).containsEntry("선발1", 1.0);
+        assertThat(sp1).containsEntry("선발1_2", 1.0);
+        assertThat(sp1).containsEntry("선발3_4", 0.0);
+        assertThat(sp1).containsEntry("선발3_4_5", 0.0);
+        assertThat(sp1).containsEntry("선발4_5", 0.0);
+        assertThat(sp1).containsEntry("중계3_4_5", 0.0);
+
+        Map<String, Double> sp4 = ScoreCalculator.conditionProbabilitiesForPosition("SP", null, 4);
+        assertThat(sp4).containsEntry("선발1", 0.0);
+        assertThat(sp4).containsEntry("선발1_2", 0.0);
+        assertThat(sp4).containsEntry("선발3_4", 1.0);
+        assertThat(sp4).containsEntry("선발3_4_5", 1.0);
+        assertThat(sp4).containsEntry("선발4_5", 1.0);
+
+        Map<String, Double> rp4 = ScoreCalculator.conditionProbabilitiesForPosition("RP", null, 4);
+        assertThat(rp4).containsEntry("선발3_4_5", 0.0);
+        assertThat(rp4).containsEntry("중계3_4_5", 1.0);
+
+        Map<String, Double> spNull = ScoreCalculator.conditionProbabilitiesForPosition("SP", null, null);
+        assertThat(spNull).containsEntry("선발1", 0.0);
+    }
+
+    @Test
+    void verifiesOrGroupLogicForPitcherSlots() {
+        ScoreSkill skill = scoreSkill("G_052", "라이징 스타",
+                effect("파워", "선발3_4_5+중계3_4_5", "10")
+        );
+        ScoreCalculator calculator = new ScoreCalculator();
+
+        ScoreCalculator.Result spSlot4 = calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("파워", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("SP", null, 4),
+                Map.of()
+        );
+        assertThat(spSlot4.total()).isEqualTo(10.00);
+
+        ScoreCalculator.Result rpSlot4 = calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("파워", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("RP", null, 4),
+                Map.of()
+        );
+        assertThat(rpSlot4.total()).isEqualTo(10.00);
+
+        ScoreCalculator.Result spSlot1 = calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("파워", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("SP", null, 1),
+                Map.of()
+        );
+        assertThat(spSlot1.total()).isEqualTo(0.00);
     }
 
     private ScoreSkill scoreSkill(String skillKey, String name, ScoreEffect... effects) {

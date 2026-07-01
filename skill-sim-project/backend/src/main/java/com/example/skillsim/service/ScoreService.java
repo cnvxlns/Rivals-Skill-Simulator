@@ -73,7 +73,21 @@ public class ScoreService {
         String normalizedPosition = normalizeRequiredOrThrow(request.getPosition(), "Position selection is required.");
         List<ScoreSelection> selections = request.getSelections();
         validateSelections(selections, normalizedCardType);
-        Integer battingOrder = validateBattingOrder(request.getBattingOrder());
+
+        String role = SkillRules.roleForPosition(normalizedPosition);
+        Integer battingOrder = null;
+        Integer pitcherSlot = request.getPitcherSlot();
+        if ("BATTER".equals(role)) {
+            battingOrder = validateBattingOrder(request.getBattingOrder());
+        } else if ("SP".equals(role)) {
+            if (pitcherSlot == null || pitcherSlot < 1 || pitcherSlot > 5) {
+                throw badRequest("Pitcher slot must be between 1 and 5 for starting pitchers.");
+            }
+        } else if ("RP".equals(role)) {
+            if (pitcherSlot == null || pitcherSlot < 1 || pitcherSlot > 6) {
+                throw badRequest("Pitcher slot must be between 1 and 6 for relief pitchers.");
+            }
+        }
 
         Set<String> seenSkillIds = new HashSet<>();
         List<ScoreCalculator.Selection> calculatorSelections = new ArrayList<>();
@@ -100,7 +114,7 @@ public class ScoreService {
             calculatorSelections.add(new ScoreCalculator.Selection(skill, selection.getLevel()));
         }
 
-        Map<String, Double> conditionProbabilities = ScoreCalculator.conditionProbabilitiesForPosition(normalizedPosition, battingOrder);
+        Map<String, Double> conditionProbabilities = ScoreCalculator.conditionProbabilitiesForPosition(normalizedPosition, battingOrder, pitcherSlot);
         UndefinedConditionWarnings undefinedConditionWarnings = applyUndefinedConditionWarnings(
                 calculatorSelections,
                 conditionProbabilities
@@ -117,7 +131,7 @@ public class ScoreService {
 
     private Integer validateBattingOrder(Integer battingOrder) {
         if (battingOrder == null) {
-            return null;
+            throw badRequest("Batting order is required for batters.");
         }
         if (battingOrder < 1 || battingOrder > 9) {
             throw badRequest("Batting order must be between 1 and 9.");

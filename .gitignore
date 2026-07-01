@@ -19,6 +19,13 @@ skill-sim-project/backend/simulator.db
 skill-sim-project/backend/*.log
 skill-sim-project/backend/.idea/
 
+# Android (Gradle / local SDK config)
+skill-sim-project/android/.gradle/
+skill-sim-project/android/build/
+skill-sim-project/android/app/build/
+skill-sim-project/android/local.properties
+skill-sim-project/android/.idea/
+
 # Frontend (Next.js)
 skill-sim-project/frontend/node_modules/
 skill-sim-project/frontend/.next/

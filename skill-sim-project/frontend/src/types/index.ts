@@ -118,6 +118,7 @@ export type ScoreRequest = {
   position: Position | SubPosition | string;
   selections: ScoreSelection[];
   battingOrder?: number | null;
+  pitcherSlot?: number | null;
   userStats?: Record<string, number>;
 };
 

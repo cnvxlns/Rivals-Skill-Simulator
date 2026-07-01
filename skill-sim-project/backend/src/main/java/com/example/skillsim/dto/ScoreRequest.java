@@ -27,5 +27,7 @@ public class ScoreRequest {
 
     private Integer battingOrder;
 
+    private Integer pitcherSlot;
+
     private Map<String, Double> userStats;
 }

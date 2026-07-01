@@ -95,6 +95,10 @@ export const translations = {
     stat_팀덱: '팀 덱 스코어',
     score_formula: '계산식',
     slot_lock_rule_hint: '1번 슬롯 잠금은 모먼트 규칙을 따릅니다.',
+    option_select_sub_position: '세부 포지션 선택',
+    option_select_pitcher_slot: '슬롯 선택',
+    option_select_batting_order: '타순 선택',
+    label_pitcher_slot: '투수 슬롯',
   },
   EN: {
     tab_simulator: 'Simulator',
@@ -188,6 +192,10 @@ export const translations = {
     stat_팀덱: 'Team deck score',
     score_formula: 'Formula',
     slot_lock_rule_hint: 'Slot 1 lock obeys Moment rules.',
+    option_select_sub_position: 'Select Sub-Position',
+    option_select_pitcher_slot: 'Select Slot',
+    option_select_batting_order: 'Select Batting Order',
+    label_pitcher_slot: 'Pitcher Slot',
   },
   JP: {
     tab_simulator: 'シミュレーター',
@@ -281,6 +289,10 @@ export const translations = {
     stat_팀덱: 'チームデックスコア',
     score_formula: '計算式',
     slot_lock_rule_hint: '1番スロットのロックは Moment 規則に従う',
+    option_select_sub_position: 'サブポジション選択',
+    option_select_pitcher_slot: 'スロット選択',
+    option_select_batting_order: '打順選択',
+    label_pitcher_slot: '投手のスロット',
   },
   ES: {
     tab_simulator: 'Simulador',
@@ -374,6 +386,10 @@ export const translations = {
     stat_팀덱: 'Puntaje de deck de equipo',
     score_formula: 'Fórmula',
     slot_lock_rule_hint: 'El bloqueo del slot 1 sigue reglas de Moment',
+    option_select_sub_position: 'Seleccionar sub-posición',
+    option_select_pitcher_slot: 'Seleccionar slot',
+    option_select_batting_order: 'Seleccionar orden al bate',
+    label_pitcher_slot: 'Slot del lanzador',
   },
   CN: {
     tab_simulator: '模擬器',
@@ -467,5 +483,9 @@ export const translations = {
     stat_팀덱: '隊伍套牌分數',
     score_formula: '公式',
     slot_lock_rule_hint: '1 號槽鎖定遵循 Moment 規則',
+    option_select_sub_position: '選擇子位置',
+    option_select_pitcher_slot: '選擇槽位',
+    option_select_batting_order: '選擇打序',
+    label_pitcher_slot: '投手槽位',
   },
 } as const;

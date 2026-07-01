@@ -7,6 +7,7 @@ export enum Tier {
   BLACK = 'BLACK',
   MOMENT = 'MOMENT',
   HOF = 'HOF',
+  WBC = 'WBC',
 }
 
 export enum Grade {
@@ -15,6 +16,10 @@ export enum Grade {
   B = 'B',
   A = 'A',
   S = 'S',
+  S1 = 'S1',
+  S2 = 'S2',
+  S3 = 'S3',
+  S4 = 'S4',
 }
 
 export enum TicketType {
@@ -26,9 +31,10 @@ export enum TicketType {
 export enum CardType {
   SIGNATURE = 'SIGNATURE',
   SIGNATURE_BLACK = 'SIGNATURE_BLACK',
-  PRIME = 'PRIME',
-  MOMENT = 'MOMENT',
+  WBC = 'WBC',
+  WBC_SIGNATURE_BLACK = 'WBC_SIGNATURE_BLACK',
   HOF = 'HOF',
+  MOMENT = 'MOMENT',
 }
 
 export enum Position {
@@ -59,6 +65,7 @@ export type SubPosition =
 
 export type Skill = {
   id: number;
+  skillId?: string;
   name: string;
   tier: Tier;
   description?: string | null;
@@ -71,6 +78,7 @@ export type Skill = {
 export type SkillSlot = {
   skill: Skill | null;
   grade: Grade;
+  score?: number;
 };
 
 export type RollRequest = {
@@ -87,4 +95,61 @@ export type RollRequest = {
 
 export type RollResponse = {
   slots: SkillSlot[];
+  totalScore: number;
+};
+
+export type ScoreSkillOption = {
+  skillId: string;
+  cardType: string;
+  position: string;
+  name: string;
+  description?: string | null;
+  maxLevel: number;
+  levelLabels: string[];
+};
+
+export type ScoreSelection = {
+  skillId: string;
+  level: number;
+};
+
+export type ScoreRequest = {
+  cardType: CardType | string;
+  position: Position | SubPosition | string;
+  selections: ScoreSelection[];
+  battingOrder?: number | null;
+  userStats?: Record<string, number>;
+};
+
+export type ScoreStatBreakdown = {
+  stat: string;
+  value: number;
+};
+
+export type ScoreSkillBreakdown = {
+  skillId: string;
+  name: string;
+  score: number;
+  perStat: ScoreStatBreakdown[];
+  breakdown?: ScoreEffectBreakdown[];
+  warnings?: string[];
+};
+
+export type ScoreEffectBreakdown = {
+  stat: string;
+  condition: string;
+  weight: number;
+  value: number;
+  conditionProbability: number;
+  subtotal: number;
+  baseStat?: string | null;
+  baseValue?: number | null;
+  rawValue: number;
+};
+
+export type ScoreResponse = {
+  total: number;
+  perSkill: ScoreSkillBreakdown[];
+  perStat: ScoreStatBreakdown[];
+  warnings?: string[];
 };

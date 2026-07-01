@@ -34,6 +34,15 @@ public class SkillController {
         return skillService.rollSkills(request);
     }
 
+    @GetMapping("/initial")
+    public RollResponse initialSkills(
+            @RequestParam String cardType,
+            @RequestParam String position,
+            @RequestParam(required = false) String subPosition
+    ) {
+        return skillService.initialSlots(cardType, position, subPosition);
+    }
+
     // New endpoint: fetch Moment tier themes filtered by position (case-insensitive, includes SHARED)
     @GetMapping("/themes")
     public List<String> getThemes(@RequestParam String position, @RequestParam(required = false) String subPosition) {

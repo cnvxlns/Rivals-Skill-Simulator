@@ -14,4 +14,5 @@ import java.util.List;
 @AllArgsConstructor
 public class RollResponse {
     private List<SkillSlot> slots;
+    private double totalScore;
 }

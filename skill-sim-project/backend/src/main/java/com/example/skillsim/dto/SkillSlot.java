@@ -17,4 +17,6 @@ public class SkillSlot {
 
     @JsonProperty("grade")
     private Level level;
+
+    private double score;
 }

@@ -11,6 +11,7 @@ const tierBorderClasses: Record<Tier, string> = {
   [Tier.BLACK]: 'border-purple-600 shadow-[0_0_12px_rgba(126,34,206,0.35)]',
   [Tier.MOMENT]: 'border-emerald-500',
   [Tier.HOF]: 'border-red-600',
+  [Tier.WBC]: 'border-sky-500',
   [Tier.IRON]: 'border-slate-300',
   [Tier.BRONZE]: 'border-amber-300',
   [Tier.SILVER]: 'border-gray-300',
@@ -21,6 +22,7 @@ const tierTextClasses: Record<Tier, string> = {
   [Tier.BLACK]: 'text-purple-700 bg-purple-50',
   [Tier.MOMENT]: 'text-emerald-700',
   [Tier.HOF]: 'text-red-700',
+  [Tier.WBC]: 'text-sky-700',
   [Tier.IRON]: 'text-slate-700',
   [Tier.BRONZE]: 'text-amber-800',
   [Tier.SILVER]: 'text-gray-700',
@@ -28,6 +30,10 @@ const tierTextClasses: Record<Tier, string> = {
 };
 
 const gradeClasses: Record<Grade, string> = {
+  [Grade.S4]: 'bg-fuchsia-100 text-fuchsia-800',
+  [Grade.S3]: 'bg-purple-100 text-purple-800',
+  [Grade.S2]: 'bg-amber-100 text-amber-800',
+  [Grade.S1]: 'bg-orange-100 text-orange-800',
   [Grade.S]: 'bg-yellow-100 text-yellow-800',
   [Grade.A]: 'bg-blue-100 text-blue-800',
   [Grade.B]: 'bg-emerald-100 text-emerald-800',
@@ -36,7 +42,7 @@ const gradeClasses: Record<Grade, string> = {
 };
 
 const SkillCard = ({ skillSlot, slotNumber, className }: Props) => {
-  const { skill, grade } = skillSlot;
+  const { skill, grade, score } = skillSlot;
 
   if (!skill) {
     return (
@@ -73,7 +79,7 @@ const SkillCard = ({ skillSlot, slotNumber, className }: Props) => {
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className={`text-xs uppercase tracking-wide ${slotLabelTone}`}>Slot {slotNumber}</p>
-          <h3 className="text-lg font-semibold">{skill.name}</h3>
+          <h3 className="text-lg font-semibold" title={skill.description ?? skill.name}>{skill.name}</h3>
         </div>
         <div className="flex flex-col items-end gap-1">
           {!hideTierText && (
@@ -87,6 +93,11 @@ const SkillCard = ({ skillSlot, slotNumber, className }: Props) => {
           <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${gradeStyle}`}>
             Grade {grade}
           </span>
+          {typeof score === 'number' && (
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+              {score.toFixed(2)}
+            </span>
+          )}
         </div>
       </div>
 

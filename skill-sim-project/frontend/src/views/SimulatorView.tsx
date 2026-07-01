@@ -25,6 +25,7 @@ const SimulatorView = () => {
     useLevelProtectionSlots,
     toggleLevelProtection,
     slots,
+    totalScore,
     loading,
     error,
     roll,
@@ -100,7 +101,8 @@ const SimulatorView = () => {
               >
                 <option value={CardType.SIGNATURE}>Signature</option>
                 <option value={CardType.SIGNATURE_BLACK}>Signature Black</option>
-                <option value={CardType.PRIME}>Prime</option>
+                <option value={CardType.WBC}>WBC</option>
+                <option value={CardType.WBC_SIGNATURE_BLACK}>WBC Signature Black</option>
                 <option value={CardType.HOF}>HOF</option>
                 <option value={CardType.MOMENT}>Moment</option>
               </select>
@@ -183,7 +185,12 @@ const SimulatorView = () => {
               <p className="text-xs uppercase tracking-wide text-indigo-200">{t('slot_details')}</p>
               <h2 className="text-xl font-semibold text-white">{t('slot_details')}</h2>
             </div>
-            <p className="text-xs text-indigo-100">{t('slot_lock_rule_hint')}</p>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                {t('score_total')} {totalScore.toFixed(2)}
+              </span>
+              <p className="text-xs text-indigo-100">{t('slot_lock_rule_hint')}</p>
+            </div>
           </div>
           {error && <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p>}
           {!slots.length && !error && <p className="mt-3 text-sm text-indigo-100/90">{t('empty_slots_hint')}</p>}

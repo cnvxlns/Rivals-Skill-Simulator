@@ -6,7 +6,11 @@ public enum Level {
     C,
     B,
     A,
-    S;
+    S,
+    S1,
+    S2,
+    S3,
+    S4;
 
     public boolean isAtLeast(Level other) {
         return this.ordinal() >= other.ordinal();

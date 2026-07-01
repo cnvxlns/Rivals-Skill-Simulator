@@ -1,13 +1,14 @@
 # 1. Build Stage
-FROM maven:3.9.6-eclipse-temurin-17-alpine AS build
+FROM eclipse-temurin:17-jdk-alpine AS build
 WORKDIR /app
-COPY pom.xml .
-# RUN mvn -B dependency:go-offline  <-- 이 줄을 지우거나 주석 처리했습니다.
+COPY gradlew gradlew.bat build.gradle settings.gradle ./
+COPY gradle ./gradle
+RUN chmod +x ./gradlew
 COPY src ./src
-RUN mvn clean package -DskipTests
+RUN ./gradlew clean bootJar -x test --no-daemon
 
 # 2. Run Stage
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /app/build/libs/*.jar app.jar
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -2,9 +2,10 @@
 package com.example.skillsim.enums;
 
 public enum CardType {
-    PRIME,
     SIGNATURE,
-    MOMENT,
+    SIGNATURE_BLACK,
+    WBC,
+    WBC_SIGNATURE_BLACK,
     HOF,
-    SIGNATURE_BLACK
+    MOMENT
 }

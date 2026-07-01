@@ -8,5 +8,6 @@ public enum Tier {
     GOLD,
     BLACK,
     MOMENT,
-    HOF
+    HOF,
+    WBC
 }

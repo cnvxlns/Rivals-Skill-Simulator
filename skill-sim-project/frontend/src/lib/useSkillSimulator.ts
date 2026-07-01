@@ -1,16 +1,18 @@
 // 프론트엔드에서 스킬 롤 로직, 잠금 규칙, 상태 관리를 담당하는 커스텀 훅
 import { useEffect, useMemo, useState } from 'react';
 import { CardType, Grade, Position, RollRequest, SkillSlot, SubPosition, TicketType, Tier } from '../types';
-import api, { rollSkills } from './api';
+import api, { fetchInitialSkills, rollSkills } from './api';
 
 const BASE_SLOT_COUNT = 3;
-const slotCountForCard = (cardType: CardType) => (cardType === CardType.SIGNATURE_BLACK ? 4 : BASE_SLOT_COUNT);
+const slotCountForCard = (cardType: CardType) =>
+  cardType === CardType.SIGNATURE_BLACK || cardType === CardType.WBC_SIGNATURE_BLACK ? 4 : BASE_SLOT_COUNT;
 
 export function useSkillSimulator() {
   const [cardType, setCardType] = useState<CardType>(CardType.SIGNATURE);
   const [ticketType, setTicketType] = useState<TicketType>(TicketType.SKILL_CHANGE);
   const [useLevelProtectionSlots, setUseLevelProtectionSlots] = useState<boolean[]>(Array(slotCountForCard(CardType.SIGNATURE)).fill(false));
   const [slots, setSlots] = useState<SkillSlot[]>([]);
+  const [totalScore, setTotalScore] = useState<number>(0);
   const [lockSlot1, setLockSlot1] = useState<boolean>(false);
   const [position, setPosition] = useState<Position | null>(Position.PITCHER);
   const [subPosition, setSubPosition] = useState<SubPosition>('ALL');
@@ -25,13 +27,17 @@ export function useSkillSimulator() {
   });
   const [protectionUsageCount, setProtectionUsageCount] = useState<number>(0);
   const [candidateSkills, setCandidateSkills] = useState<SkillSlot[] | null>(null);
+  const [candidateTotalScore, setCandidateTotalScore] = useState<number>(0);
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState<boolean>(false);
   const ticketUsageCount = ticketUsageCounts[ticketType] ?? 0;
 
   const slotCount = useMemo(() => slotCountForCard(cardType), [cardType]);
 
   const isSlot1Moment = slots[0]?.skill?.tier === Tier.MOMENT;
-  const canLockSlot1 = cardType === CardType.PRIME || (cardType === CardType.MOMENT && isSlot1Moment);
+  const canLockSlot1 =
+    cardType === CardType.SIGNATURE ||
+    cardType === CardType.WBC ||
+    (cardType === CardType.MOMENT && isSlot1Moment);
   const lockedSlots = useMemo<number[]>(() => {
     return lockSlot1 && canLockSlot1 ? [0] : [];
   }, [lockSlot1, canLockSlot1]);
@@ -83,10 +89,12 @@ export function useSkillSimulator() {
 
       if (isPremiumFlow) {
         setCandidateSkills(res.slots);
+        setCandidateTotalScore(res.totalScore ?? 0);
         setIsSelectionModalOpen(true);
       } else {
         setCandidateSkills(null);
         setSlots(res.slots);
+        setTotalScore(res.totalScore ?? 0);
       }
       setTicketUsageCounts((prev) => ({
         ...prev,
@@ -141,23 +149,56 @@ export function useSkillSimulator() {
   useEffect(() => {
     // Reset state when switching card types to avoid stale slots/locks carrying over
     setSlots([]);
+    setTotalScore(0);
     setUseLevelProtectionSlots(Array(slotCount).fill(false));
     setLockSlot1(false);
     setCandidateSkills(null);
+    setCandidateTotalScore(0);
     setIsSelectionModalOpen(false);
     setError(null);
   }, [cardType, slotCount]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadInitialSlots = async () => {
+      try {
+        const res = await fetchInitialSkills(
+          cardType,
+          position ?? Position.PITCHER,
+          subPosition === 'ALL' ? null : subPosition,
+        );
+        if (cancelled) return;
+        setSlots(res.slots);
+        setTotalScore(res.totalScore ?? 0);
+      } catch {
+        if (!cancelled) {
+          setSlots([]);
+          setTotalScore(0);
+        }
+      }
+    };
+
+    loadInitialSlots();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardType, position, subPosition]);
+
   const keepCurrentSkills = () => {
     setCandidateSkills(null);
+    setCandidateTotalScore(0);
     setIsSelectionModalOpen(false);
   };
 
   const applyCandidateSkills = () => {
     if (candidateSkills) {
       setSlots(candidateSkills);
+      setTotalScore(candidateTotalScore);
     }
     setCandidateSkills(null);
+    setCandidateTotalScore(0);
     setIsSelectionModalOpen(false);
   };
 
@@ -216,6 +257,7 @@ export function useSkillSimulator() {
     selectedTheme,
     setSelectedTheme,
     slots,
+    totalScore,
     loading,
     error,
     roll,

@@ -1,13 +1,14 @@
 # Rivals-Skill-Simulator
 
-MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에서 실험할 수 있는 토이 프로젝트입니다. 카드 타입(Prime/Moment/Signature), 변경권 종류(일반/고급/최고급), 포지션 필터를 조합해 실제 게임 규칙에 가까운 확률 롤을 돌려 볼 수 있습니다.
+MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에서 실험할 수 있는 토이 프로젝트입니다. 카드 타입(Prime/Moment/Signature), 변경권 종류(일반/고급/최고급), 포지션 필터를 조합해 실제 게임 규칙에 가까운 확률 롤을 돌려 볼 수 있고, 스킬 조합의 점수도 계산할 수 있습니다.
 
 ## 핵심 기능
 - 스킬 변경 시뮬레이션: 변경권별 확률 테이블(Weighted Random) 적용, 최고급 변경권 사용 시 1번 슬롯 골드 티어 보장, 슬롯 간 스킬 중복 방지.
 - 카드 타입별 잠금 규칙: Prime은 1번 슬롯 잠금 가능, Moment는 1번 슬롯이 Moment 티어일 때만 잠금 가능, Signature는 잠금 불가. 백엔드에서 검증하고 프론트에서도 제어합니다.
 - 스킬 레벨 보호: 슬롯별 `useLevelProtectionSlots` 플래그로 등급 하락을 방지하며, 기존 등급보다 낮아지지 않도록 처리합니다.
 - 포지션 필터: Pitcher/Batter 전용 스킬 풀을 분리하며, 요청에 포지션 누락 시 400 오류를 반환합니다.
-- 정적 데이터 시드: `src/main/resources/skills.csv`를 애플리케이션 시작 시 읽어 SQLite DB에 적재합니다.
+- 스킬 점수 계산기: 카드 타입과 포지션을 기준으로 스킬 3개(시그니처 블랙은 4개)와 레벨을 선택하면 총점, 스킬별 기여도, 스탯별 내역을 계산합니다.
+- 정적 데이터 시드: `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 애플리케이션 시작 시 읽어 SQLite DB에 적재하며, 스킬 변경 롤과 점수 계산이 동일한 스킬 데이터를 공유합니다.
 
 ## 기술 스택
 **Frontend**  
@@ -23,13 +24,13 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 
 - Frontend: Next.js 14(App Router), TypeScript, Tailwind CSS, axios, lucide-react 아이콘.
 - Backend: Spring Boot 3.2, Java 17, Gradle(Wrapper), Spring Data JPA, SQLite, OpenCSV.
-- DB: SQLite(`simulator.db`) 사용, `hibernate.ddl-auto=create`로 부팅 시 테이블을 다시 생성합니다.
+- DB: SQLite(`simulator.db`) 사용, `schema.sql`로 필요한 테이블을 생성합니다.
 
 ## 폴더 구조
 ```
 skill-sim-project/
 ├── backend   # Spring Boot API 서버 (포트 8080, SQLite + CSV 시드)
-├── frontend  # Next.js 14 UI (포트 3000, axios로 /api/skills/roll 호출)
+├── frontend  # Next.js 14 UI (포트 3000, axios로 /api/skills/roll 및 /api/score 호출)
 └── README.md # 본 문서
 ```
 
@@ -42,7 +43,7 @@ skill-sim-project/
    ./gradlew bootRun
    ```
    - Windows PowerShell/명령프롬프트에서는 `gradlew.bat bootRun`
-3. 기본 포트는 `http://localhost:8080`입니다. `simulator.db`는 루트에 생성되며, 부팅 시 `skills.csv`를 읽어 테이블을 초기화합니다(DDL create라 커스텀 데이터는 재시작 시 삭제될 수 있음).
+3. 기본 포트는 `http://localhost:8080`입니다. `simulator.db`는 루트에 생성되며, 부팅 시 `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 읽어 데이터를 적재합니다.
 
 ### 2) Frontend (Next.js)
 1. 필수: Node.js 18.17+ (Next.js 14 요구), npm
@@ -56,10 +57,11 @@ skill-sim-project/
 4. 프로덕션 빌드:
    ```bash
    npm run build
-  npm start
-  ```
+   npm start
+   ```
 
 ## API 개요
+### 스킬 변경
 - 엔드포인트: `POST /api/skills/roll`
 - 요청 예시:
 ```json
@@ -94,9 +96,46 @@ skill-sim-project/
   ]
 }
 ```
+
+### 스킬 점수 계산
+- 목록 조회: `GET /api/score/skills?cardType=NORMAL&position=BATTER`
+- 점수 계산: `POST /api/score`
+- 요청 예시:
+```json
+{
+  "cardType": "NORMAL",
+  "position": "BATTER",
+  "selections": [
+    { "skillId": "S_001", "level": 2 },
+    { "skillId": "S_002", "level": 2 },
+    { "skillId": "S_003", "level": 2 }
+  ]
+}
+```
+- 응답 예시:
+```json
+{
+  "total": 6.2,
+  "perSkill": [
+    {
+      "skillId": "S_001",
+      "name": "좌투선호",
+      "score": 1.2,
+      "perStat": [
+        { "stat": "파워", "value": 0.66 },
+        { "stat": "정확", "value": 0.54 }
+      ]
+    }
+  ],
+  "perStat": [
+    { "stat": "파워", "value": 3.41 },
+    { "stat": "정확", "value": 2.79 }
+  ]
+}
+```
+
 ## TODO
 - 스킬 설명 추가
-- 스킬 점수 계산
 
 ## 면책 조항 (Disclaimer)
 This involves an unofficial fan-made project. 본 프로젝트는 팬심으로 제작된 비공식 시뮬레이터이며, 게임 개발사(Com2uS) 및 MLB와 어떠한 공식적인 관계도 없습니다.

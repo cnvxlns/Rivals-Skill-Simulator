@@ -30,6 +30,7 @@ skill-sim-project/frontend/.turbo/
 skill-sim-project/frontend/.vercel/
 skill-sim-project/frontend/npm-debug.log*
 skill-sim-project/frontend/yarn-error.log*
+skill-sim-project/frontend/*.log
 skill-sim-project/frontend/pnpm-lock.yaml
 skill-sim-project/frontend/.idea/
 skill-sim-project/frontend/tsconfig.tsbuildinfo

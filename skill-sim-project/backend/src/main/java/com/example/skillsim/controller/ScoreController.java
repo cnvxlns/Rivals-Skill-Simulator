@@ -17,10 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/score")
-@CrossOrigin(origins = {
+@CrossOrigin(originPatterns = {
     "http://localhost:3000",
     "https://rivals-skill-random-generator-api.onrender.com",
-    "https://your-frontend.vercel.app"
+    "https://*.vercel.app"
 })
 @RequiredArgsConstructor
 public class ScoreController {

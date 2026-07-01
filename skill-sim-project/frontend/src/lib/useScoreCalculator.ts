@@ -38,7 +38,7 @@ export type ScoreSlotSelection = {
 export function useScoreCalculator() {
   const [cardType, setCardType] = useState<CardType>(CardType.SIGNATURE);
   const [position, setPosition] = useState<Position>(Position.BATTER);
-  const [subPosition, setSubPosition] = useState<SubPosition>('ALL');
+  const [subPosition, setSubPosition] = useState<SubPosition | ''>('');
   const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
   const [selections, setSelections] = useState<ScoreSlotSelection[]>(Array(BASE_SLOT_COUNT).fill(null).map(() => ({ skillId: '', level: 1 })));
   const [result, setResult] = useState<ScoreResponse | null>(null);
@@ -47,9 +47,10 @@ export function useScoreCalculator() {
   const [error, setError] = useState<string | null>(null);
   const [userStats, setUserStats] = useState<Record<string, number>>(defaultUserStats);
   const [battingOrder, setBattingOrder] = useState<number | null>(null);
+  const [pitcherSlot, setPitcherSlot] = useState<number | null>(null);
 
   const slotCount = useMemo(() => slotCountForCard(cardType), [cardType]);
-  const scorePosition = subPosition === 'ALL' ? position : subPosition;
+  const scorePosition = subPosition;
   const visibleStats = useMemo(
     () => [...(position === Position.PITCHER ? PITCHER_STATS : BATTER_STATS), ...DECK_STATS],
     [position],
@@ -60,7 +61,24 @@ export function useScoreCalculator() {
     [selections],
   );
 
-  const canCalculate = selections.length === slotCount && selections.every((selection) => selection.skillId);
+  const canCalculate = useMemo(() => {
+    const slotsFilled = selections.length === slotCount && selections.every((selection) => selection.skillId);
+    if (!slotsFilled) return false;
+    if (!subPosition || subPosition === 'ALL') return false;
+
+    if (position === Position.BATTER) {
+      return battingOrder !== null && battingOrder >= 1 && battingOrder <= 9;
+    } else {
+      if (subPosition === 'SP') {
+        return pitcherSlot !== null && pitcherSlot >= 1 && pitcherSlot <= 5;
+      } else if (subPosition === 'RP') {
+        return pitcherSlot !== null && pitcherSlot >= 1 && pitcherSlot <= 6;
+      } else if (subPosition === 'CP') {
+        return true;
+      }
+      return false;
+    }
+  }, [selections, slotCount, subPosition, position, battingOrder, pitcherSlot]);
 
   useEffect(() => {
     setSelections((prev) =>
@@ -70,11 +88,17 @@ export function useScoreCalculator() {
   }, [slotCount]);
 
   useEffect(() => {
-    setSubPosition('ALL');
+    setSubPosition('');
     setBattingOrder(null);
+    setPitcherSlot(null);
+    setResult(null);
   }, [position]);
 
   useEffect(() => {
+    if (!scorePosition) {
+      setSkills([]);
+      return;
+    }
     let cancelled = false;
 
     const loadSkills = async () => {
@@ -147,6 +171,7 @@ export function useScoreCalculator() {
         level: selection.level,
       })),
       battingOrder: position === Position.BATTER ? battingOrder : undefined,
+      pitcherSlot: position === Position.PITCHER ? pitcherSlot : undefined,
       userStats: stats,
     };
 
@@ -160,7 +185,13 @@ export function useScoreCalculator() {
     } finally {
       setCalculating(false);
     }
-  }, [battingOrder, canCalculate, cardType, position, scorePosition, selections]);
+  }, [battingOrder, pitcherSlot, canCalculate, cardType, position, scorePosition, selections]);
+
+  const updatePitcherSlot = useCallback((value: number | null) => {
+    const nextValue = value != null && value >= 1 && value <= 6 ? value : null;
+    setPitcherSlot(nextValue);
+    setResult(null);
+  }, []);
 
   const calculate = useCallback(async () => {
     await calculateWithStats(userStats);
@@ -208,6 +239,7 @@ export function useScoreCalculator() {
     visibleStats,
     userStats,
     battingOrder,
+    pitcherSlot,
     loadingSkills,
     calculating,
     canCalculate,
@@ -217,6 +249,7 @@ export function useScoreCalculator() {
     updateLevel,
     updateUserStat,
     updateBattingOrder,
+    updatePitcherSlot,
     resetUserStats,
     clearSlot,
     calculate,

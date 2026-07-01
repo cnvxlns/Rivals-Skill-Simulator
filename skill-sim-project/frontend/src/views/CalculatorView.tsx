@@ -26,6 +26,7 @@ const CalculatorView = () => {
     visibleStats,
     userStats,
     battingOrder,
+    pitcherSlot,
     loadingSkills,
     calculating,
     canCalculate,
@@ -35,13 +36,14 @@ const CalculatorView = () => {
     updateLevel,
     updateUserStat,
     updateBattingOrder,
+    updatePitcherSlot,
     resetUserStats,
     clearSlot,
     calculate,
   } = useScoreCalculator();
 
-  const pitcherSubPositions: SubPosition[] = ['ALL', 'SP', 'RP', 'CP'];
-  const batterSubPositions: SubPosition[] = ['ALL', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
+  const pitcherSubPositions: SubPosition[] = ['SP', 'RP', 'CP'];
+  const batterSubPositions: SubPosition[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
   const subPositionOptions = position === Position.PITCHER ? pitcherSubPositions : batterSubPositions;
 
   const formatScore = (value: number) => value.toFixed(2);
@@ -125,9 +127,12 @@ const CalculatorView = () => {
                   onChange={(event) => setSubPosition(event.target.value as SubPosition)}
                   className="mt-2 w-full rounded-lg border border-indigo-200/60 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 >
+                  <option value="" disabled hidden>
+                    {t('option_select_sub_position')}
+                  </option>
                   {subPositionOptions.map((option) => (
                     <option key={option} value={option}>
-                      {option === 'ALL' ? t('option_all_sub_positions') : option}
+                      {option}
                     </option>
                   ))}
                 </select>
@@ -141,10 +146,32 @@ const CalculatorView = () => {
                     onChange={(event) => updateBattingOrder(event.target.value ? Number(event.target.value) : null)}
                     className="mt-2 w-full rounded-lg border border-indigo-200/60 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   >
-                    <option value="">{t('option_average_batting_order')}</option>
+                    <option value="" disabled hidden>
+                      {t('option_select_batting_order')}
+                    </option>
                     {Array.from({ length: 9 }, (_, idx) => idx + 1).map((order) => (
                       <option key={order} value={order}>
-                        {order}
+                        {order}번 타순
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {position === Position.PITCHER && (subPosition === 'SP' || subPosition === 'RP') && (
+                <label className="mt-4 block">
+                  <span className="text-xs font-semibold text-indigo-100">{t('label_pitcher_slot')}</span>
+                  <select
+                    value={pitcherSlot ?? ''}
+                    onChange={(event) => updatePitcherSlot(event.target.value ? Number(event.target.value) : null)}
+                    className="mt-2 w-full rounded-lg border border-indigo-200/60 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  >
+                    <option value="" disabled hidden>
+                      {t('option_select_pitcher_slot')}
+                    </option>
+                    {Array.from({ length: subPosition === 'SP' ? 5 : 6 }, (_, idx) => idx + 1).map((slot) => (
+                      <option key={slot} value={slot}>
+                        {subPosition === 'SP' ? `${slot}선발` : `${slot}중계`}
                       </option>
                     ))}
                   </select>

@@ -99,10 +99,17 @@ public class ScoreCalculator {
     );
 
     private static final Map<String, Double> GUTS_PROBABILITIES_BY_ROLE = Map.of(
-            "BATTER", 0.35,
-            "SP", 0.55,
-            "RP", 0.90,
-            "CP", 0.75
+            "BATTER", 0.20,
+            "SP", 0.80,
+            "RP", 0.95,
+            "CP", 0.90
+    );
+
+    private static final Map<String, Double> MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE = Map.of(
+            "BATTER", 0.0,
+            "SP", maestroAverageActiveStack(17) / 12.0,
+            "RP", maestroAverageActiveStack(4) / 12.0,
+            "CP", maestroAverageActiveStack(3) / 12.0
     );
 
     private static final double[] TOP_ORDER_PLATE_APPEARANCE_REACH = new double[]{1.0, 1.0, 0.95, 0.70, 0.25, 0.05, 0.01};
@@ -117,6 +124,7 @@ public class ScoreCalculator {
             new StaticProbabilityResolver(MODE_PROBABILITIES),
             new StaticProbabilityResolver(LAUNCH_ANGLE_PROBABILITIES),
             new DurationResolver(),
+            new MaestroCumulativeResolver(),
             new StatComparisonResolver(),
             new PositionGateResolver(),
             new SlotGateResolver(),
@@ -319,9 +327,17 @@ public class ScoreCalculator {
                     context.role(),
                     GUTS_PROBABILITIES_BY_ROLE.get("BATTER")
             );
+            probabilities.put("OVR열세", probability);
             probabilities.put("패기", probability);
             probabilities.put("인내<구속", probability);
             probabilities.put("구속>인내", probability);
+        }
+    }
+
+    private static final class MaestroCumulativeResolver implements ConditionResolver {
+        @Override
+        public void apply(Map<String, Double> probabilities, ConditionContext context) {
+            probabilities.put("마에스트로누적", MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE.getOrDefault(context.role(), 0.0));
         }
     }
 
@@ -405,6 +421,16 @@ public class ScoreCalculator {
 
     private static boolean isBetween(int value, int min, int max) {
         return value >= min && value <= max;
+    }
+
+    private static double maestroAverageActiveStack(int expectedOuts) {
+        if (expectedOuts <= 0) {
+            return 0.0;
+        }
+        if (expectedOuts <= 12) {
+            return (expectedOuts - 1) / 2.0;
+        }
+        return (66.0 + 12.0 * (expectedOuts - 12)) / expectedOuts;
     }
 
     double valueAt(String values, int level) {

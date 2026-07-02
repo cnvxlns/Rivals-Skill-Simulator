@@ -114,6 +114,35 @@ class ScoreDataLoaderTest {
     }
 
     @Test
+    void maestroDataUsesCumulativeOutCountConditionForPitcherBuff() throws Exception {
+        ScoreDataLoader loader = new ScoreDataLoader(null);
+
+        List<ScoreSkill> skills = readBundledScoreSkills(loader);
+
+        for (String stat : List.of("파워", "정확", "선구", "인내", "주루", "수비")) {
+            assertThat(valuesFor(skills, "M_042", stat, "ALWAYS")).containsExactly("11");
+        }
+        assertThat(valuesFor(skills, "M_042", "구위", "마에스트로누적")).containsExactly("12");
+        assertThat(valuesFor(skills, "M_042", "변화", "마에스트로누적")).containsExactly("12");
+        assertThat(alwaysValues(skills, "M_042", "구위")).isEmpty();
+        assertThat(alwaysValues(skills, "M_042", "변화")).isEmpty();
+    }
+
+    @Test
+    void playoffHeroOvrComparisonEffectsAreMarkedAsOvrUnderdogConditions() throws Exception {
+        ScoreDataLoader loader = new ScoreDataLoader(null);
+
+        List<ScoreSkill> skills = readBundledScoreSkills(loader);
+
+        assertThat(valuesFor(skills, "M_004", "구위", "OVR열세")).containsExactly("4");
+        assertThat(valuesFor(skills, "M_004", "변화", "OVR열세")).containsExactly("4");
+        assertThat(valuesFor(skills, "M_020", "파워", "OVR열세")).containsExactly("4");
+        assertThat(valuesFor(skills, "M_020", "정확", "OVR열세")).containsExactly("4");
+        assertThat(valuesFor(skills, "M_004", "구위", "ALWAYS")).isEmpty();
+        assertThat(valuesFor(skills, "M_020", "파워", "ALWAYS")).isEmpty();
+    }
+
+    @Test
     void durationCountsAreNotEncodedAsStandaloneStatIncreases() throws Exception {
         ScoreDataLoader loader = new ScoreDataLoader(null);
         List<ScoreSkill> skills = readBundledScoreSkills(loader);

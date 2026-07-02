@@ -5,11 +5,13 @@ import com.rivals.skillsim.data.local.CalculatorSettings
 import com.rivals.skillsim.data.local.UserPrefsSnapshot
 import com.rivals.skillsim.data.local.UserPrefsStore
 import com.rivals.skillsim.data.model.CardType
+import com.rivals.skillsim.data.model.MethodologyResponse
 import com.rivals.skillsim.data.model.RollRequest
 import com.rivals.skillsim.data.model.RollResponse
 import com.rivals.skillsim.data.model.ScoreRequest
 import com.rivals.skillsim.data.model.ScoreResponse
 import com.rivals.skillsim.data.model.ScoreSkillOption
+import com.rivals.skillsim.data.model.HealthResponse
 import com.rivals.skillsim.data.repository.SkillRepositoryContract
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -95,6 +97,8 @@ class CalculatorViewModelTest {
     ) : SkillRepositoryContract {
         var lastScoreRequest: ScoreRequest? = null
 
+        override suspend fun checkHealth(): HealthResponse = HealthResponse("ok")
+
         override suspend fun rollSkills(payload: RollRequest): RollResponse =
             RollResponse()
 
@@ -114,6 +118,9 @@ class CalculatorViewModelTest {
             lastScoreRequest = payload
             return scoreResponse
         }
+
+        override suspend fun fetchMethodology(): MethodologyResponse =
+            throw NotImplementedError("not used in this test")
     }
 
     private class FakePrefsStore(

@@ -5,12 +5,17 @@ import com.rivals.skillsim.data.model.RollResponse
 import com.rivals.skillsim.data.model.ScoreRequest
 import com.rivals.skillsim.data.model.ScoreResponse
 import com.rivals.skillsim.data.model.ScoreSkillOption
+import com.rivals.skillsim.data.model.MethodologyResponse
+import com.rivals.skillsim.data.model.HealthResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
 
 interface SkillApi {
+    @GET("/api/health")
+    suspend fun checkHealth(): HealthResponse
+
     @POST("/api/skills/roll")
     suspend fun rollSkills(@Body payload: RollRequest): RollResponse
 
@@ -35,4 +40,8 @@ interface SkillApi {
 
     @POST("/api/score")
     suspend fun calculateScore(@Body payload: ScoreRequest): ScoreResponse
+
+    @GET("/api/score/methodology")
+    suspend fun fetchMethodology(): MethodologyResponse
 }
+

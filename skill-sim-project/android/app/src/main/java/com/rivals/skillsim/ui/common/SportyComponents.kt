@@ -163,7 +163,11 @@ fun SegmentedTabs(
         ) {
             AppTab.entries.forEach { tab ->
                 val selected = tab == selectedTab
-                val labelKey = if (tab == AppTab.Simulator) "tab_simulator" else "tab_calculator"
+                val labelKey = when (tab) {
+                    AppTab.Simulator -> "tab_simulator"
+                    AppTab.Calculator -> "tab_calculator"
+                    AppTab.Methodology -> "tab_methodology"
+                }
                 Surface(
                     modifier = Modifier
                         .weight(1f)

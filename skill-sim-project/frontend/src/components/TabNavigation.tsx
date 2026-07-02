@@ -2,18 +2,19 @@
 
 // Chrome-style tab navigation for toggling between primary views
 
-type TabKey = 'simulator' | 'calculator';
+type TabKey = 'simulator' | 'calculator' | 'methodology';
 
 type Props = {
   activeTab: TabKey;
   onTabChange: (tab: TabKey) => void;
-  labels?: { simulator: string; calculator: string };
+  labels?: { simulator: string; calculator: string; methodology: string };
 };
 
 const TabNavigation = ({ activeTab, onTabChange, labels }: Props) => {
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'simulator', label: labels?.simulator ?? 'Skill Change Simulator' },
     { key: 'calculator', label: labels?.calculator ?? 'Skill Score Calculator' },
+    { key: 'methodology', label: labels?.methodology ?? 'Methodology' },
   ];
 
   return (

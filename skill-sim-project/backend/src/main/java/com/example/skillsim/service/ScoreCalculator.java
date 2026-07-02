@@ -3,6 +3,7 @@ package com.example.skillsim.service;
 import com.example.skillsim.model.ScoreEffect;
 import com.example.skillsim.model.ScoreSkill;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,6 +13,68 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ScoreCalculator {
+
+    public static double getDefaultUserStat() {
+        return DEFAULT_USER_STAT;
+    }
+
+    public static double getDefaultDeckScore() {
+        return DEFAULT_DECK_SCORE;
+    }
+
+    public static Map<String, double[]> getInningWeightsByRole() {
+        Map<String, double[]> copy = new LinkedHashMap<>();
+        INNING_WEIGHTS_BY_ROLE.forEach((k, v) -> copy.put(k, v.clone()));
+        return Collections.unmodifiableMap(copy);
+    }
+
+    public static Map<String, Double> getStaticConditionProbabilities() {
+        return STATIC_CONDITION_PROBABILITIES;
+    }
+
+    public static Map<String, Double> getPlateSituationProbabilities() {
+        return PLATE_SITUATION_PROBABILITIES;
+    }
+
+    public static Map<String, Double> getBattingOrderDefaultProbabilities() {
+        return BATTING_ORDER_DEFAULT_PROBABILITIES;
+    }
+
+    public static Map<String, Double> getGameStateProbabilities() {
+        return GAME_STATE_PROBABILITIES;
+    }
+
+    public static Map<String, Double> getModeProbabilities() {
+        return MODE_PROBABILITIES;
+    }
+
+    public static Map<String, Double> getLaunchAngleProbabilities() {
+        return LAUNCH_ANGLE_PROBABILITIES;
+    }
+
+    public static Map<String, Double> getNineBatterDurationProbabilitiesByRole() {
+        return NINE_BATTER_DURATION_PROBABILITIES_BY_ROLE;
+    }
+
+    public static Map<String, Double> getGutsProbabilitiesByRole() {
+        return GUTS_PROBABILITIES_BY_ROLE;
+    }
+
+    public static Map<String, Double> getMaestroCumulativeProbabilitiesByRole() {
+        return MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE;
+    }
+
+    public static double[] getTopOrderPlateAppearanceReach() {
+        return TOP_ORDER_PLATE_APPEARANCE_REACH.clone();
+    }
+
+    public static double[] getMiddleOrderPlateAppearanceReach() {
+        return MIDDLE_ORDER_PLATE_APPEARANCE_REACH.clone();
+    }
+
+    public static double[] getLowerOrderPlateAppearanceReach() {
+        return LOWER_ORDER_PLATE_APPEARANCE_REACH.clone();
+    }
 
     private static final double DEFAULT_USER_STAT = 120.0;
     private static final double DEFAULT_DECK_SCORE = 500.0;

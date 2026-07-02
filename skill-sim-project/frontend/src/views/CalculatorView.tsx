@@ -8,7 +8,11 @@ import { useScoreCalculator } from '../lib/useScoreCalculator';
 import { TranslationKey } from '../locales/translations';
 import { CardType, Position, SubPosition } from '../types';
 
-const CalculatorView = () => {
+interface CalculatorViewProps {
+  onViewMethodology?: () => void;
+}
+
+const CalculatorView = ({ onViewMethodology }: CalculatorViewProps) => {
   const { t } = useTranslation();
   const [showStats, setShowStats] = useState(false);
   const {
@@ -318,6 +322,15 @@ const CalculatorView = () => {
                       <details className="mt-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-indigo-50">
                         <summary className="cursor-pointer font-semibold text-indigo-100">{t('score_formula')}</summary>
                         <div className="mt-2 space-y-1">
+                          {onViewMethodology && (
+                            <button
+                              type="button"
+                              onClick={onViewMethodology}
+                              className="mb-2 block text-left font-medium text-emerald-300 hover:text-emerald-200 transition-colors underline"
+                            >
+                              {t('methodology_formula_detail_link')}
+                            </button>
+                          )}
                           {skill.breakdown.map((term, termIdx) => (
                             <div key={`${skill.skillId}-term-${termIdx}`} className="rounded-md bg-slate-950/30 px-2 py-1">
                               <span className="font-semibold">{term.stat}</span>

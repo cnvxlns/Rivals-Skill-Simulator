@@ -6,8 +6,12 @@ import com.rivals.skillsim.data.model.RollResponse
 import com.rivals.skillsim.data.model.ScoreRequest
 import com.rivals.skillsim.data.model.ScoreResponse
 import com.rivals.skillsim.data.model.ScoreSkillOption
+import com.rivals.skillsim.data.model.MethodologyResponse
+import com.rivals.skillsim.data.model.HealthResponse
 
 interface SkillRepositoryContract {
+    suspend fun checkHealth(): HealthResponse
+
     suspend fun rollSkills(payload: RollRequest): RollResponse
 
     suspend fun fetchInitialSkills(
@@ -21,11 +25,16 @@ interface SkillRepositoryContract {
     suspend fun fetchThemes(position: String, subPosition: String?): List<String>
 
     suspend fun calculateScore(payload: ScoreRequest): ScoreResponse
+
+    suspend fun fetchMethodology(): MethodologyResponse
 }
 
 class SkillRepository(
     private val api: SkillApi,
 ) : SkillRepositoryContract {
+    override suspend fun checkHealth(): HealthResponse =
+        api.checkHealth()
+
     override suspend fun rollSkills(payload: RollRequest): RollResponse =
         api.rollSkills(payload)
 
@@ -44,4 +53,8 @@ class SkillRepository(
 
     override suspend fun calculateScore(payload: ScoreRequest): ScoreResponse =
         api.calculateScore(payload)
+
+    override suspend fun fetchMethodology(): MethodologyResponse =
+        api.fetchMethodology()
 }
+

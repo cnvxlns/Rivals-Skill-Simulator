@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug overlay: attach the debug network security config so the local
+     dev backend (cleartext HTTP over 10.0.2.2) is reachable. Release builds
+     do not include this and remain HTTPS-only. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>

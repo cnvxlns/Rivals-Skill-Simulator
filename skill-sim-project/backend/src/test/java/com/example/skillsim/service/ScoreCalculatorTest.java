@@ -314,10 +314,53 @@ class ScoreCalculatorTest {
                 Map.of()
         );
 
-        assertThat(batter.total()).isEqualTo(3.50);
-        assertThat(starter.total()).isEqualTo(5.50);
-        assertThat(reliever.total()).isEqualTo(9.00);
-        assertThat(closer.total()).isEqualTo(7.50);
+        assertThat(batter.total()).isEqualTo(2.00);
+        assertThat(starter.total()).isEqualTo(8.00);
+        assertThat(reliever.total()).isEqualTo(9.50);
+        assertThat(closer.total()).isEqualTo(9.00);
+    }
+
+    @Test
+    void appliesSameRoleBasedProbabilityToOvrUnderdogAndGutsTokens() {
+        assertThat(totalForCondition("BATTER", "OVR열세")).isEqualTo(2.00);
+        assertThat(totalForCondition("SP", "OVR열세")).isEqualTo(8.00);
+        assertThat(totalForCondition("RP", "OVR열세")).isEqualTo(9.50);
+        assertThat(totalForCondition("CP", "OVR열세")).isEqualTo(9.00);
+        assertThat(totalForCondition("RP", "패기")).isEqualTo(9.50);
+        assertThat(totalForCondition("CP", "구속>인내")).isEqualTo(9.00);
+    }
+
+    @Test
+    void appliesMaestroCumulativeAverageStackByPitcherRole() {
+        ScoreSkill skill = scoreSkill("M_042", "마에스트로",
+                effect("구위", "마에스트로누적", "12")
+        );
+        ScoreCalculator calculator = new ScoreCalculator();
+
+        assertThat(calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("구위", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("BATTER"),
+                Map.of()
+        ).total()).isEqualTo(0.00);
+        assertThat(calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("구위", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("SP"),
+                Map.of()
+        ).total()).isEqualTo(7.41);
+        assertThat(calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("구위", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("RP"),
+                Map.of()
+        ).total()).isEqualTo(1.50);
+        assertThat(calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("구위", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("CP"),
+                Map.of()
+        ).total()).isEqualTo(1.00);
     }
 
     @Test
@@ -603,5 +646,17 @@ class ScoreCalculatorTest {
                 .values(values)
                 .baseStat(baseStat)
                 .build();
+    }
+
+    private double totalForCondition(String position, String condition) {
+        ScoreSkill skill = scoreSkill("G_007", "패기", effect("파워", condition, "10"));
+        ScoreCalculator calculator = new ScoreCalculator();
+
+        return calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("파워", 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition(position),
+                Map.of()
+        ).total();
     }
 }

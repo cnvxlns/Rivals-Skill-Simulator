@@ -62,7 +62,11 @@ fun AppTabs(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         AppTab.entries.forEach { tab ->
-            val labelKey = if (tab == AppTab.Simulator) "tab_simulator" else "tab_calculator"
+            val labelKey = when (tab) {
+                AppTab.Simulator -> "tab_simulator"
+                AppTab.Calculator -> "tab_calculator"
+                AppTab.Methodology -> "tab_methodology"
+            }
             val buttonModifier = Modifier.weight(1f)
             if (tab == selectedTab) {
                 Button(onClick = { onSelected(tab) }, modifier = buttonModifier) {
@@ -96,6 +100,7 @@ fun LanguageSelector(
 enum class AppTab {
     Simulator,
     Calculator,
+    Methodology,
 }
 
 fun cardTypeLabel(value: String): String =

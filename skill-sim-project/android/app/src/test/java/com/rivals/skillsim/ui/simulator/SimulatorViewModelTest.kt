@@ -3,6 +3,7 @@ package com.rivals.skillsim.ui.simulator
 import com.rivals.skillsim.MainDispatcherRule
 import com.rivals.skillsim.data.model.CardType
 import com.rivals.skillsim.data.model.Grade
+import com.rivals.skillsim.data.model.MethodologyResponse
 import com.rivals.skillsim.data.model.RollRequest
 import com.rivals.skillsim.data.model.RollResponse
 import com.rivals.skillsim.data.model.ScoreRequest
@@ -12,6 +13,7 @@ import com.rivals.skillsim.data.model.Skill
 import com.rivals.skillsim.data.model.SkillSlot
 import com.rivals.skillsim.data.model.TicketType
 import com.rivals.skillsim.data.model.Tier
+import com.rivals.skillsim.data.model.HealthResponse
 import com.rivals.skillsim.data.repository.SkillRepositoryContract
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -83,6 +85,8 @@ class SimulatorViewModelTest {
         var lastInitialPosition: String? = null
         var lastInitialSubPosition: String? = null
 
+        override suspend fun checkHealth(): HealthResponse = HealthResponse("ok")
+
         override suspend fun rollSkills(payload: RollRequest): RollResponse {
             lastRollRequest = payload
             return rollResponse
@@ -107,5 +111,8 @@ class SimulatorViewModelTest {
 
         override suspend fun calculateScore(payload: ScoreRequest): ScoreResponse =
             ScoreResponse()
+
+        override suspend fun fetchMethodology(): MethodologyResponse =
+            throw NotImplementedError("not used in this test")
     }
 }

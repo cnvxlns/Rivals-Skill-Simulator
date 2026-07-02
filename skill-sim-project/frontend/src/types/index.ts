@@ -154,3 +154,55 @@ export type ScoreResponse = {
   perStat: ScoreStatBreakdown[];
   warnings?: string[];
 };
+
+export type FormulaItem = {
+  displayText: string;
+  descriptionKey: string;
+};
+
+export type FormulaInfo = {
+  perSkillFormula: FormulaItem;
+  totalFormula: FormulaItem;
+  percentEffectRule: FormulaItem;
+  roundingRule: FormulaItem;
+  conditionCombinationRule: FormulaItem;
+};
+
+export type ConditionProbabilityEntry = {
+  token: string;
+  value: number;
+  descriptionKey: string;
+};
+
+export type RoleProbabilityEntry = {
+  role: string;
+  inningWeights: number[];
+  gutsProbability: number;
+  nineBatterDuration: number;
+  maestroCumulative: number;
+};
+
+export type ReachProbabilityEntry = {
+  orderGroup: string;
+  descriptionKey: string;
+  reachProbabilities: number[];
+};
+
+export type GateEntry = {
+  token: string;
+  descriptionKey: string;
+};
+
+export type ConditionProbabilitiesInfo = {
+  staticProbabilities: ConditionProbabilityEntry[];
+  roleProbabilities: RoleProbabilityEntry[];
+  battingOrderProbabilities: ConditionProbabilityEntry[];
+  reachProbabilities: ReachProbabilityEntry[];
+  gates: GateEntry[];
+};
+
+export type MethodologyResponse = {
+  formula: FormulaInfo;
+  statWeights: Record<string, number>;
+  conditionProbabilities: ConditionProbabilitiesInfo;
+};

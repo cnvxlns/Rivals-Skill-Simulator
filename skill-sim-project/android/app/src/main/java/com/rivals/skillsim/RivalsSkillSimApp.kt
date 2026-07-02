@@ -39,7 +39,12 @@ import com.rivals.skillsim.ui.common.AppTab
 import com.rivals.skillsim.ui.common.SegmentedTabs
 import com.rivals.skillsim.ui.simulator.SimulatorScreen
 import com.rivals.skillsim.ui.simulator.SimulatorViewModel
+import com.rivals.skillsim.ui.methodology.MethodologyScreen
+import com.rivals.skillsim.ui.methodology.MethodologyViewModel
 import com.rivals.skillsim.ui.theme.RivalsSkillSimTheme
+import com.rivals.skillsim.ui.warmup.WarmupViewModel
+import com.rivals.skillsim.ui.warmup.WarmupState
+import com.rivals.skillsim.ui.warmup.WakeUpScreen
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,6 +63,14 @@ fun RivalsSkillSimApp(
     val calculatorViewModel: CalculatorViewModel = viewModel(
         factory = viewModelFactory { CalculatorViewModel(repository, userPrefsDataStore) },
     )
+    val methodologyViewModel: MethodologyViewModel = viewModel(
+        factory = viewModelFactory { MethodologyViewModel(repository) },
+    )
+    val warmupViewModel: WarmupViewModel = viewModel(
+        factory = viewModelFactory { WarmupViewModel(repository) },
+    )
+    val warmupState by warmupViewModel.state.collectAsStateWithLifecycle()
+    val elapsedSeconds by warmupViewModel.elapsedSeconds.collectAsStateWithLifecycle()
 
     RivalsSkillSimTheme {
         Scaffold(
@@ -94,34 +107,49 @@ fun RivalsSkillSimApp(
                     .padding(innerPadding),
                 color = MaterialTheme.colorScheme.background,
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    SegmentedTabs(
-                        selectedTab = selectedTab,
+                if (warmupState == WarmupState.Waking || warmupState == WarmupState.Error) {
+                    WakeUpScreen(
+                        state = warmupState,
+                        elapsedSeconds = elapsedSeconds,
                         languageCode = languageCode,
-                        onSelected = { selectedTab = it },
-                        modifier = Modifier.padding(top = 8.dp),
+                        onRetry = { warmupViewModel.retry() },
+                        modifier = Modifier.fillMaxSize()
                     )
-                    Crossfade(
-                        targetState = selectedTab,
-                        modifier = Modifier.weight(1f),
-                        label = "tabContent",
-                    ) { tab ->
-                        when (tab) {
-                            AppTab.Simulator -> SimulatorScreen(
-                                viewModel = simulatorViewModel,
-                                languageCode = languageCode,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                            AppTab.Calculator -> CalculatorScreen(
-                                viewModel = calculatorViewModel,
-                                languageCode = languageCode,
-                                modifier = Modifier.fillMaxSize(),
-                            )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        SegmentedTabs(
+                            selectedTab = selectedTab,
+                            languageCode = languageCode,
+                            onSelected = { selectedTab = it },
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                        Crossfade(
+                            targetState = selectedTab,
+                            modifier = Modifier.weight(1f),
+                            label = "tabContent",
+                        ) { tab ->
+                            when (tab) {
+                                AppTab.Simulator -> SimulatorScreen(
+                                    viewModel = simulatorViewModel,
+                                    languageCode = languageCode,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                                AppTab.Calculator -> CalculatorScreen(
+                                    viewModel = calculatorViewModel,
+                                    languageCode = languageCode,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                                AppTab.Methodology -> MethodologyScreen(
+                                    viewModel = methodologyViewModel,
+                                    languageCode = languageCode,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
                         }
                     }
                 }

@@ -331,6 +331,46 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    void appliesR19StaticConditionProbabilities() {
+        assertThat(totalForCondition("BATTER", "덱스코어열세")).isEqualTo(5.00);
+        assertThat(totalForCondition("BATTER", "홈런3이상")).isEqualTo(0.05);
+    }
+
+    @Test
+    void appliesR19StatComparisonConditionProbabilities() {
+        assertThat(totalForCondition("BATTER", "구위>파워")).isEqualTo(3.50);
+        assertThat(totalForCondition("BATTER", "선구>제구")).isEqualTo(6.50);
+    }
+
+    @Test
+    void appliesR19PitchCommandOverDisciplineProbabilityByRole() {
+        assertThat(totalForCondition("BATTER", "제구>선구")).isEqualTo(4.50);
+        assertThat(totalForCondition("SP", "제구>선구")).isEqualTo(4.50);
+        assertThat(totalForCondition("RP", "제구>선구")).isEqualTo(1.00);
+        assertThat(totalForCondition("CP", "제구>선구")).isEqualTo(2.50);
+    }
+
+    @Test
+    void appliesR19OpponentGradeAdvantageProbabilityByCardGrade() {
+        assertThat(totalForCondition("BATTER", "상대등급우세")).isEqualTo(2.00);
+        assertThat(totalForCondition("BATTER", "상대등급우세", "HOF")).isEqualTo(0.00);
+        assertThat(totalForCondition("BATTER", "상대등급우세", "PRIME")).isEqualTo(8.00);
+    }
+
+    @Test
+    void exposesR19TokensInDefaultBatterConditionProbabilities() {
+        Map<String, Double> probabilities = ScoreCalculator.conditionProbabilitiesForPosition("BATTER");
+
+        assertThat(probabilities)
+                .containsEntry("덱스코어열세", 0.5)
+                .containsEntry("홈런3이상", 0.005)
+                .containsEntry("구위>파워", 0.35)
+                .containsEntry("선구>제구", 0.65)
+                .containsEntry("제구>선구", 0.45)
+                .containsEntry("상대등급우세", 0.20);
+    }
+
+    @Test
     void appliesMaestroCumulativeAverageStackByPitcherRole() {
         ScoreSkill skill = scoreSkill("M_042", "마에스트로",
                 effect("구위", "마에스트로누적", "12")
@@ -649,13 +689,17 @@ class ScoreCalculatorTest {
     }
 
     private double totalForCondition(String position, String condition) {
+        return totalForCondition(position, condition, null);
+    }
+
+    private double totalForCondition(String position, String condition, String cardGrade) {
         ScoreSkill skill = scoreSkill("G_007", "패기", effect("파워", condition, "10"));
         ScoreCalculator calculator = new ScoreCalculator();
 
         return calculator.calculate(
                 List.of(new ScoreCalculator.Selection(skill, 1)),
                 Map.of("파워", 1.0),
-                ScoreCalculator.conditionProbabilitiesForPosition(position),
+                ScoreCalculator.conditionProbabilitiesForPosition(position, null, null, cardGrade),
                 Map.of()
         ).total();
     }

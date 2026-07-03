@@ -19,6 +19,7 @@ data class ScoreRequest(
     val cardType: String,
     val position: String,
     val selections: List<ScoreSelection>,
+    val cardGrade: String? = null,
     val battingOrder: Int? = null,
     val userStats: Map<String, Double>? = null,
 )

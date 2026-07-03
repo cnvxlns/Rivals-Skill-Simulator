@@ -40,6 +40,19 @@ enum class CardType {
     MOMENT,
 }
 
+enum class CardGrade {
+    LIVE_SEASON,
+    IMPACT,
+    PRIME,
+    WBC_PRIME,
+    MOMENT,
+    SIGNATURE,
+    WBC_SIGNATURE,
+    SIGNATURE_BLACK,
+    WBC_SIGNATURE_BLACK,
+    HOF,
+}
+
 enum class Position {
     PITCHER,
     BATTER,

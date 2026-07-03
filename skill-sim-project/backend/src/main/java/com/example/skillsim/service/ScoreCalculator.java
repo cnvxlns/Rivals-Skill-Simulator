@@ -64,6 +64,17 @@ public class ScoreCalculator {
         return MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE;
     }
 
+    public static String normalizeCardGrade(String cardGrade) {
+        if (cardGrade == null || cardGrade.isBlank()) {
+            return DEFAULT_CARD_GRADE;
+        }
+        String normalized = cardGrade.trim().toUpperCase();
+        if (!OPPONENT_GRADE_ADVANTAGE_PROBABILITIES.containsKey(normalized)) {
+            throw new IllegalArgumentException("Unknown cardGrade: " + cardGrade);
+        }
+        return normalized;
+    }
+
     public static double[] getTopOrderPlateAppearanceReach() {
         return TOP_ORDER_PLATE_APPEARANCE_REACH.clone();
     }
@@ -98,6 +109,8 @@ public class ScoreCalculator {
             Map.entry("주자3루", 0.03),
             Map.entry("OVR열세", 0.5),
             Map.entry("OVR우세", 0.5),
+            Map.entry("덱스코어열세", 0.5),
+            Map.entry("홈런3이상", 0.005),
             Map.entry("좌투상대", 0.3),
             Map.entry("우투상대", 0.7),
             Map.entry("좌타상대", 0.4),
@@ -175,6 +188,20 @@ public class ScoreCalculator {
             "CP", maestroAverageActiveStack(3) / 12.0
     );
 
+    private static final String DEFAULT_CARD_GRADE = "SIGNATURE_BLACK";
+    private static final Map<String, Double> OPPONENT_GRADE_ADVANTAGE_PROBABILITIES = Map.ofEntries(
+            Map.entry("LIVE_SEASON", 0.95),
+            Map.entry("IMPACT", 0.90),
+            Map.entry("PRIME", 0.80),
+            Map.entry("WBC_PRIME", 0.78),
+            Map.entry("MOMENT", 0.75),
+            Map.entry("SIGNATURE", 0.60),
+            Map.entry("WBC_SIGNATURE", 0.50),
+            Map.entry("SIGNATURE_BLACK", 0.20),
+            Map.entry("WBC_SIGNATURE_BLACK", 0.05),
+            Map.entry("HOF", 0.00)
+    );
+
     private static final double[] TOP_ORDER_PLATE_APPEARANCE_REACH = new double[]{1.0, 1.0, 0.95, 0.70, 0.25, 0.05, 0.01};
     private static final double[] MIDDLE_ORDER_PLATE_APPEARANCE_REACH = new double[]{1.0, 1.0, 0.90, 0.55, 0.12, 0.02, 0.005};
     private static final double[] LOWER_ORDER_PLATE_APPEARANCE_REACH = new double[]{1.0, 0.95, 0.80, 0.40, 0.06, 0.01, 0.00};
@@ -189,6 +216,7 @@ public class ScoreCalculator {
             new DurationResolver(),
             new MaestroCumulativeResolver(),
             new StatComparisonResolver(),
+            new CardGradeResolver(),
             new PositionGateResolver(),
             new SlotGateResolver(),
             new InningResolver(),
@@ -196,7 +224,7 @@ public class ScoreCalculator {
             new PlateAppearanceResolver()
     );
 
-    private static final Map<String, Double> DEFAULT_CONDITION_PROBABILITIES = buildConditionProbabilities("BATTER", null, null);
+    private static final Map<String, Double> DEFAULT_CONDITION_PROBABILITIES = buildConditionProbabilities("BATTER", null, null, null);
 
     public Result calculate(List<Selection> selections, Map<String, Double> statWeights) {
         return calculate(selections, statWeights, DEFAULT_CONDITION_PROBABILITIES, Map.of());
@@ -282,15 +310,30 @@ public class ScoreCalculator {
     }
 
     public static Map<String, Double> conditionProbabilitiesForPosition(String position, Integer battingOrder, Integer pitcherSlot) {
-        return buildConditionProbabilities(position, battingOrder, pitcherSlot);
+        return conditionProbabilitiesForPosition(position, battingOrder, pitcherSlot, null);
     }
 
-    private static Map<String, Double> buildConditionProbabilities(String position, Integer battingOrder, Integer pitcherSlot) {
+    public static Map<String, Double> conditionProbabilitiesForPosition(
+            String position,
+            Integer battingOrder,
+            Integer pitcherSlot,
+            String cardGrade
+    ) {
+        return buildConditionProbabilities(position, battingOrder, pitcherSlot, cardGrade);
+    }
+
+    private static Map<String, Double> buildConditionProbabilities(
+            String position,
+            Integer battingOrder,
+            Integer pitcherSlot,
+            String cardGrade
+    ) {
         ConditionContext context = new ConditionContext(
                 SkillRules.normalizePosition(position),
                 SkillRules.roleForPosition(position),
                 battingOrder,
-                pitcherSlot
+                pitcherSlot,
+                cardGrade
         );
         Map<String, Double> probabilities = new HashMap<>();
         CONDITION_RESOLVERS.forEach(resolver -> resolver.apply(probabilities, context));
@@ -301,7 +344,13 @@ public class ScoreCalculator {
         void apply(Map<String, Double> probabilities, ConditionContext context);
     }
 
-    private record ConditionContext(String normalizedPosition, String role, Integer battingOrder, Integer pitcherSlot) {
+    private record ConditionContext(
+            String normalizedPosition,
+            String role,
+            Integer battingOrder,
+            Integer pitcherSlot,
+            String cardGrade
+    ) {
     }
 
     private record StaticProbabilityResolver(Map<String, Double> probabilities) implements ConditionResolver {
@@ -394,6 +443,22 @@ public class ScoreCalculator {
             probabilities.put("패기", probability);
             probabilities.put("인내<구속", probability);
             probabilities.put("구속>인내", probability);
+            probabilities.put("구위>파워", 0.35);
+            probabilities.put("선구>제구", 0.65);
+            probabilities.put("제구>선구", switch (context.role()) {
+                case "RP" -> 0.10;
+                case "CP" -> 0.25;
+                case "SP" -> 0.45;
+                default -> 0.45;
+            });
+        }
+    }
+
+    private static final class CardGradeResolver implements ConditionResolver {
+        @Override
+        public void apply(Map<String, Double> probabilities, ConditionContext context) {
+            String cardGrade = normalizeCardGrade(context.cardGrade());
+            probabilities.put("상대등급우세", OPPONENT_GRADE_ADVANTAGE_PROBABILITIES.get(cardGrade));
         }
     }
 

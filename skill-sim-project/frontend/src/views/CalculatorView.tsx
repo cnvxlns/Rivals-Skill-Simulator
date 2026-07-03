@@ -6,7 +6,7 @@ import ScoreSkillPicker from '../components/ScoreSkillPicker';
 import { useTranslation } from '../lib/i18n';
 import { useScoreCalculator } from '../lib/useScoreCalculator';
 import { TranslationKey } from '../locales/translations';
-import { CardType, Position, SubPosition } from '../types';
+import { CardGrade, CardType, Position, SubPosition } from '../types';
 
 interface CalculatorViewProps {
   onViewMethodology?: () => void;
@@ -18,6 +18,8 @@ const CalculatorView = ({ onViewMethodology }: CalculatorViewProps) => {
   const {
     cardType,
     setCardType,
+    cardGrade,
+    setCardGrade,
     position,
     setPosition,
     subPosition,
@@ -49,6 +51,18 @@ const CalculatorView = ({ onViewMethodology }: CalculatorViewProps) => {
   const pitcherSubPositions: SubPosition[] = ['SP', 'RP', 'CP'];
   const batterSubPositions: SubPosition[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
   const subPositionOptions = position === Position.PITCHER ? pitcherSubPositions : batterSubPositions;
+  const cardGradeOptions: CardGrade[] = [
+    CardGrade.LIVE_SEASON,
+    CardGrade.IMPACT,
+    CardGrade.PRIME,
+    CardGrade.WBC_PRIME,
+    CardGrade.MOMENT,
+    CardGrade.SIGNATURE,
+    CardGrade.WBC_SIGNATURE,
+    CardGrade.SIGNATURE_BLACK,
+    CardGrade.WBC_SIGNATURE_BLACK,
+    CardGrade.HOF,
+  ];
 
   const formatScore = (value: number) => value.toFixed(2);
   const statLabelKey = (stat: string): TranslationKey => `stat_${stat}` as TranslationKey;
@@ -110,6 +124,21 @@ const CalculatorView = ({ onViewMethodology }: CalculatorViewProps) => {
                 <option value={CardType.WBC_SIGNATURE_BLACK}>WBC Signature Black</option>
                 <option value={CardType.HOF}>HOF</option>
                 <option value={CardType.MOMENT}>Moment</option>
+              </select>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <h3 className="text-sm font-semibold text-white">{t('label_card_grade')}</h3>
+              <select
+                value={cardGrade}
+                onChange={(event) => setCardGrade(event.target.value as CardGrade)}
+                className="mt-3 w-full rounded-lg border border-indigo-200/60 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              >
+                {cardGradeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {t(`card_grade_${option.toLowerCase()}` as TranslationKey)}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -188,6 +217,7 @@ const CalculatorView = ({ onViewMethodology }: CalculatorViewProps) => {
             <p className="text-xs uppercase tracking-wide text-indigo-200">{t('score_current_pool')}</p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-100">
               <span className="rounded-full bg-white/10 px-3 py-1">{cardType}</span>
+              <span className="rounded-full bg-white/10 px-3 py-1">{t(`card_grade_${cardGrade.toLowerCase()}` as TranslationKey)}</span>
               <span className="rounded-full bg-white/10 px-3 py-1">{scorePosition}</span>
               <span className="rounded-full bg-white/10 px-3 py-1">
                 {loadingSkills ? t('score_loading_skills') : `${skills.length} ${t('score_skills_loaded')}`}

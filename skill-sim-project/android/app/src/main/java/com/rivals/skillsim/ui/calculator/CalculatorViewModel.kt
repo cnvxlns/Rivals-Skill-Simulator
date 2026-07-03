@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rivals.skillsim.data.local.CalculatorSettings
 import com.rivals.skillsim.data.local.UserPrefsStore
+import com.rivals.skillsim.data.model.CardGrade
 import com.rivals.skillsim.data.model.CardType
 import com.rivals.skillsim.data.model.ScoreRequest
 import com.rivals.skillsim.data.model.ScoreResponse
@@ -32,6 +33,7 @@ data class ScoreSlotSelection(
 
 data class CalculatorUiState(
     val cardType: CardType = CardType.SIGNATURE,
+    val cardGrade: CardGrade = CardGrade.SIGNATURE_BLACK,
     val position: String = "BATTER",
     val subPosition: String = "ALL",
     val skills: List<ScoreSkillOption> = emptyList(),
@@ -76,6 +78,10 @@ class CalculatorViewModel(
         }
         persistCalculatorSettings()
         loadSkills()
+    }
+
+    fun setCardGrade(cardGrade: CardGrade) {
+        _state.update { it.copy(cardGrade = cardGrade, result = null) }
     }
 
     fun setPosition(position: String) {
@@ -163,6 +169,7 @@ class CalculatorViewModel(
             selections = snapshot.selections.map { selection ->
                 ScoreSelection(skillId = selection.skillId, level = selection.level)
             },
+            cardGrade = snapshot.cardGrade.name,
             battingOrder = snapshot.battingOrder.takeIf { snapshot.position == "BATTER" },
             userStats = snapshot.userStats,
         )

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { calculateScore, fetchScoreSkills } from './api';
 import {
+  CardGrade,
   CardType,
   Position,
   ScoreRequest,
@@ -37,6 +38,7 @@ export type ScoreSlotSelection = {
 
 export function useScoreCalculator() {
   const [cardType, setCardType] = useState<CardType>(CardType.SIGNATURE);
+  const [cardGrade, setCardGradeState] = useState<CardGrade>(CardGrade.SIGNATURE_BLACK);
   const [position, setPosition] = useState<Position>(Position.BATTER);
   const [subPosition, setSubPosition] = useState<SubPosition | ''>('');
   const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
@@ -60,6 +62,11 @@ export function useScoreCalculator() {
     () => selections.map((selection) => selection.skillId).filter(Boolean),
     [selections],
   );
+
+  const setCardGrade = useCallback((nextCardGrade: CardGrade) => {
+    setCardGradeState(nextCardGrade);
+    setResult(null);
+  }, []);
 
   const canCalculate = useMemo(() => {
     const slotsFilled = selections.length === slotCount && selections.every((selection) => selection.skillId);
@@ -165,6 +172,7 @@ export function useScoreCalculator() {
 
     const payload: ScoreRequest = {
       cardType,
+      cardGrade,
       position: scorePosition,
       selections: selections.map<ScoreSelection>((selection) => ({
         skillId: selection.skillId,
@@ -185,7 +193,7 @@ export function useScoreCalculator() {
     } finally {
       setCalculating(false);
     }
-  }, [battingOrder, pitcherSlot, canCalculate, cardType, position, scorePosition, selections]);
+  }, [battingOrder, pitcherSlot, canCalculate, cardGrade, cardType, position, scorePosition, selections]);
 
   const updatePitcherSlot = useCallback((value: number | null) => {
     const nextValue = value != null && value >= 1 && value <= 6 ? value : null;
@@ -227,6 +235,8 @@ export function useScoreCalculator() {
   return {
     cardType,
     setCardType,
+    cardGrade,
+    setCardGrade,
     position,
     setPosition,
     subPosition,

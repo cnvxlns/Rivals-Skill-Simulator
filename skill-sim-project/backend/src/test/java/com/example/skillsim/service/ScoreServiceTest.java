@@ -192,6 +192,52 @@ class ScoreServiceTest {
     }
 
     @Test
+    void calculatePassesCardGradeToConditionProbabilities() {
+        ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
+        ScoreSkill skill = scoreSkill("G_015", "NORMAL", "BATTER", "Challenge",
+                effect("POWER", "상대등급우세", "10/10/10/10/10/10/10/10/10"));
+        when(repository.findBySkillKey("G_015")).thenReturn(Optional.of(skill));
+        ScoreService service = new ScoreService(repository, new ScoreCalculator(), Map.of("POWER", 1.0));
+
+        ScoreResponse defaultGrade = service.calculate(ScoreRequest.builder()
+                .cardType("NORMAL")
+                .position("BATTER")
+                .battingOrder(1)
+                .selections(List.of(ScoreSelection.builder().skillId("G_015").level(1).build()))
+                .build());
+        ScoreResponse prime = service.calculate(ScoreRequest.builder()
+                .cardType("NORMAL")
+                .position("BATTER")
+                .battingOrder(1)
+                .cardGrade("PRIME")
+                .selections(List.of(ScoreSelection.builder().skillId("G_015").level(1).build()))
+                .build());
+
+        assertThat(defaultGrade.getTotal()).isEqualTo(2.00);
+        assertThat(defaultGrade.getPerSkill().get(0).getBreakdown().get(0).getConditionProbability()).isEqualTo(0.20);
+        assertThat(prime.getTotal()).isEqualTo(8.00);
+        assertThat(prime.getPerSkill().get(0).getBreakdown().get(0).getConditionProbability()).isEqualTo(0.80);
+    }
+
+    @Test
+    void calculateRejectsUnknownCardGrade() {
+        ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
+        ScoreService service = new ScoreService(repository, new ScoreCalculator(), Map.of());
+
+        ScoreRequest request = ScoreRequest.builder()
+                .cardType("NORMAL")
+                .position("BATTER")
+                .battingOrder(1)
+                .cardGrade("UNKNOWN")
+                .selections(List.of(ScoreSelection.builder().skillId("S_001").level(1).build()))
+                .build();
+
+        assertThatThrownBy(() -> service.calculate(request))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex ->
+                        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
     void calculateRejectsInvalidBattingOrder() {
         ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
         ScoreSkill skill = scoreSkill("G_025", "NORMAL", "BATTER", "테이블 세터",

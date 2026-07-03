@@ -37,6 +37,19 @@ export enum CardType {
   MOMENT = 'MOMENT',
 }
 
+export enum CardGrade {
+  LIVE_SEASON = 'LIVE_SEASON',
+  IMPACT = 'IMPACT',
+  PRIME = 'PRIME',
+  WBC_PRIME = 'WBC_PRIME',
+  MOMENT = 'MOMENT',
+  SIGNATURE = 'SIGNATURE',
+  WBC_SIGNATURE = 'WBC_SIGNATURE',
+  SIGNATURE_BLACK = 'SIGNATURE_BLACK',
+  WBC_SIGNATURE_BLACK = 'WBC_SIGNATURE_BLACK',
+  HOF = 'HOF',
+}
+
 export enum Position {
   PITCHER = 'PITCHER',
   BATTER = 'BATTER',
@@ -115,6 +128,7 @@ export type ScoreSelection = {
 
 export type ScoreRequest = {
   cardType: CardType | string;
+  cardGrade?: CardGrade | string;
   position: Position | SubPosition | string;
   selections: ScoreSelection[];
   battingOrder?: number | null;

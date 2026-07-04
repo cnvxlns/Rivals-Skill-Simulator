@@ -2,6 +2,7 @@ package com.example.skillsim.service;
 
 import com.example.skillsim.dto.RollRequest;
 import com.example.skillsim.dto.RollResponse;
+import com.example.skillsim.dto.SkillSlot;
 import com.example.skillsim.enums.CardType;
 import com.example.skillsim.enums.Level;
 import com.example.skillsim.enums.TicketType;
@@ -13,6 +14,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -147,6 +149,113 @@ class SkillServiceTest {
     }
 
     @Test
+    void signatureBlackNormalTicketNeverRollsBlackSkill() {
+        ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
+        when(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(List.of(
+                scoreSkill(20L, "G_001", "NORMAL", "BATTER", "Gold Skill",
+                        effect("POWER", "ALWAYS", "10/10/10/10/10/10/10/10/10")),
+                scoreSkill(21L, "S_001", "NORMAL", "BATTER", "Silver Skill",
+                        effect("POWER", "ALWAYS", "8/8/8/8/8/8/8/8/8")),
+                scoreSkill(22L, "B_001", "NORMAL", "BATTER", "Bronze Skill",
+                        effect("POWER", "ALWAYS", "6/6/6/6/6/6/6/6/6")),
+                scoreSkill(23L, "I_001", "NORMAL", "BATTER", "Iron Skill",
+                        effect("POWER", "ALWAYS", "4/4/4/4/4/4/4/4/4"))
+        ));
+        when(repository.findByCardTypeIgnoreCase("BLACK")).thenReturn(List.of(
+                scoreSkill(1L, "BLACK_001", "BLACK", "BATTER", "Black Skill",
+                        effect("POWER", "ALWAYS", "9/11/13"))
+        ));
+        SkillService service = new SkillService(repository, new ScoreCalculator(), () -> Map.of("POWER", 1.0));
+
+        for (int i = 0; i < 1_000; i++) {
+            RollResponse response = service.rollSkills(RollRequest.builder()
+                    .cardType(CardType.SIGNATURE_BLACK)
+                    .ticketType(TicketType.SKILL_CHANGE)
+                    .position("BATTER")
+                    .build());
+
+            assertThat(response.getSlots()).hasSize(4);
+            assertThat(response.getSlots())
+                    .allSatisfy(slot -> assertThat(slot.getSkill().getTier())
+                            .isNotEqualTo(com.example.skillsim.enums.Tier.BLACK));
+        }
+    }
+
+    @Test
+    void signatureBlackBlackSkillRollsBlackLevelDistribution() {
+        ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
+        when(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(List.of(
+                scoreSkill(1L, "G_001", "NORMAL", "BATTER", "Gold Skill 1",
+                        effect("POWER", "ALWAYS", "10/10/10/10/10/10/10/10/10")),
+                scoreSkill(2L, "S_001", "NORMAL", "BATTER", "Silver Skill",
+                        effect("POWER", "ALWAYS", "8/8/8/8/8/8/8/8/8")),
+                scoreSkill(3L, "B_001", "NORMAL", "BATTER", "Bronze Skill",
+                        effect("POWER", "ALWAYS", "6/6/6/6/6/6/6/6/6"))
+        ));
+        when(repository.findByCardTypeIgnoreCase("BLACK")).thenReturn(List.of(
+                scoreSkill(10L, "BLACK_001", "BLACK", "BATTER", "Black Skill 1",
+                        effect("POWER", "ALWAYS", "9/11/13")),
+                scoreSkill(11L, "BLACK_002", "BLACK", "BATTER", "Black Skill 2",
+                        effect("POWER", "ALWAYS", "9/11/13"))
+        ));
+        SkillService service = new SkillService(repository, new ScoreCalculator(), () -> Map.of("POWER", 1.0));
+
+        int nonSLevels = 0;
+        for (int i = 0; i < 200; i++) {
+            RollResponse response = service.rollSkills(RollRequest.builder()
+                    .cardType(CardType.SIGNATURE_BLACK)
+                    .ticketType(TicketType.SUPREME_SKILL_CHANGE)
+                    .position("BATTER")
+                    .build());
+
+            assertThat(response.getSlots().stream()
+                    .filter(slot -> slot.getSkill().getTier() == com.example.skillsim.enums.Tier.BLACK))
+                    .singleElement()
+                    .satisfies(slot -> assertThat(slot.getLevel()).isIn(Level.D, Level.C, Level.B, Level.A, Level.S));
+            if (response.getSlots().stream()
+                    .filter(slot -> slot.getSkill().getTier() == com.example.skillsim.enums.Tier.BLACK)
+                    .findFirst()
+                    .orElseThrow()
+                    .getLevel() != Level.S) {
+                nonSLevels++;
+            }
+        }
+        assertThat(nonSLevels).isGreaterThan(0);
+    }
+
+    @Test
+    void rollSkillsRejectsUnsupportedSlotLocks() {
+        SkillService service = new SkillService(mock(ScoreSkillRepository.class), new ScoreCalculator(), () -> Map.of());
+
+        assertThatThrownBy(() -> service.rollSkills(RollRequest.builder()
+                .cardType(CardType.SIGNATURE)
+                .ticketType(TicketType.SKILL_CHANGE)
+                .position("BATTER")
+                .lockedSlots(List.of(1))
+                .build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Only slot 1 lock is supported");
+
+        assertThatThrownBy(() -> service.rollSkills(RollRequest.builder()
+                .cardType(CardType.SIGNATURE_BLACK)
+                .ticketType(TicketType.SKILL_CHANGE)
+                .position("BATTER")
+                .lockedSlots(List.of(0))
+                .build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("lock not allowed");
+
+        assertThatThrownBy(() -> service.rollSkills(RollRequest.builder()
+                .cardType(CardType.WBC_SIGNATURE_BLACK)
+                .ticketType(TicketType.SKILL_CHANGE)
+                .position("BATTER")
+                .lockedSlots(List.of(2))
+                .build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("lock not allowed");
+    }
+
+    @Test
     void momentNonSupremeTicketsRollOnlyNormalTierSkills() {
         ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
         when(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(List.of(
@@ -219,6 +328,82 @@ class SkillServiceTest {
                         .allSatisfy(slot -> assertThat(slot.getLevel()).isEqualTo(Level.S));
             }
         }
+    }
+
+    @Test
+    void momentSkillChangeWithCurrentDLevelsUsesNormalGradeLadder() {
+        ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
+        when(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(List.of(
+                scoreSkill(1L, "G_001", "NORMAL", "BATTER", "Gold Skill",
+                        effect("POWER", "ALWAYS", "10/10/10/10/10/10/10/10/10")),
+                scoreSkill(2L, "S_001", "NORMAL", "BATTER", "Silver Skill",
+                        effect("POWER", "ALWAYS", "7/7/7/7/7/7/7/7/7")),
+                scoreSkill(3L, "B_001", "NORMAL", "BATTER", "Bronze Skill",
+                        effect("POWER", "ALWAYS", "5/5/5/5/5/5/5/5/5")),
+                scoreSkill(4L, "I_001", "NORMAL", "BATTER", "Iron Skill",
+                        effect("POWER", "ALWAYS", "3/3/3/3/3/3/3/3/3"))
+        ));
+        SkillService service = new SkillService(repository, new ScoreCalculator(), () -> Map.of("POWER", 1.0));
+        int[] levelCounts = new int[Level.values().length];
+
+        for (int i = 0; i < 200; i++) {
+            RollResponse response = service.rollSkills(RollRequest.builder()
+                    .cardType(CardType.MOMENT)
+                    .ticketType(TicketType.SKILL_CHANGE)
+                    .position("BATTER")
+                    .currentLevels(List.of(Level.D, Level.D, Level.D))
+                    .useLevelProtectionSlots(List.of(false, false, false))
+                    .build());
+
+            assertThat(response.getSlots()).hasSize(3);
+            response.getSlots().forEach(slot -> {
+                assertThat(slot.getSkill().getTier()).isNotEqualTo(com.example.skillsim.enums.Tier.MOMENT);
+                levelCounts[slot.getLevel().ordinal()]++;
+            });
+        }
+
+        assertThat(levelCounts[Level.S.ordinal()]).isLessThan(200 * 3);
+        assertThat(levelCounts[Level.D.ordinal()]).isGreaterThan(levelCounts[Level.C.ordinal()]);
+        assertThat(levelCounts[Level.D.ordinal()]).isGreaterThan(levelCounts[Level.B.ordinal()]);
+        assertThat(levelCounts[Level.D.ordinal()]).isGreaterThan(levelCounts[Level.A.ordinal()]);
+        assertThat(levelCounts[Level.D.ordinal()]).isGreaterThan(levelCounts[Level.S.ordinal()]);
+    }
+
+    @Test
+    void momentSkillChangeProtectionFloorsAtRealCurrentLevel() {
+        ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
+        when(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(List.of(
+                scoreSkill(1L, "G_001", "NORMAL", "BATTER", "Gold Skill",
+                        effect("POWER", "ALWAYS", "10/10/10/10/10/10/10/10/10")),
+                scoreSkill(2L, "S_001", "NORMAL", "BATTER", "Silver Skill",
+                        effect("POWER", "ALWAYS", "7/7/7/7/7/7/7/7/7")),
+                scoreSkill(3L, "B_001", "NORMAL", "BATTER", "Bronze Skill",
+                        effect("POWER", "ALWAYS", "5/5/5/5/5/5/5/5/5")),
+                scoreSkill(4L, "I_001", "NORMAL", "BATTER", "Iron Skill",
+                        effect("POWER", "ALWAYS", "3/3/3/3/3/3/3/3/3"))
+        ));
+        SkillService service = new SkillService(repository, new ScoreCalculator(), () -> Map.of("POWER", 1.0));
+        int bLevels = 0;
+
+        for (int i = 0; i < 100; i++) {
+            RollResponse response = service.rollSkills(RollRequest.builder()
+                    .cardType(CardType.MOMENT)
+                    .ticketType(TicketType.SKILL_CHANGE)
+                    .position("BATTER")
+                    .currentLevels(List.of(Level.B, Level.B, Level.B))
+                    .useLevelProtectionSlots(List.of(false, false, false))
+                    .build());
+
+            assertThat(response.getSlots()).hasSize(3);
+            for (SkillSlot slot : response.getSlots()) {
+                assertThat(slot.getLevel()).isNotIn(Level.D, Level.C);
+                if (slot.getLevel() == Level.B) {
+                    bLevels++;
+                }
+            }
+        }
+
+        assertThat(bLevels).isGreaterThan(0);
     }
 
     @Test

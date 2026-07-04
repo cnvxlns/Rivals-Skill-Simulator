@@ -42,6 +42,7 @@ public class SkillService {
             Level.A, 7.0D,
             Level.S, 3.0D
     );
+    private static final double WBC_SIGNATURE_BLACK_PREMIUM_WBC_CHANCE = 0.5 / 0.95;
 
     private final ScoreSkillRepository scoreSkillRepository;
     private final ScoreCalculator scoreCalculator;
@@ -72,7 +73,7 @@ public class SkillService {
         String cardType = normalizeCardType(request.getCardType());
         int slotCount = SkillRules.slotCount(cardType);
         String selectedTheme = request.getSelectedTheme();
-        List<Level> normalizedLevels = normalizeGrades(request.getCurrentLevels(), slotCount, cardType);
+        List<Level> normalizedLevels = normalizeGrades(request.getCurrentLevels(), slotCount, currentLevelCardType(cardType));
         List<Long> normalizedSkillIds = normalizeSkillIds(request.getCurrentSkillIds(), slotCount);
         List<Boolean> protectionFlags = normalizeProtectionFlags(request.getUseLevelProtectionSlots(), slotCount);
 
@@ -109,9 +110,8 @@ public class SkillService {
                 .filter(Objects::nonNull)
                 .anyMatch(skill -> skill.getTier() == Tier.BLACK);
         Integer forcedBlackSlot = null;
-        if (Set.of("BLACK", "WBC_BLACK").contains(cardType)
-                && ticketType == TicketType.SUPREME_SKILL_CHANGE
-                && !blackTierAlreadyRolled) {
+        if (Set.of("BLACK", "WBC_BLACK").contains(cardType) && !blackTierAlreadyRolled
+                && shouldPreselectBlackSlot(ticketType)) {
             List<Integer> availableSlots = IntStream.range(0, slotCount)
                     .filter(i -> slots.get(i) == null)
                     .boxed()
@@ -132,12 +132,10 @@ public class SkillService {
             } else if ("HOF".equals(cardType)) {
                 rolledSlot = rollHofSlot(i, ticketType, cardType, normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition);
             } else if ("BLACK".equals(cardType)) {
-                if (ticketType == TicketType.SUPREME_SKILL_CHANGE) {
-                    rolledSlot = Objects.equals(forcedBlackSlot, i)
-                            ? rollBlackTierSlot(normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition)
-                            : rollSignatureBlackSupremeNormalSlot(i, normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition);
-                } else if (!blackTierAlreadyRolled && ThreadLocalRandom.current().nextDouble(100.0) < 5.0) {
+                if (Objects.equals(forcedBlackSlot, i)) {
                     rolledSlot = rollBlackTierSlot(normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition);
+                } else if (ticketType == TicketType.SUPREME_SKILL_CHANGE) {
+                    rolledSlot = rollSignatureBlackSupremeNormalSlot(i, normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition);
                 } else {
                     rolledSlot = rollNormalTierSlot(probabilityTable, ticketType, i, normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition);
                 }
@@ -145,7 +143,6 @@ public class SkillService {
                 rolledSlot = rollWbcSignatureBlackSlot(
                         ticketType,
                         Objects.equals(forcedBlackSlot, i),
-                        blackTierAlreadyRolled,
                         normalizedLevels.get(i),
                         protectionFlags.get(i),
                         usedSkillIds,
@@ -170,6 +167,18 @@ public class SkillService {
         }
 
         return buildResponse(slots);
+    }
+
+    private boolean shouldPreselectBlackSlot(TicketType ticketType) {
+        return switch (ticketType) {
+            case SKILL_CHANGE -> false;
+            case PREMIUM_SKILL_CHANGE -> ThreadLocalRandom.current().nextDouble(100.0) < 20.0;
+            case SUPREME_SKILL_CHANGE -> true;
+        };
+    }
+
+    private String currentLevelCardType(String cardType) {
+        return "MOMENT".equals(cardType) ? "NORMAL" : cardType;
     }
 
     public List<String> getMomentThemeNames(String position, String subPosition) {
@@ -271,16 +280,11 @@ public class SkillService {
         if (slotIndex == 0) {
             return rollGoldNormalSlot(currentLevel, protectionFlag, usedSkillIds, position, subPosition);
         }
-        return rollNormalTierSlot(
-                ProbabilityTable.SIGNATURE_BLACK_SUPREME_OTHER,
-                TicketType.SUPREME_SKILL_CHANGE,
-                slotIndex,
-                currentLevel,
-                protectionFlag,
-                usedSkillIds,
-                position,
-                subPosition
-        );
+        ProbabilityTable table = ProbabilityTable.SIGNATURE_BLACK_SUPREME_OTHER;
+        Tier tier = WeightedRandom.pick(table.tierWeights(), Tier.BRONZE);
+        ScoreSkill skill = pickSkillByTier("NORMAL", tier, usedSkillIds, position, subPosition);
+        Level level = rollGrade(table, tier, protectionFlag, currentLevel, "NORMAL");
+        return buildSlot(skill, level, position);
     }
 
     private SkillSlot rollBlackTierSlot(Level currentLevel, boolean protectionFlag, Set<Long> usedSkillIds,
@@ -305,35 +309,21 @@ public class SkillService {
         return buildSlot(skill, level, position);
     }
 
-    private SkillSlot rollWbcSignatureBlackSlot(TicketType ticketType, boolean forceBlackSlot, boolean blackTierAlreadyRolled,
+    private SkillSlot rollWbcSignatureBlackSlot(TicketType ticketType, boolean forceBlackSlot,
                                                 Level currentLevel, boolean protectionFlag, Set<Long> usedSkillIds,
                                                 String position, String subPosition) {
         if (ticketType == TicketType.SKILL_CHANGE) {
             return rollWbcSignatureBlackTierSlot("NORMAL", Tier.GOLD, currentLevel, protectionFlag, usedSkillIds, position, subPosition);
         }
 
-        if (ticketType == TicketType.SUPREME_SKILL_CHANGE) {
-            if (forceBlackSlot) {
-                return rollWbcSignatureBlackTierSlot("BLACK", Tier.BLACK, currentLevel, protectionFlag, usedSkillIds, position, subPosition);
-            }
-            boolean rollWbcTier = ThreadLocalRandom.current().nextDouble(100.0) < 10.0;
-            return rollWbcSignatureBlackTierSlot(
-                    rollWbcTier ? "WBC" : "NORMAL",
-                    rollWbcTier ? Tier.WBC : Tier.GOLD,
-                    currentLevel,
-                    protectionFlag,
-                    usedSkillIds,
-                    position,
-                    subPosition
-            );
-        }
-
-        double roll = ThreadLocalRandom.current().nextDouble(100.0);
-        if (!blackTierAlreadyRolled && roll < 5.0) {
+        if (forceBlackSlot) {
             return rollWbcSignatureBlackTierSlot("BLACK", Tier.BLACK, currentLevel, protectionFlag, usedSkillIds, position, subPosition);
         }
-        double wbcThreshold = blackTierAlreadyRolled ? 0.5 : 5.5;
-        boolean rollWbcTier = roll < wbcThreshold;
+
+        double wbcChance = ticketType == TicketType.SUPREME_SKILL_CHANGE
+                ? 10.0
+                : WBC_SIGNATURE_BLACK_PREMIUM_WBC_CHANCE;
+        boolean rollWbcTier = ThreadLocalRandom.current().nextDouble(100.0) < wbcChance;
         return rollWbcSignatureBlackTierSlot(
                 rollWbcTier ? "WBC" : "NORMAL",
                 rollWbcTier ? Tier.WBC : Tier.GOLD,
@@ -363,19 +353,6 @@ public class SkillService {
         return buildSlot(skill, level, position);
     }
 
-    private SkillSlot rollFixedCardTypeSlot(String cardType, Level currentLevel, boolean useProtection,
-                                            Set<Long> usedSkillIds, String position, String subPosition) {
-        ScoreSkill skill = pickAnySkill(cardType, usedSkillIds, position, subPosition);
-        Level rolledLevel = switch (cardType) {
-            case "BLACK" -> WeightedRandom.pick(BLACK_GRADE_WEIGHTS, Level.S);
-            case "WBC" -> Level.S;
-            case "MOMENT" -> Level.S;
-            default -> SkillRules.defaultLevel(cardType);
-        };
-        Level level = applyProtection(rolledLevel, currentLevel, useProtection, cardType);
-        return buildSlot(skill, level, position);
-    }
-
     private ScoreSkill pickSkillByTier(String cardType, Tier tier, Set<Long> excludedIds, String position, String subPosition) {
         List<ScoreSkill> availableSkills = candidates(cardType, position, subPosition).stream()
                 .filter(skill -> skill.getId() == null || !excludedIds.contains(skill.getId()))
@@ -388,13 +365,6 @@ public class SkillService {
                 .filter(skill -> SkillRules.rollTier(skill) == tier)
                 .toList();
         return pickWeightedSkill(tierMatches.isEmpty() ? availableSkills : tierMatches);
-    }
-
-    private ScoreSkill pickAnySkill(String cardType, Set<Long> excludedIds, String position, String subPosition) {
-        List<ScoreSkill> availableSkills = candidates(cardType, position, subPosition).stream()
-                .filter(skill -> skill.getId() == null || !excludedIds.contains(skill.getId()))
-                .collect(Collectors.toCollection(ArrayList::new));
-        return pickWeightedSkill(availableSkills);
     }
 
     private List<ScoreSkill> candidates(String cardType, String position, String subPosition) {
@@ -474,11 +444,24 @@ public class SkillService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Roll request is required.");
         }
         List<Integer> lockedSlots = Optional.ofNullable(request.getLockedSlots()).orElse(List.of());
-        if (!lockedSlots.contains(0)) {
+        if (lockedSlots.isEmpty()) {
             return;
         }
 
         CardType cardType = request.getCardType();
+        if (Set.of(CardType.SIGNATURE_BLACK, CardType.WBC_SIGNATURE_BLACK, CardType.HOF).contains(cardType)) {
+            throw new IllegalArgumentException("Slot lock not allowed for this card type: " + cardType);
+        }
+        boolean hasUnsupportedSlot = lockedSlots.stream()
+                .filter(Objects::nonNull)
+                .anyMatch(slotIndex -> slotIndex != 0);
+        if (hasUnsupportedSlot) {
+            throw new IllegalArgumentException("Only slot 1 lock is supported.");
+        }
+        if (!lockedSlots.contains(0)) {
+            return;
+        }
+
         switch (cardType) {
             case SIGNATURE, WBC -> { }
             case MOMENT -> {
@@ -487,8 +470,6 @@ public class SkillService {
                     throw new IllegalArgumentException("Slot 1 lock for MOMENT is only allowed when current slot 1 is MOMENT tier.");
                 }
             }
-            case SIGNATURE_BLACK, WBC_SIGNATURE_BLACK, HOF ->
-                    throw new IllegalArgumentException("Slot 1 lock not allowed for this card type: " + cardType);
             default -> throw new IllegalArgumentException("Unsupported card type: " + cardType);
         }
     }

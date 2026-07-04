@@ -36,9 +36,11 @@ public class SkillService {
 
     private static final Map<Level, Double> MOMENT_GRADE_WEIGHTS = Map.of(Level.S, 100.0);
     private static final Map<Level, Double> BLACK_GRADE_WEIGHTS = Map.of(
-            Level.S, 90.0D,
-            Level.S1, 7.0D,
-            Level.S2, 3.0D
+            Level.D, 40.0D,
+            Level.C, 30.0D,
+            Level.B, 20.0D,
+            Level.A, 7.0D,
+            Level.S, 3.0D
     );
 
     private final ScoreSkillRepository scoreSkillRepository;
@@ -133,7 +135,7 @@ public class SkillService {
                 if (ticketType == TicketType.SUPREME_SKILL_CHANGE) {
                     rolledSlot = Objects.equals(forcedBlackSlot, i)
                             ? rollBlackTierSlot(normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition)
-                            : rollGoldNormalSlot(normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition);
+                            : rollSignatureBlackSupremeNormalSlot(i, normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition);
                 } else if (!blackTierAlreadyRolled && ThreadLocalRandom.current().nextDouble(100.0) < 5.0) {
                     rolledSlot = rollBlackTierSlot(normalizedLevels.get(i), protectionFlags.get(i), usedSkillIds, position, subPosition);
                 } else {
@@ -264,6 +266,23 @@ public class SkillService {
         return buildSlot(skill, level, position);
     }
 
+    private SkillSlot rollSignatureBlackSupremeNormalSlot(int slotIndex, Level currentLevel, boolean protectionFlag,
+                                                          Set<Long> usedSkillIds, String position, String subPosition) {
+        if (slotIndex == 0) {
+            return rollGoldNormalSlot(currentLevel, protectionFlag, usedSkillIds, position, subPosition);
+        }
+        return rollNormalTierSlot(
+                ProbabilityTable.SIGNATURE_BLACK_SUPREME_OTHER,
+                TicketType.SUPREME_SKILL_CHANGE,
+                slotIndex,
+                currentLevel,
+                protectionFlag,
+                usedSkillIds,
+                position,
+                subPosition
+        );
+    }
+
     private SkillSlot rollBlackTierSlot(Level currentLevel, boolean protectionFlag, Set<Long> usedSkillIds,
                                         String position, String subPosition) {
         ScoreSkill skill = pickSkillByTier("BLACK", Tier.BLACK, usedSkillIds, position, subPosition);
@@ -348,7 +367,8 @@ public class SkillService {
                                             Set<Long> usedSkillIds, String position, String subPosition) {
         ScoreSkill skill = pickAnySkill(cardType, usedSkillIds, position, subPosition);
         Level rolledLevel = switch (cardType) {
-            case "BLACK", "WBC" -> WeightedRandom.pick(BLACK_GRADE_WEIGHTS, Level.S);
+            case "BLACK" -> WeightedRandom.pick(BLACK_GRADE_WEIGHTS, Level.S);
+            case "WBC" -> Level.S;
             case "MOMENT" -> Level.S;
             default -> SkillRules.defaultLevel(cardType);
         };

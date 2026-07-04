@@ -13,7 +13,8 @@ import java.util.Map;
  */
 public enum ProbabilityTable {
     NORMAL_PREMIUM(buildNormalPremiumTable()),
-    SUPREME(buildSupremeTable());
+    SUPREME(buildSupremeTable()),
+    SIGNATURE_BLACK_SUPREME_OTHER(buildSignatureBlackSupremeOtherTable());
 
     private final Map<Tier, Map<Level, Double>> weights;
     private final Map<Tier, Double> tierTotals;
@@ -55,6 +56,16 @@ public enum ProbabilityTable {
         table.put(Tier.BRONZE, gradeRow(14.0, 10.5, 7.0, 2.45, 1.05));
         table.put(Tier.SILVER, gradeRow(16.0, 12.0, 8.0, 2.80, 1.20));
         table.put(Tier.GOLD, gradeRow(10.0, 7.5, 5.0, 1.75, 0.75));
+
+        return Collections.unmodifiableMap(table);
+    }
+
+    private static Map<Tier, Map<Level, Double>> buildSignatureBlackSupremeOtherTable() {
+        Map<Tier, Map<Level, Double>> table = new EnumMap<>(Tier.class);
+
+        table.put(Tier.BRONZE, gradeRow(8.0, 6.0, 4.0, 1.40, 0.60));
+        table.put(Tier.SILVER, gradeRow(12.0, 9.0, 6.0, 2.10, 0.90));
+        table.put(Tier.GOLD, gradeRow(20.0, 15.0, 10.0, 3.50, 1.50));
 
         return Collections.unmodifiableMap(table);
     }

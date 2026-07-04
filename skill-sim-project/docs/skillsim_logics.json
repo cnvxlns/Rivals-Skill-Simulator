@@ -1,0 +1,399 @@
+{
+  "metadata": {
+    "topic": "MLB Rivals skill change rules",
+    "language_policy": {
+      "json_keys": "english",
+      "game_keywords": "korean_allowed",
+      "no_unverified_inference": true
+    },
+    "source_priority": [
+      "official_probability_page",
+      "official_withhive_notice",
+      "community_posts_only_as_non_official_reference"
+    ],
+    "source_urls": {
+      "probability_page": "https://hive-fn.qpyou.cn/markup/img/tf/mlbrv/mlb9irivals_ko.html?v=260624_04030UD#스킬",
+      "withhive_board": "https://community.withhive.com/MLB9IRIVALS/ko/board/all"
+    }
+  },
+  "korean_keywords": {
+    "card_grade_types": {
+      "moment": "모먼트",
+      "hof": "HOF",
+      "wbc_prime": "WBC 프라임",
+      "wbc_signature": "WBC 시그니처",
+      "signature_black": "시그니처 블랙",
+      "wbc_signature_black": "WBC 시그니처 블랙"
+    },
+    "skill_change_ticket_types": {
+      "normal": "스킬변경권",
+      "premium": "고급 스킬변경권",
+      "ultimate": "최고급 스킬변경권"
+    },
+    "skill_tier_names": {
+      "iron": "아이언",
+      "bronze": "브론즈",
+      "silver": "실버",
+      "gold": "골드",
+      "black": "블랙",
+      "wbc": "WBC",
+      "hof": "HOF",
+      "moment": "모먼트"
+    },
+    "skill_level_names": {
+      "d": "D",
+      "c": "C",
+      "b": "B",
+      "a": "A",
+      "s": "S"
+    }
+  },
+  "global_rules": {
+    "basic_skill_tiers": [
+      "iron",
+      "bronze",
+      "silver",
+      "gold"
+    ],
+    "special_skill_tiers": [
+      "moment",
+      "hof",
+      "wbc",
+      "black"
+    ],
+    "do_not_infer": [
+      "Do not assume a rule exists unless it appears in official probability page or official WithHIVE notice.",
+      "Do not treat community user posts as official rules.",
+      "If a rule is missing, conflicting, or unclear, ask before execution.",
+      "Do not extrapolate probabilities from older notices if the latest probability page differs."
+    ],
+    "ask_before_execution_when": [
+      "ticket type is missing",
+      "card type is missing",
+      "target slot count is unclear",
+      "skill lock state affects result",
+      "official sources conflict",
+      "requested optimization requires user goal, such as black skill target slot or WBC skill count"
+    ]
+  },
+  "card_type_rules": {
+    "moment": {
+      "ko": "모먼트",
+      "skill_slots": 3,
+      "slot_lock": {
+        "first_slot_lock_available_after_moment_skill_obtained": true,
+        "status": "official"
+      },
+      "exclusive_skill": {
+        "tier": "moment",
+        "ko": "모먼트",
+        "available_only_on_slot": 1,
+        "available_ticket_types": [
+          "ultimate"
+        ],
+        "probability_per_slot": {
+          "ultimate_slot_1": 0.06
+        },
+        "level": "S"
+      },
+      "skill_level_protection": {
+        "always_applied_on_skill_change": true,
+        "status": "official"
+      }
+    },
+    "wbc_signature": {
+      "ko": "WBC 시그니처",
+      "skill_slots": 3,
+      "slot_lock": {
+        "first_slot_lock_available": true,
+        "status": "official"
+      },
+      "guaranteed_baseline": {
+        "on_skill_change": {
+          "tier": "gold",
+          "level": "S"
+        }
+      },
+      "exclusive_skill": {
+        "tier": "wbc",
+        "ko": "WBC",
+        "available_on_any_slot": true,
+        "max_count": 3,
+        "available_ticket_types": [
+          "premium",
+          "ultimate"
+        ],
+        "probability_per_slot": {
+          "normal": 0.0,
+          "premium": 0.005,
+          "ultimate": 0.10
+        },
+        "level": "S"
+      }
+    },
+    "signature_black": {
+      "ko": "시그니처 블랙",
+      "skill_slots": 4,
+      "slot_lock": {
+        "available": false,
+        "status": "official"
+      },
+      "skill_preset": {
+        "available": true,
+        "preset_count": 2
+      },
+      "exclusive_skill": {
+        "tier": "black",
+        "ko": "블랙",
+        "available_on_any_slot": true,
+        "max_count": 1,
+        "available_ticket_types": [
+          "premium",
+          "ultimate"
+        ],
+        "probability": {
+          "normal": {
+            "status": "not_listed_on_probability_page",
+            "value": null,
+            "note": "Official probability page does not list black probability for normal tickets; do not infer."
+          },
+          "premium_per_slot_margin": 0.05,
+          "premium_full_4_slot_interpretation": {
+            "value": 0.20,
+            "status": "derived_from_official_slot_margins",
+            "requires_caution": true
+          },
+          "ultimate": 1.0
+        },
+        "level_distribution": {
+          "D": 0.40,
+          "C": 0.30,
+          "B": 0.20,
+          "A": 0.07,
+          "S": 0.03
+        },
+        "ultimate_black_slot_position_probability": {
+          "slot_1": 0.25,
+          "slot_2": 0.25,
+          "slot_3": 0.25,
+          "slot_4": 0.25
+        }
+      }
+    },
+    "wbc_signature_black": {
+      "ko": "WBC 시그니처 블랙",
+      "skill_slots": 4,
+      "slot_lock": {
+        "available": false,
+        "status": "official"
+      },
+      "skill_preset": {
+        "available": true,
+        "preset_count": 2
+      },
+      "guaranteed_baseline": {
+        "on_normal_skill_change": {
+          "tier": "gold",
+          "level": "S"
+        }
+      },
+      "exclusive_skills": {
+        "black": {
+          "tier": "black",
+          "ko": "블랙",
+          "available_on_any_slot": true,
+          "max_count": 1,
+          "available_ticket_types": [
+            "premium",
+            "ultimate"
+          ],
+          "probability": {
+            "normal": 0.0,
+            "premium_per_slot_margin": 0.05,
+            "premium_full_4_slot_interpretation": {
+              "value": 0.20,
+              "status": "derived_from_official_slot_margins",
+              "requires_caution": true
+            },
+            "ultimate": 1.0
+          },
+          "ultimate_black_slot_position_probability": {
+            "slot_1": 0.25,
+            "slot_2": 0.25,
+            "slot_3": 0.25,
+            "slot_4": 0.25
+          },
+          "level": "S"
+        },
+        "wbc": {
+          "tier": "wbc",
+          "ko": "WBC",
+          "available_on_any_non_black_slot": true,
+          "max_count_without_black": 4,
+          "max_count_with_black": 3,
+          "available_ticket_types": [
+            "premium",
+            "ultimate"
+          ],
+          "probability_per_slot": {
+            "normal": 0.0,
+            "premium": 0.005,
+            "ultimate_non_black_slot": 0.10
+          },
+          "level": "S"
+        }
+      }
+    }
+  },
+  "ticket_result_matrix": {
+    "moment": {
+      "normal": {
+        "exclusive_moment_possible": false,
+        "expected_special_tier": null
+      },
+      "premium": {
+        "exclusive_moment_possible": false,
+        "expected_special_tier": null
+      },
+      "ultimate": {
+        "slot_1": {
+          "moment": 0.06,
+          "gold_total": 0.94,
+          "gold_d": 0.376,
+          "gold_c": 0.282,
+          "gold_b": 0.188,
+          "gold_a": 0.0658,
+          "gold_s": 0.0282
+        },
+        "slot_2_and_3": {
+          "bronze": 0.35,
+          "silver": 0.40,
+          "gold": 0.25
+        }
+      }
+    },
+    "wbc_signature": {
+      "normal": {
+        "per_slot": {
+          "gold_s": 1.0,
+          "wbc_s": 0.0
+        }
+      },
+      "premium": {
+        "per_slot": {
+          "gold_s": 0.995,
+          "wbc_s": 0.005
+        },
+        "three_slot_at_least_one_wbc": 0.014925
+      },
+      "ultimate": {
+        "per_slot": {
+          "gold_s": 0.90,
+          "wbc_s": 0.10
+        },
+        "three_slot_at_least_one_wbc": 0.271
+      }
+    },
+    "signature_black": {
+      "normal": {
+        "black_possible": {
+          "status": "not_listed_on_probability_page",
+          "value": null
+        }
+      },
+      "premium": {
+        "per_slot_margin": {
+          "black_tier": 0.05,
+          "black_d": 0.02,
+          "black_c": 0.015,
+          "black_b": 0.01,
+          "black_a": 0.0035,
+          "black_s": 0.0015
+        },
+        "four_slot_black_included_interpretation": 0.20,
+        "note": "Use caution. This is derived from slot margins and max one black rule."
+      },
+      "ultimate": {
+        "black_tier": 1.0,
+        "black_level_distribution": {
+          "D": 0.40,
+          "C": 0.30,
+          "B": 0.20,
+          "A": 0.07,
+          "S": 0.03
+        },
+        "black_slot_position_each": 0.25,
+        "slot_1_when_not_black": {
+          "gold_total": 1.0,
+          "gold_d": 0.40,
+          "gold_c": 0.30,
+          "gold_b": 0.20,
+          "gold_a": 0.07,
+          "gold_s": 0.03
+        },
+        "non_black_slots": {
+          "bronze": 0.20,
+          "silver": 0.30,
+          "gold": 0.50
+        }
+      }
+    },
+    "wbc_signature_black": {
+      "normal": {
+        "per_slot": {
+          "gold_s": 1.0,
+          "wbc_s": 0.0,
+          "black_s": 0.0
+        }
+      },
+      "premium": {
+        "per_slot_margin": {
+          "gold_s": 0.945,
+          "wbc_s": 0.005,
+          "black_s": 0.05
+        },
+        "four_slot_black_included_interpretation": 0.20,
+        "note": "Use caution. Black probability is derived from slot margins and max one black rule."
+      },
+      "ultimate": {
+        "black_s": 1.0,
+        "black_slot_position_each": 0.25,
+        "non_black_slots": {
+          "gold_s": 0.90,
+          "wbc_s": 0.10
+        }
+      }
+    }
+  },
+  "uncertain_or_conflicting_items": [
+    {
+      "item": "signature_black_normal_ticket_black_probability",
+      "ko": "시그니처 블랙 일반 스킬변경권 블랙 확률",
+      "status": "not_listed_on_probability_page",
+      "safe_action": "ask_before_execution"
+    },
+    {
+      "item": "hof_first_slot_lock",
+      "ko": "HOF 첫 번째 스킬 슬롯 잠금",
+      "status": "unknown_officially",
+      "safe_action": "ask_before_execution"
+    },
+    {
+      "item": "hof_max_exclusive_skill_count",
+      "ko": "HOF 전용 스킬 최대 보유 개수",
+      "status": "not_explicitly_capped_in_checked_official_sources",
+      "safe_action": "do_not_assume_cap"
+    }
+  ],
+  "agent_execution_policy": {
+    "default_action": "answer_only_with_verified_rules",
+    "when_ambiguous": "ask_user_before_execution",
+    "forbidden_actions": [
+      "infer_missing_probability",
+      "convert community anecdote into official rule",
+      "optimize ticket usage without user goal",
+      "assume hidden slot-lock behavior"
+    ],
+    "recommended_question_template_ko": "이 부분은 공식 문서에서 명확하지 않거나 문서 간 상충이 있습니다. 추론 없이 진행하려면 어떤 기준으로 처리할까요?"
+  }
+}

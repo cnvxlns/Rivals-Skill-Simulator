@@ -43,7 +43,9 @@ skill-sim-project/frontend/.idea/
 skill-sim-project/frontend/tsconfig.tsbuildinfo
 
 # Working docs / internal assets (planning notes, data-conversion scripts, recordings)
-skill-sim-project/docs/
+# The skill-change rules spec is tracked; everything else under docs/ stays ignored.
+skill-sim-project/docs/*
+!skill-sim-project/docs/skillsim_logics.json
 
 # Python (data-conversion scripts under docs/)
 __pycache__/

@@ -57,9 +57,10 @@ class SkillServiceDistributionTest {
                 List.of()
         );
         int[] blackBySlot = new int[4];
-        int[] blackLevelCounts = new int[5];
+        int[] blackLevelCounts = new int[Level.values().length];
         int[] nonBlackTierCounts = new int[Tier.values().length];
         int nonBlackSlotsAfterSlotOne = 0;
+        int slotOneNonBlackCount = 0;
 
         for (int i = 0; i < SIGNATURE_BLACK_ROLLS; i++) {
             RollResponse response = service.rollSkills(request(CardType.SIGNATURE_BLACK, TicketType.SUPREME_SKILL_CHANGE));
@@ -76,6 +77,7 @@ class SkillServiceDistributionTest {
                     blackLevelCounts[level.ordinal()]++;
                 } else {
                     if (slotIndex == 0) {
+                        slotOneNonBlackCount++;
                         assertThat(tier).isEqualTo(Tier.GOLD);
                     } else {
                         assertThat(tier).isIn(Tier.BRONZE, Tier.SILVER, Tier.GOLD);
@@ -90,14 +92,24 @@ class SkillServiceDistributionTest {
         for (int count : blackBySlot) {
             assertThat(rate(count, SIGNATURE_BLACK_ROLLS)).isBetween(0.225, 0.275);
         }
-        assertThat(rate(blackLevelCounts[Level.D.ordinal()], SIGNATURE_BLACK_ROLLS)).isBetween(0.37, 0.43);
-        assertThat(rate(blackLevelCounts[Level.C.ordinal()], SIGNATURE_BLACK_ROLLS)).isBetween(0.27, 0.33);
-        assertThat(rate(blackLevelCounts[Level.B.ordinal()], SIGNATURE_BLACK_ROLLS)).isBetween(0.17, 0.23);
-        assertThat(rate(blackLevelCounts[Level.A.ordinal()], SIGNATURE_BLACK_ROLLS)).isBetween(0.04, 0.10);
-        assertThat(rate(blackLevelCounts[Level.S.ordinal()], SIGNATURE_BLACK_ROLLS)).isBetween(0.00, 0.06);
+        assertThat(slotOneNonBlackCount).isGreaterThan(0);
+        assertSignatureBlackLevelDistribution(blackLevelCounts, SIGNATURE_BLACK_ROLLS);
         assertThat(rate(nonBlackTierCounts[Tier.BRONZE.ordinal()], nonBlackSlotsAfterSlotOne)).isBetween(0.17, 0.23);
         assertThat(rate(nonBlackTierCounts[Tier.SILVER.ordinal()], nonBlackSlotsAfterSlotOne)).isBetween(0.27, 0.33);
         assertThat(rate(nonBlackTierCounts[Tier.GOLD.ordinal()], nonBlackSlotsAfterSlotOne)).isBetween(0.47, 0.53);
+    }
+
+    @Test
+    void signatureBlackPremiumPlacesBlackAtTwentyPercentOverallAndFivePercentPerSlot() {
+        SkillService service = serviceWith(
+                normalPool(1L, 8),
+                List.of(),
+                specialPool(200L, "BLACK", "BLACK_", 8),
+                List.of(),
+                List.of()
+        );
+
+        assertPremiumBlackDistribution(service, CardType.SIGNATURE_BLACK);
     }
 
     @Test
@@ -123,7 +135,7 @@ class SkillServiceDistributionTest {
     }
 
     @Test
-    void wbcSignatureBlackPremiumAllowsAtMostOneBlackSlot() {
+    void wbcSignatureBlackPremiumPlacesBlackAtTwentyPercentOverallAndFivePercentPerSlot() {
         SkillService service = serviceWith(
                 normalPool(1L, 8),
                 specialPool(100L, "WBC", "WBC_", 8),
@@ -131,19 +143,42 @@ class SkillServiceDistributionTest {
                 List.of(),
                 List.of()
         );
-        int blackPresentRuns = 0;
 
-        for (int i = 0; i < RATE_ROLLS; i++) {
-            RollResponse response = service.rollSkills(request(wbcSignatureBlackCardType(), TicketType.PREMIUM_SKILL_CHANGE));
+        assertPremiumBlackDistribution(service, wbcSignatureBlackCardType());
+    }
+
+    private void assertPremiumBlackDistribution(SkillService service, CardType cardType) {
+        int blackPresentRuns = 0;
+        int[] blackBySlot = new int[4];
+        int[] blackLevelCounts = new int[Level.values().length];
+        int wbcSlots = 0;
+        int totalSlots = 0;
+
+        for (int i = 0; i < SIGNATURE_BLACK_ROLLS; i++) {
+            RollResponse response = service.rollSkills(request(cardType, TicketType.PREMIUM_SKILL_CHANGE));
 
             assertThat(response.getSlots()).hasSize(4);
             int blackCount = 0;
-            for (var slot : response.getSlots()) {
+            for (int slotIndex = 0; slotIndex < response.getSlots().size(); slotIndex++) {
+                var slot = response.getSlots().get(slotIndex);
                 Tier tier = slot.getSkill().getTier();
-                assertThat(tier).isIn(Tier.GOLD, Tier.WBC, Tier.BLACK);
-                assertThat(slot.getLevel()).isEqualTo(Level.S);
+                totalSlots++;
+                if (cardType == CardType.WBC_SIGNATURE_BLACK) {
+                    assertThat(tier).isIn(Tier.GOLD, Tier.WBC, Tier.BLACK);
+                    assertThat(slot.getLevel()).isEqualTo(Level.S);
+                }
                 if (tier == Tier.BLACK) {
                     blackCount++;
+                    blackBySlot[slotIndex]++;
+                    if (cardType == CardType.WBC_SIGNATURE_BLACK) {
+                        assertThat(slot.getLevel()).isEqualTo(Level.S);
+                    } else {
+                        Level level = slot.getLevel();
+                        assertThat(level).isIn(Level.D, Level.C, Level.B, Level.A, Level.S);
+                        blackLevelCounts[level.ordinal()]++;
+                    }
+                } else if (tier == Tier.WBC) {
+                    wbcSlots++;
                 }
             }
             assertThat(blackCount).isLessThanOrEqualTo(1);
@@ -152,7 +187,24 @@ class SkillServiceDistributionTest {
             }
         }
 
-        assertThat(rate(blackPresentRuns, RATE_ROLLS)).isBetween(0.13, 0.24);
+        assertThat(rate(blackPresentRuns, SIGNATURE_BLACK_ROLLS)).isBetween(0.185, 0.215);
+        for (int count : blackBySlot) {
+            assertThat(rate(count, SIGNATURE_BLACK_ROLLS)).isBetween(0.043, 0.057);
+        }
+        if (cardType == CardType.WBC_SIGNATURE_BLACK) {
+            // Black is pre-drawn, so the conditional WBC roll must still produce a 0.005 marginal per-slot rate.
+            assertThat(rate(wbcSlots, totalSlots)).isBetween(0.004, 0.006);
+        } else {
+            assertSignatureBlackLevelDistribution(blackLevelCounts, blackPresentRuns);
+        }
+    }
+
+    private void assertSignatureBlackLevelDistribution(int[] levelCounts, int totalBlackSlots) {
+        assertThat(rate(levelCounts[Level.D.ordinal()], totalBlackSlots)).isBetween(0.37, 0.43);
+        assertThat(rate(levelCounts[Level.C.ordinal()], totalBlackSlots)).isBetween(0.27, 0.33);
+        assertThat(rate(levelCounts[Level.B.ordinal()], totalBlackSlots)).isBetween(0.17, 0.23);
+        assertThat(rate(levelCounts[Level.A.ordinal()], totalBlackSlots)).isBetween(0.04, 0.10);
+        assertThat(rate(levelCounts[Level.S.ordinal()], totalBlackSlots)).isBetween(0.00, 0.06);
     }
 
     @Test

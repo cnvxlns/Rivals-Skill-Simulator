@@ -258,7 +258,7 @@ class SkillServiceTest {
     }
 
     @Test
-    void signatureBlackSupremeTicketRollsExactlyOneBlackSlotAndGoldRest() {
+    void signatureBlackSupremeTicketRollsExactlyOneBlackSlotWithSlotOneGoldWhenNonBlack() {
         ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
         when(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(List.of(
                 scoreSkill(1L, "G_001", "NORMAL", "BATTER", "Gold Skill 1",
@@ -290,9 +290,21 @@ class SkillServiceTest {
         assertThat(response.getSlots().stream()
                 .filter(slot -> slot.getSkill().getTier() == com.example.skillsim.enums.Tier.BLACK))
                 .hasSize(1);
-        assertThat(response.getSlots().stream()
-                .filter(slot -> slot.getSkill().getTier() != com.example.skillsim.enums.Tier.BLACK))
-                .allSatisfy(slot -> assertThat(slot.getSkill().getTier()).isEqualTo(com.example.skillsim.enums.Tier.GOLD));
+        for (int slotIndex = 0; slotIndex < response.getSlots().size(); slotIndex++) {
+            com.example.skillsim.enums.Tier tier = response.getSlots().get(slotIndex).getSkill().getTier();
+            if (tier == com.example.skillsim.enums.Tier.BLACK) {
+                continue;
+            }
+            if (slotIndex == 0) {
+                assertThat(tier).isEqualTo(com.example.skillsim.enums.Tier.GOLD);
+            } else {
+                assertThat(tier).isIn(
+                        com.example.skillsim.enums.Tier.BRONZE,
+                        com.example.skillsim.enums.Tier.SILVER,
+                        com.example.skillsim.enums.Tier.GOLD
+                );
+            }
+        }
     }
 
     @Test

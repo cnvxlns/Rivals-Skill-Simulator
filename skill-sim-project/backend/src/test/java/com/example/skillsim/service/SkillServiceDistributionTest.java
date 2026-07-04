@@ -21,6 +21,7 @@ import static org.mockito.Mockito.when;
 class SkillServiceDistributionTest {
 
     private static final int RATE_ROLLS = 6_000;
+    private static final int SIGNATURE_BLACK_ROLLS = 20_000;
     private static final double POWER_WEIGHT = 1.0;
 
     @Test
@@ -56,8 +57,11 @@ class SkillServiceDistributionTest {
                 List.of()
         );
         int[] blackBySlot = new int[4];
+        int[] blackLevelCounts = new int[5];
+        int[] nonBlackTierCounts = new int[Tier.values().length];
+        int nonBlackSlotsAfterSlotOne = 0;
 
-        for (int i = 0; i < RATE_ROLLS; i++) {
+        for (int i = 0; i < SIGNATURE_BLACK_ROLLS; i++) {
             RollResponse response = service.rollSkills(request(CardType.SIGNATURE_BLACK, TicketType.SUPREME_SKILL_CHANGE));
 
             assertThat(response.getSlots()).hasSize(4);
@@ -67,16 +71,33 @@ class SkillServiceDistributionTest {
                 if (tier == Tier.BLACK) {
                     blackCount++;
                     blackBySlot[slotIndex]++;
+                    Level level = response.getSlots().get(slotIndex).getLevel();
+                    assertThat(level).isIn(Level.D, Level.C, Level.B, Level.A, Level.S);
+                    blackLevelCounts[level.ordinal()]++;
                 } else {
-                    assertThat(tier).isEqualTo(Tier.GOLD);
+                    if (slotIndex == 0) {
+                        assertThat(tier).isEqualTo(Tier.GOLD);
+                    } else {
+                        assertThat(tier).isIn(Tier.BRONZE, Tier.SILVER, Tier.GOLD);
+                        nonBlackTierCounts[tier.ordinal()]++;
+                        nonBlackSlotsAfterSlotOne++;
+                    }
                 }
             }
             assertThat(blackCount).isEqualTo(1);
         }
 
         for (int count : blackBySlot) {
-            assertThat(rate(count, RATE_ROLLS)).isBetween(0.225, 0.275);
+            assertThat(rate(count, SIGNATURE_BLACK_ROLLS)).isBetween(0.225, 0.275);
         }
+        assertThat(rate(blackLevelCounts[Level.D.ordinal()], SIGNATURE_BLACK_ROLLS)).isBetween(0.37, 0.43);
+        assertThat(rate(blackLevelCounts[Level.C.ordinal()], SIGNATURE_BLACK_ROLLS)).isBetween(0.27, 0.33);
+        assertThat(rate(blackLevelCounts[Level.B.ordinal()], SIGNATURE_BLACK_ROLLS)).isBetween(0.17, 0.23);
+        assertThat(rate(blackLevelCounts[Level.A.ordinal()], SIGNATURE_BLACK_ROLLS)).isBetween(0.04, 0.10);
+        assertThat(rate(blackLevelCounts[Level.S.ordinal()], SIGNATURE_BLACK_ROLLS)).isBetween(0.00, 0.06);
+        assertThat(rate(nonBlackTierCounts[Tier.BRONZE.ordinal()], nonBlackSlotsAfterSlotOne)).isBetween(0.17, 0.23);
+        assertThat(rate(nonBlackTierCounts[Tier.SILVER.ordinal()], nonBlackSlotsAfterSlotOne)).isBetween(0.27, 0.33);
+        assertThat(rate(nonBlackTierCounts[Tier.GOLD.ordinal()], nonBlackSlotsAfterSlotOne)).isBetween(0.47, 0.53);
     }
 
     @Test
@@ -298,7 +319,8 @@ class SkillServiceDistributionTest {
     private List<ScoreSkill> specialPool(long firstId, String cardType, String prefix, int count) {
         String values = switch (cardType) {
             case "MOMENT" -> "1";
-            case "WBC", "BLACK" -> "1/1/1";
+            case "WBC" -> "1/1/1";
+            case "BLACK" -> "1/1/1/1/1";
             case "HOF" -> "1/1/1/1/1/1";
             default -> normalValues();
         };

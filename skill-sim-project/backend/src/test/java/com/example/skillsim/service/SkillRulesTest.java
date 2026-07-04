@@ -33,11 +33,21 @@ class SkillRulesTest {
         assertThat(SkillRules.gradeLadder("WBC"))
                 .containsExactly(Level.S, Level.S1, Level.S2);
         assertThat(SkillRules.gradeLadder("SIGNATURE_BLACK"))
-                .containsExactly(Level.S, Level.S1, Level.S2);
+                .containsExactly(Level.D, Level.C, Level.B, Level.A, Level.S, Level.S1, Level.S2);
         assertThat(SkillRules.gradeLadder("WBC_SIGNATURE_BLACK"))
                 .containsExactly(Level.S, Level.S1, Level.S2);
         assertThat(SkillRules.gradeLadder("MOMENT"))
                 .containsExactly(Level.S);
+    }
+
+    @Test
+    void blackSkillMaxLevelClampsToValueColumnsWithinExpandedLadder() {
+        ScoreSkill skill = skill("BLACK_001", "BLACK");
+        skill.getEffects().add(effect("5/8/11"));
+
+        assertThat(SkillRules.maxLevel(skill)).isEqualTo(3);
+        assertThat(SkillRules.gradeLabels("BLACK", SkillRules.maxLevel(skill)))
+                .containsExactly("D", "C", "B");
     }
 
     @Test
@@ -67,6 +77,14 @@ class SkillRulesTest {
                 .position("BATTER")
                 .name(skillKey)
                 .description(skillKey)
+                .build();
+    }
+
+    private static com.example.skillsim.model.ScoreEffect effect(String values) {
+        return com.example.skillsim.model.ScoreEffect.builder()
+                .stat("POWER")
+                .condition("ALWAYS")
+                .values(values)
                 .build();
     }
 }

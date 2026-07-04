@@ -50,8 +50,8 @@ class ScoreServiceTest {
         List<ScoreSkillOption> options = service.listSkills("SIGNATURE_BLACK", "BATTER");
 
         assertThat(options).hasSize(1);
-        assertThat(options.get(0).getMaxLevel()).isEqualTo(3);
-        assertThat(options.get(0).getLevelLabels()).containsExactly("S", "S1", "S2");
+        assertThat(options.get(0).getMaxLevel()).isEqualTo(5);
+        assertThat(options.get(0).getLevelLabels()).containsExactly("D", "C", "B", "A", "S");
     }
 
     @Test

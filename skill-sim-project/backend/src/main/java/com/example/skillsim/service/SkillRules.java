@@ -48,7 +48,8 @@ final class SkillRules {
     static List<Level> gradeLadder(String cardType) {
         return switch (normalizeCardType(cardType)) {
             case "MOMENT" -> List.of(Level.S);
-            case "WBC", "BLACK", "WBC_BLACK" -> List.of(Level.S, Level.S1, Level.S2);
+            case "WBC", "WBC_BLACK" -> List.of(Level.S, Level.S1, Level.S2);
+            case "BLACK" -> List.of(Level.D, Level.C, Level.B, Level.A, Level.S, Level.S1, Level.S2);
             case "HOF" -> List.of(Level.D, Level.C, Level.B, Level.A, Level.S, Level.S1);
             default -> List.of(Level.D, Level.C, Level.B, Level.A, Level.S, Level.S1, Level.S2, Level.S3, Level.S4);
         };

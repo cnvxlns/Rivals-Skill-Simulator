@@ -88,8 +88,6 @@ public class ScoreService {
                 throw badRequest("Pitcher slot must be between 1 and 6 for relief pitchers.");
             }
         }
-        String normalizedCardGrade = normalizeCardGradeOrThrow(request.getCardGrade());
-
         Set<String> seenSkillIds = new HashSet<>();
         List<ScoreCalculator.Selection> calculatorSelections = new ArrayList<>();
 
@@ -119,7 +117,7 @@ public class ScoreService {
                 normalizedPosition,
                 battingOrder,
                 pitcherSlot,
-                normalizedCardGrade
+                normalizedCardType
         );
         UndefinedConditionWarnings undefinedConditionWarnings = applyUndefinedConditionWarnings(
                 calculatorSelections,
@@ -303,14 +301,6 @@ public class ScoreService {
             return SkillRules.normalizeRequired(value, message);
         } catch (IllegalArgumentException ex) {
             throw badRequest(message);
-        }
-    }
-
-    private String normalizeCardGradeOrThrow(String cardGrade) {
-        try {
-            return ScoreCalculator.normalizeCardGrade(cardGrade);
-        } catch (IllegalArgumentException ex) {
-            throw badRequest(ex.getMessage());
         }
     }
 

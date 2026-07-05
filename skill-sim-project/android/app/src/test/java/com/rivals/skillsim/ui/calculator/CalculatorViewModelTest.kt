@@ -4,7 +4,6 @@ import com.rivals.skillsim.MainDispatcherRule
 import com.rivals.skillsim.data.local.CalculatorSettings
 import com.rivals.skillsim.data.local.UserPrefsSnapshot
 import com.rivals.skillsim.data.local.UserPrefsStore
-import com.rivals.skillsim.data.model.CardGrade
 import com.rivals.skillsim.data.model.CardType
 import com.rivals.skillsim.data.model.MethodologyResponse
 import com.rivals.skillsim.data.model.RollRequest
@@ -58,38 +57,10 @@ class CalculatorViewModelTest {
         assertEquals(33.5, state.result?.total ?: 0.0, 0.0001)
         assertEquals(135.0, repository.lastScoreRequest?.userStats?.get("파워") ?: 0.0, 0.0001)
         assertEquals("SIGNATURE", repository.lastScoreRequest?.cardType)
-        assertEquals("SIGNATURE_BLACK", repository.lastScoreRequest?.cardGrade)
         assertEquals("BATTER", repository.lastScoreRequest?.position)
         assertEquals(3, repository.lastScoreRequest?.selections?.size)
         assertEquals(2, repository.lastScoreRequest?.selections?.first()?.level)
         assertNotNull(state.skills.singleOrNull { it.skillId == "G_001" })
-    }
-
-    @Test
-    fun calculateSendsSelectedCardGrade() = runTest {
-        val skill = ScoreSkillOption(
-            skillId = "G_001",
-            cardType = "SIGNATURE",
-            position = "BATTER",
-            name = "Ace",
-            maxLevel = 9,
-            levelLabels = listOf("D", "C", "B", "A", "S", "S1", "S2", "S3", "S4"),
-        )
-        val repository = FakeSkillRepository(
-            scoreSkills = listOf(skill),
-            scoreResponse = ScoreResponse(total = 33.5),
-        )
-        val viewModel = CalculatorViewModel(repository)
-        advanceUntilIdle()
-
-        viewModel.setCardGrade(CardGrade.HOF)
-        viewModel.updateSkill(0, "G_001")
-        viewModel.updateSkill(1, "G_001")
-        viewModel.updateSkill(2, "G_001")
-        viewModel.calculate()
-        advanceUntilIdle()
-
-        assertEquals("HOF", repository.lastScoreRequest?.cardGrade)
     }
 
     @Test

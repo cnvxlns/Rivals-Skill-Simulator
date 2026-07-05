@@ -21,8 +21,6 @@ public class ScoreRequest {
     @NotBlank
     private String position;
 
-    private String cardGrade;
-
     @Valid
     @NotEmpty
     private List<ScoreSelection> selections;

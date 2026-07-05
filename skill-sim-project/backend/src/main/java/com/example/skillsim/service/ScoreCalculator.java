@@ -64,15 +64,8 @@ public class ScoreCalculator {
         return MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE;
     }
 
-    public static String normalizeCardGrade(String cardGrade) {
-        if (cardGrade == null || cardGrade.isBlank()) {
-            return DEFAULT_CARD_GRADE;
-        }
-        String normalized = cardGrade.trim().toUpperCase();
-        if (!OPPONENT_GRADE_ADVANTAGE_PROBABILITIES.containsKey(normalized)) {
-            throw new IllegalArgumentException("Unknown cardGrade: " + cardGrade);
-        }
-        return normalized;
+    public static Map<String, Double> getOpponentGradeAdvantageProbabilitiesByCardType() {
+        return OPPONENT_GRADE_ADVANTAGE_PROBABILITIES_BY_CARD_TYPE;
     }
 
     public static double[] getTopOrderPlateAppearanceReach() {
@@ -188,18 +181,16 @@ public class ScoreCalculator {
             "CP", maestroAverageActiveStack(3) / 12.0
     );
 
-    private static final String DEFAULT_CARD_GRADE = "SIGNATURE_BLACK";
-    private static final Map<String, Double> OPPONENT_GRADE_ADVANTAGE_PROBABILITIES = Map.ofEntries(
-            Map.entry("LIVE_SEASON", 0.95),
-            Map.entry("IMPACT", 0.90),
-            Map.entry("PRIME", 0.80),
-            Map.entry("WBC_PRIME", 0.78),
-            Map.entry("MOMENT", 0.75),
-            Map.entry("SIGNATURE", 0.60),
-            Map.entry("WBC_SIGNATURE", 0.50),
-            Map.entry("SIGNATURE_BLACK", 0.20),
-            Map.entry("WBC_SIGNATURE_BLACK", 0.05),
-            Map.entry("HOF", 0.00)
+    // 도전정신(상대등급우세): 자기 카드 등급 기준 P(상대 선수 등급 > 내 등급).
+    // 상대 라인업이 프라임/시그니처/모먼트/HOF 위주라는 메타 가정에서 산출한 값 (agy×3+codex×3 2라운드 토론 합의).
+    private static final String DEFAULT_CARD_TYPE = "BLACK";
+    private static final Map<String, Double> OPPONENT_GRADE_ADVANTAGE_PROBABILITIES_BY_CARD_TYPE = Map.of(
+            "MOMENT", 0.40,
+            "NORMAL", 0.20,
+            "WBC", 0.15,
+            "BLACK", 0.05,
+            "WBC_BLACK", 0.02,
+            "HOF", 0.00
     );
 
     private static final double[] TOP_ORDER_PLATE_APPEARANCE_REACH = new double[]{1.0, 1.0, 0.95, 0.70, 0.25, 0.05, 0.01};
@@ -317,23 +308,23 @@ public class ScoreCalculator {
             String position,
             Integer battingOrder,
             Integer pitcherSlot,
-            String cardGrade
+            String cardType
     ) {
-        return buildConditionProbabilities(position, battingOrder, pitcherSlot, cardGrade);
+        return buildConditionProbabilities(position, battingOrder, pitcherSlot, cardType);
     }
 
     private static Map<String, Double> buildConditionProbabilities(
             String position,
             Integer battingOrder,
             Integer pitcherSlot,
-            String cardGrade
+            String cardType
     ) {
         ConditionContext context = new ConditionContext(
                 SkillRules.normalizePosition(position),
                 SkillRules.roleForPosition(position),
                 battingOrder,
                 pitcherSlot,
-                cardGrade
+                cardType
         );
         Map<String, Double> probabilities = new HashMap<>();
         CONDITION_RESOLVERS.forEach(resolver -> resolver.apply(probabilities, context));
@@ -349,7 +340,7 @@ public class ScoreCalculator {
             String role,
             Integer battingOrder,
             Integer pitcherSlot,
-            String cardGrade
+            String cardType
     ) {
     }
 
@@ -457,8 +448,10 @@ public class ScoreCalculator {
     private static final class CardGradeResolver implements ConditionResolver {
         @Override
         public void apply(Map<String, Double> probabilities, ConditionContext context) {
-            String cardGrade = normalizeCardGrade(context.cardGrade());
-            probabilities.put("상대등급우세", OPPONENT_GRADE_ADVANTAGE_PROBABILITIES.get(cardGrade));
+            String cardType = context.cardType() == null || context.cardType().isBlank()
+                    ? DEFAULT_CARD_TYPE
+                    : SkillRules.normalizeCardType(context.cardType());
+            probabilities.put("상대등급우세", OPPONENT_GRADE_ADVANTAGE_PROBABILITIES_BY_CARD_TYPE.get(cardType));
         }
     }
 

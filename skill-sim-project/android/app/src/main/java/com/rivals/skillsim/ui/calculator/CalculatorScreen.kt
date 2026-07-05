@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.rivals.skillsim.data.model.CardGrade
 import com.rivals.skillsim.data.model.CardType
 import com.rivals.skillsim.i18n.AppStrings
 import com.rivals.skillsim.i18n.LanguageCode
@@ -66,13 +65,6 @@ fun CalculatorScreen(
                     options = CardType.entries,
                     optionLabel = { cardTypeLabel(it.name) },
                     onSelected = viewModel::setCardType,
-                )
-                LabeledDropdown(
-                    label = AppStrings.t(languageCode, "label_card_grade"),
-                    selected = state.cardGrade,
-                    options = CardGrade.entries,
-                    optionLabel = { AppStrings.t(languageCode, "card_grade_${it.name}") },
-                    onSelected = viewModel::setCardGrade,
                 )
                 LabeledDropdown(
                     label = AppStrings.t(languageCode, "label_position"),

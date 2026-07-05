@@ -351,10 +351,25 @@ class ScoreCalculatorTest {
     }
 
     @Test
-    void appliesR19OpponentGradeAdvantageProbabilityByCardGrade() {
-        assertThat(totalForCondition("BATTER", "상대등급우세")).isEqualTo(2.00);
+    void appliesOpponentGradeAdvantageProbabilityByOwnCardType() {
+        assertThat(totalForCondition("BATTER", "상대등급우세")).isEqualTo(0.50);
+        assertThat(totalForCondition("BATTER", "상대등급우세", "MOMENT")).isEqualTo(4.00);
+        assertThat(totalForCondition("BATTER", "상대등급우세", "SIGNATURE")).isEqualTo(2.00);
+        assertThat(totalForCondition("BATTER", "상대등급우세", "WBC")).isEqualTo(1.50);
+        assertThat(totalForCondition("BATTER", "상대등급우세", "SIGNATURE_BLACK")).isEqualTo(0.50);
+        assertThat(totalForCondition("BATTER", "상대등급우세", "WBC_SIGNATURE_BLACK")).isEqualTo(0.20);
         assertThat(totalForCondition("BATTER", "상대등급우세", "HOF")).isEqualTo(0.00);
-        assertThat(totalForCondition("BATTER", "상대등급우세", "PRIME")).isEqualTo(8.00);
+    }
+
+    @Test
+    void opponentGradeAdvantageProbabilitiesAreStrictlyDecreasingUpTheLadder() {
+        Map<String, Double> table = ScoreCalculator.getOpponentGradeAdvantageProbabilitiesByCardType();
+        List<String> lowToHigh = List.of("MOMENT", "NORMAL", "WBC", "BLACK", "WBC_BLACK", "HOF");
+
+        for (int i = 1; i < lowToHigh.size(); i++) {
+            assertThat(table.get(lowToHigh.get(i))).isLessThan(table.get(lowToHigh.get(i - 1)));
+        }
+        assertThat(table.get("HOF")).isEqualTo(0.00);
     }
 
     @Test
@@ -367,7 +382,7 @@ class ScoreCalculatorTest {
                 .containsEntry("구위>파워", 0.35)
                 .containsEntry("선구>제구", 0.65)
                 .containsEntry("제구>선구", 0.45)
-                .containsEntry("상대등급우세", 0.20);
+                .containsEntry("상대등급우세", 0.05);
     }
 
     @Test
@@ -692,14 +707,14 @@ class ScoreCalculatorTest {
         return totalForCondition(position, condition, null);
     }
 
-    private double totalForCondition(String position, String condition, String cardGrade) {
+    private double totalForCondition(String position, String condition, String cardType) {
         ScoreSkill skill = scoreSkill("G_007", "패기", effect("파워", condition, "10"));
         ScoreCalculator calculator = new ScoreCalculator();
 
         return calculator.calculate(
                 List.of(new ScoreCalculator.Selection(skill, 1)),
                 Map.of("파워", 1.0),
-                ScoreCalculator.conditionProbabilitiesForPosition(position, null, null, cardGrade),
+                ScoreCalculator.conditionProbabilitiesForPosition(position, null, null, cardType),
                 Map.of()
         ).total();
     }

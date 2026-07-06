@@ -1,5 +1,4 @@
-# Keeps the Render free-tier backend awake by pinging its health endpoint
-# every 10 minutes, and resets GitHub's 60-day inactivity auto-disable timer.
+# Keeps the Render free-tier backend awake by pinging its health endpoint.
 name: Keep Render backend awake
 
 on:
@@ -7,14 +6,12 @@ on:
     # GitHub scheduled events are best-effort and can be delayed or dropped,
     # especially near the start of each hour. Keep the interval below Render's
     # 15-minute idle window and avoid :00.
-    - cron: '3,8,13,18,23,28,33,38,43,48,53,58 * * * *'
+    - cron: '3/5 * * * *'
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
     steps:
       - name: Ping health endpoint
         # --fail makes the step fail on HTTP errors so the run is marked
@@ -24,12 +21,3 @@ jobs:
           --retry 3 --retry-delay 20 --retry-all-errors
           --max-time 60
           https://rivals-skill-random-generator-api.onrender.com/api/health
-
-      - name: Reset 60-day disable timer
-        # Re-enabling the workflow is a no-op if it is already enabled,
-        # but it resets GitHub's 60-day inactivity auto-disable timer.
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >-
-          gh api --method PUT
-          /repos/${{ github.repository }}/actions/workflows/keep-alive.yml/enable

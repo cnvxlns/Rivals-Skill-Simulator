@@ -4,7 +4,10 @@ name: Keep Render backend awake
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    # GitHub scheduled events are best-effort and can be delayed or dropped,
+    # especially near the start of each hour. Keep the interval below Render's
+    # 15-minute idle window and avoid :00.
+    - cron: '3,8,13,18,23,28,33,38,43,48,53,58 * * * *'
   workflow_dispatch:
 
 jobs:

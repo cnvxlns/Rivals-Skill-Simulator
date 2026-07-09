@@ -11,6 +11,12 @@ export const API_BASE_URL =
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  // 백엔드를 ngrok 무료 터널로 노출할 때 브라우저 요청에 뜨는 경고 페이지(interstitial)를
+  // 건너뛴다. Vercel rewrites가 이 헤더를 백엔드로 그대로 전달한다. 같은 출처(/api) 요청이라
+  // CORS preflight가 발생하지 않으며, 다른 배포(Render 등)에서는 무시되는 무해한 헤더다.
+  headers: {
+    'ngrok-skip-browser-warning': 'true',
+  },
 });
 
 export async function rollSkills(payload: RollRequest): Promise<RollResponse> {

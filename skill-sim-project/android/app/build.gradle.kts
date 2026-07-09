@@ -67,7 +67,7 @@ android {
             buildConfigField(
                 "String",
                 "API_BASE_URL",
-                "\"https://rivals-skill-random-generator-api.onrender.com/\"",
+                "\"https://update-reanalyze-rocker.ngrok-free.dev/\"",
             )
         }
     }

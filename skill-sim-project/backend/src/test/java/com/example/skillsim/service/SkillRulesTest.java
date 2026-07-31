@@ -70,6 +70,38 @@ class SkillRulesTest {
         assertThat(SkillRules.rollTier(skill("G_001", "HOF"))).isEqualTo(Tier.GOLD);
     }
 
+    @Test
+    void matchesDetailedMomentPositionExclusivesIncludingInfieldAlias() {
+        String upTheMiddle = "C, 2B, SS, CF";
+        assertThat(SkillRules.matchesPosition(upTheMiddle, "BATTER")).isTrue();
+        assertThat(SkillRules.matchesPosition(upTheMiddle, "C")).isTrue();
+        assertThat(SkillRules.matchesPosition(upTheMiddle, "2B")).isTrue();
+        assertThat(SkillRules.matchesPosition(upTheMiddle, "SS")).isTrue();
+        assertThat(SkillRules.matchesPosition(upTheMiddle, "CF")).isTrue();
+        assertThat(SkillRules.matchesPosition(upTheMiddle, "1B")).isFalse();
+        assertThat(SkillRules.matchesPosition(upTheMiddle, "LF")).isFalse();
+
+        String allAround = "C, IF, OF";
+        assertThat(SkillRules.matchesPosition(allAround, "BATTER")).isTrue();
+        assertThat(SkillRules.matchesPosition(allAround, "IF")).isTrue();
+        assertThat(SkillRules.matchesPosition(allAround, "1B")).isTrue();
+        assertThat(SkillRules.matchesPosition(allAround, "2B")).isTrue();
+        assertThat(SkillRules.matchesPosition(allAround, "3B")).isTrue();
+        assertThat(SkillRules.matchesPosition(allAround, "SS")).isTrue();
+        assertThat(SkillRules.matchesPosition(allAround, "LF")).isTrue();
+        assertThat(SkillRules.matchesPosition(allAround, "CF")).isTrue();
+        assertThat(SkillRules.matchesPosition(allAround, "RF")).isTrue();
+        assertThat(SkillRules.matchesPosition(allAround, "DH")).isFalse();
+    }
+
+    @Test
+    void detailedPitcherExclusivesStillMatchTheirBroadPosition() {
+        assertThat(SkillRules.matchesPosition("SP", "PITCHER")).isTrue();
+        assertThat(SkillRules.matchesPosition("RP", "PITCHER")).isTrue();
+        assertThat(SkillRules.matchesPosition("CP", "PITCHER")).isTrue();
+        assertThat(SkillRules.matchesPosition("CP", "RP")).isFalse();
+    }
+
     private static ScoreSkill skill(String skillKey, String cardType) {
         return ScoreSkill.builder()
                 .skillKey(skillKey)

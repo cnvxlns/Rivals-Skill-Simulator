@@ -245,6 +245,22 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    void exposesRoleBasedShortBatterDurationProbabilities() {
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("BATTER"))
+                .containsEntry("등판후3타자", 0.00)
+                .containsEntry("등판후4타자", 0.00);
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("SP"))
+                .containsEntry("등판후3타자", 0.15)
+                .containsEntry("등판후4타자", 0.20);
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("RP"))
+                .containsEntry("등판후3타자", 0.65)
+                .containsEntry("등판후4타자", 0.80);
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("CP"))
+                .containsEntry("등판후3타자", 0.90)
+                .containsEntry("등판후4타자", 1.00);
+    }
+
+    @Test
     void appliesSecondPlateAppearanceDurationProbabilitiesByBattingOrder() {
         ScoreSkill skill = scoreSkill("M_032", "스탠드아웃",
                 effect("파워", "두번째타석까지", "10")
@@ -337,9 +353,46 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    void exposesConditionalNormalSkillProbabilityTokens() {
+        Map<String, Double> probabilities = ScoreCalculator.conditionProbabilitiesForPosition("BATTER");
+
+        assertThat(probabilities)
+                .containsEntry("대타첫타석", 0.0)
+                .containsEntry("교체후첫타자", 0.25);
+    }
+
+    @Test
     void appliesR19StatComparisonConditionProbabilities() {
         assertThat(totalForCondition("BATTER", "구위>파워")).isEqualTo(3.50);
         assertThat(totalForCondition("BATTER", "선구>제구")).isEqualTo(6.50);
+    }
+
+    @Test
+    void bornToHitStatComparisonIsAlwaysApplied() {
+        ScoreSkill skill = scoreSkill("M_044", "본 투 히트",
+                effect("파워", "파워정확합>주루수비합", "12")
+        );
+        ScoreCalculator calculator = new ScoreCalculator();
+        Map<String, Double> probabilities = ScoreCalculator.conditionProbabilitiesForPosition("BATTER");
+
+        assertThat(calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("파워", 1.0),
+                probabilities,
+                Map.of("파워", 130.0, "정확", 125.0, "주루", 100.0, "수비", 100.0)
+        ).total()).isEqualTo(12.00);
+        assertThat(calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("파워", 1.0),
+                probabilities,
+                Map.of("파워", 100.0, "정확", 100.0, "주루", 130.0, "수비", 125.0)
+        ).total()).isEqualTo(12.00);
+        assertThat(calculator.calculate(
+                List.of(new ScoreCalculator.Selection(skill, 1)),
+                Map.of("파워", 1.0),
+                probabilities,
+                Map.of()
+        ).total()).isEqualTo(12.00);
     }
 
     @Test

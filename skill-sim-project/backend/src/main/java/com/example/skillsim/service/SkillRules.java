@@ -15,7 +15,8 @@ final class SkillRules {
 
     static final int DEFAULT_SLOT_COUNT = 3;
 
-    private static final Set<String> BATTER_POSITIONS = Set.of("BATTER", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH", "OF");
+    private static final Set<String> BATTER_POSITIONS = Set.of("BATTER", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH", "IF", "OF");
+    private static final Set<String> INFIELD_POSITIONS = Set.of("1B", "2B", "3B", "SS");
     private static final Set<String> PITCHER_POSITIONS = Set.of("PITCHER", "SP", "RP", "CP");
 
     private SkillRules() {
@@ -102,7 +103,13 @@ final class SkillRules {
         if ("OF".equals(requested)) {
             return skillTokens.stream().anyMatch(token -> Set.of("OF", "LF", "CF", "RF").contains(token));
         }
+        if ("IF".equals(requested)) {
+            return skillTokens.stream().anyMatch(token -> "IF".equals(token) || INFIELD_POSITIONS.contains(token));
+        }
         if (Set.of("LF", "CF", "RF").contains(requested) && skillTokens.contains("OF")) {
+            return true;
+        }
+        if (INFIELD_POSITIONS.contains(requested) && skillTokens.contains("IF")) {
             return true;
         }
         if (PITCHER_POSITIONS.contains(requested) && skillTokens.contains("PITCHER")) {

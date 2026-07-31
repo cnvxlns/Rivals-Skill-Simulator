@@ -144,6 +144,30 @@ class ScoreDataLoaderTest {
     }
 
     @Test
+    void momentSkillsAndPositionExclusivesMatchUpdatedWorkbook() throws Exception {
+        ScoreDataLoader loader = new ScoreDataLoader(null);
+        List<ScoreSkill> skills = readBundledScoreSkills(loader);
+
+        assertThat(positionFor(skills, "M_007")).isEqualTo("C, 2B, SS, CF");
+        assertThat(positionFor(skills, "M_010")).isEqualTo("C, IF, OF");
+        assertThat(positionFor(skills, "M_014")).isEqualTo("C");
+        assertThat(positionFor(skills, "M_017")).isEqualTo("RP");
+        assertThat(positionFor(skills, "M_019")).isEqualTo("SP");
+        assertThat(positionFor(skills, "M_027")).isEqualTo("CP");
+        assertThat(positionFor(skills, "M_043")).isEqualTo("CP");
+        assertThat(positionFor(skills, "M_044")).isEqualTo("BATTER");
+
+        for (String stat : List.of("구속", "변화", "구위", "제구")) {
+            assertThat(valuesFor(skills, "M_043", stat, "ALWAYS")).containsExactly("9");
+        }
+        for (String stat : List.of("파워", "정확", "선구")) {
+            assertThat(valuesFor(skills, "M_043", stat, "9회까지")).containsExactly("9");
+            assertThat(valuesFor(skills, "M_044", stat, "파워정확합>주루수비합")).containsExactly("12");
+            assertThat(valuesFor(skills, "M_044", stat, "포지션_DH")).containsExactly("6");
+        }
+    }
+
+    @Test
     void playoffHeroOvrComparisonEffectsAreMarkedAsOvrUnderdogConditions() throws Exception {
         ScoreDataLoader loader = new ScoreDataLoader(null);
 
@@ -159,6 +183,49 @@ class ScoreDataLoaderTest {
         assertThat(valuesFor(skills, "M_020", "정확", "OVR열세")).containsExactly("4");
         assertThat(valuesFor(skills, "M_004", "구위", "ALWAYS")).isEmpty();
         assertThat(valuesFor(skills, "M_020", "파워", "ALWAYS")).isEmpty();
+    }
+
+    @Test
+    void conditionalNormalSkillBonusesAreNotMarkedAsAlwaysActive() throws Exception {
+        ScoreDataLoader loader = new ScoreDataLoader(null);
+        List<ScoreSkill> skills = readBundledScoreSkills(loader);
+
+        assertThat(valuesFor(skills, "G_003", "파워", "높은공")).containsExactly("3/4/5/6/8/10/12/14/15");
+        assertThat(valuesFor(skills, "G_003", "파워", "ALWAYS")).isEmpty();
+
+        assertThat(valuesFor(skills, "G_011", "변화", "ALWAYS")).containsExactly("1/2/3/4/5/6/7/8/9");
+        assertThat(valuesFor(skills, "G_011", "제구", "ALWAYS")).containsExactly("1/2/3/4/5/6/7/8/9");
+        for (String stat : List.of("파워", "정확", "선구")) {
+            assertThat(valuesFor(skills, "G_011", stat, "대타첫타석")).containsExactly("5/6/7/8/9/10/11/12/13");
+            assertThat(valuesFor(skills, "G_011", stat, "ALWAYS")).isEmpty();
+        }
+
+        assertThat(valuesFor(skills, "G_049", "정확", "ALWAYS")).containsExactly("1/2/3/4/5/6/7/8/9");
+        assertThat(valuesFor(skills, "G_049", "선구", "ALWAYS")).containsExactly("1/2/3/4/5/6/7/8/9");
+        for (String stat : List.of("구위", "변화", "제구")) {
+            assertThat(valuesFor(skills, "G_049", stat, "교체후첫타자")).containsExactly("5/6/7/8/9/10/11/12/13");
+            assertThat(valuesFor(skills, "G_049", stat, "ALWAYS")).isEmpty();
+        }
+
+        for (String stat : List.of("구위", "변화", "제구", "구속")) {
+            assertThat(valuesFor(skills, "G_043", stat, "등판후3타자")).containsExactly("2/3/4/5/6/7/8/9/10");
+            assertThat(valuesFor(skills, "G_043", stat, "ALWAYS")).isEmpty();
+        }
+
+        for (String stat : List.of("정확", "선구", "인내")) {
+            assertThat(valuesFor(skills, "G_048", stat, "포지션_SP+1_2회")).containsExactly("2/3/4/5/6/7/8/9/10");
+            assertThat(valuesFor(skills, "G_048", stat, "포지션_SP")).isEmpty();
+        }
+
+        for (String stat : List.of("파워", "인내")) {
+            assertThat(valuesFor(skills, "G_052", stat, "선발3_4_5+중계3_4_5+등판후4타자")).containsExactly("1/2/3/4/5/6/7/8/9");
+            assertThat(valuesFor(skills, "G_052", stat, "선발3_4_5+중계3_4_5")).isEmpty();
+        }
+
+        for (String stat : List.of("파워", "정확", "선구")) {
+            assertThat(valuesFor(skills, "G_056", stat, "비김또는리드+포지션_RP_CP+등판후3타자")).containsExactly("2/3/4/5/6/7/8/9/10");
+            assertThat(valuesFor(skills, "G_056", stat, "비김또는리드+포지션_RP_CP")).isEmpty();
+        }
     }
 
     @Test
@@ -193,6 +260,14 @@ class ScoreDataLoaderTest {
 
     private List<String> alwaysValues(List<ScoreSkill> skills, String skillKey, String stat) {
         return valuesFor(skills, skillKey, stat, "ALWAYS");
+    }
+
+    private String positionFor(List<ScoreSkill> skills, String skillKey) {
+        return skills.stream()
+                .filter(skill -> skillKey.equals(skill.getSkillKey()))
+                .findFirst()
+                .orElseThrow()
+                .getPosition();
     }
 
     private List<String> valuesFor(List<ScoreSkill> skills, String skillKey, String stat, String condition) {

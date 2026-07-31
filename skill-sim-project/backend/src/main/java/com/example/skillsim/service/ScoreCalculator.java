@@ -82,6 +82,7 @@ public class ScoreCalculator {
 
     private static final double DEFAULT_USER_STAT = 120.0;
     private static final double DEFAULT_DECK_SCORE = 500.0;
+    private static final String BATTER_OFFENSE_OVER_DEFENSE_CONDITION = "파워정확합>주루수비합";
 
     private static final Map<String, double[]> INNING_WEIGHTS_BY_ROLE = Map.of(
             "SP", new double[]{0.190, 0.180, 0.170, 0.130, 0.110, 0.100, 0.060, 0.040, 0.020},
@@ -117,6 +118,8 @@ public class ScoreCalculator {
             Map.entry("밀어치기", 0.35),
             Map.entry("높은공", 0.333),
             Map.entry("낮은공", 0.333),
+            Map.entry("대타첫타석", 0.0), // 주전 라인업 기준 대타 출전 없음
+            Map.entry("교체후첫타자", 0.25), // 계투 상대 타자 중 첫 타자 근사
             Map.entry("풀카운트", 0.048),
             Map.entry("2아웃", 0.333)
     );
@@ -164,6 +167,21 @@ public class ScoreCalculator {
             "BATTER", 0.00,
             "SP", 0.45,
             "RP", 0.95,
+            "CP", 1.00
+    );
+
+    // 보직별 평균 상대 타자 수 대비 해당 타자 수 비중 근사(등판후9타자와 동일 방법론).
+    private static final Map<String, Double> THREE_BATTER_DURATION_PROBABILITIES_BY_ROLE = Map.of(
+            "BATTER", 0.00,
+            "SP", 0.15,
+            "RP", 0.65,
+            "CP", 0.90
+    );
+
+    private static final Map<String, Double> FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE = Map.of(
+            "BATTER", 0.00,
+            "SP", 0.20,
+            "RP", 0.80,
             "CP", 1.00
     );
 
@@ -403,6 +421,8 @@ public class ScoreCalculator {
         @Override
         public void apply(Map<String, Double> probabilities, ConditionContext context) {
             probabilities.put("등판후9타자", NINE_BATTER_DURATION_PROBABILITIES_BY_ROLE.getOrDefault(context.role(), 0.0));
+            probabilities.put("등판후3타자", THREE_BATTER_DURATION_PROBABILITIES_BY_ROLE.getOrDefault(context.role(), 0.0));
+            probabilities.put("등판후4타자", FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE.getOrDefault(context.role(), 0.0));
             probabilities.put("두번째타석까지", secondPlateAppearanceProbability(context.battingOrder()));
         }
 
@@ -436,6 +456,7 @@ public class ScoreCalculator {
             probabilities.put("구속>인내", probability);
             probabilities.put("구위>파워", 0.35);
             probabilities.put("선구>제구", 0.65);
+            probabilities.put(BATTER_OFFENSE_OVER_DEFENSE_CONDITION, 1.00);
             probabilities.put("제구>선구", switch (context.role()) {
                 case "RP" -> 0.10;
                 case "CP" -> 0.25;

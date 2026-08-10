@@ -117,7 +117,9 @@ public class ScoreService {
                 normalizedPosition,
                 battingOrder,
                 pitcherSlot,
-                normalizedCardType
+                normalizedCardType,
+                request.getThrowHand(),
+                request.getBatHand()
         );
         UndefinedConditionWarnings undefinedConditionWarnings = applyUndefinedConditionWarnings(
                 calculatorSelections,

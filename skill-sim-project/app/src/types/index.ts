@@ -114,6 +114,12 @@ export type ScoreSelection = {
   level: number;
 };
 
+export enum Handedness {
+  LEFT = 'LEFT',
+  RIGHT = 'RIGHT',
+  SWITCH = 'SWITCH',
+}
+
 export type ScoreRequest = {
   cardType: CardType | string;
   position: Position | SubPosition | string;
@@ -121,6 +127,8 @@ export type ScoreRequest = {
   battingOrder?: number | null;
   pitcherSlot?: number | null;
   userStats?: Record<string, number>;
+  throwHand?: Handedness;
+  batHand?: Handedness;
 };
 
 export type ScoreStatBreakdown = {

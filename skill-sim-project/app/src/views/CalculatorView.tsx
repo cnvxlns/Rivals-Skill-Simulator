@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { CardType, Position, SubPosition } from '../types';
+import { CardType, Handedness, Position, SubPosition } from '../types';
 import { useScoreCalculator } from '../lib/useScoreCalculator';
 import { useTranslation } from '../lib/i18n';
 import { useAppTheme } from '../theme/useTheme';
@@ -50,6 +50,25 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
           optionLabel={(o) => (o === 'ALL' ? t('option_all_sub_positions') : o)}
           onSelect={(o) => calc.setSubPosition(o === 'ALL' ? '' : o)}
         />
+        {calc.position === Position.PITCHER ? (
+          <LabeledDropdown
+            label={t('label_throw_hand')}
+            selected={calc.throwHand}
+            options={[Handedness.RIGHT, Handedness.LEFT]}
+            optionLabel={(o) => (o === Handedness.LEFT ? t('hand_left_throw') : t('hand_right_throw'))}
+            onSelect={(o) => calc.setThrowHand(o)}
+          />
+        ) : (
+          <LabeledDropdown
+            label={t('label_bat_hand')}
+            selected={calc.batHand}
+            options={[Handedness.RIGHT, Handedness.LEFT, Handedness.SWITCH]}
+            optionLabel={(o) =>
+              o === Handedness.LEFT ? t('hand_left_bat') : o === Handedness.SWITCH ? t('hand_switch') : t('hand_right_bat')
+            }
+            onSelect={(o) => calc.setBatHand(o)}
+          />
+        )}
         {calc.position === Position.BATTER ? (
           <LabeledDropdown
             label={t('label_batting_order')}

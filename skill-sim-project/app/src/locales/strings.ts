@@ -197,6 +197,13 @@ export const strings = {
   warmup_elapsed: '경과 시간',
   warmup_error: '서버 연결에 실패했습니다. 오프라인 상태이거나 일시적인 오류일 수 있습니다.',
   warmup_retry: '다시 시도',
+  label_throw_hand: '투구 방향',
+  label_bat_hand: '타격 방향',
+  hand_left_throw: '좌완',
+  hand_right_throw: '우완',
+  hand_left_bat: '좌타',
+  hand_right_bat: '우타',
+  hand_switch: '스위치',
   apk_install: '안드로이드 앱 설치 (APK)',
   apk_install_hint: '설치 시 "출처를 알 수 없는 앱" 허용이 필요할 수 있습니다.',
 } as const;

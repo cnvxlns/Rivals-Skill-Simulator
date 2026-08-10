@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { calculateScore, fetchScoreSkills } from './api';
 import {
   CardType,
+  Handedness,
   Position,
   ScoreRequest,
   ScoreResponse,
@@ -48,6 +49,8 @@ export function useScoreCalculator() {
   const [userStats, setUserStats] = useState<Record<string, number>>(defaultUserStats);
   const [battingOrder, setBattingOrder] = useState<number | null>(null);
   const [pitcherSlot, setPitcherSlot] = useState<number | null>(null);
+  const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
+  const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);
 
   const slotCount = useMemo(() => slotCountForCard(cardType), [cardType]);
   const scorePosition = subPosition;
@@ -172,6 +175,8 @@ export function useScoreCalculator() {
       })),
       battingOrder: position === Position.BATTER ? battingOrder : undefined,
       pitcherSlot: position === Position.PITCHER ? pitcherSlot : undefined,
+      throwHand: position === Position.PITCHER ? throwHand : undefined,
+      batHand: position === Position.BATTER ? batHand : undefined,
       userStats: stats,
     };
 
@@ -233,6 +238,10 @@ export function useScoreCalculator() {
     setSubPosition,
     scorePosition,
     slotCount,
+    throwHand,
+    setThrowHand,
+    batHand,
+    setBatHand,
     skills,
     selections,
     selectedSkillIds,

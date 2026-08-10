@@ -1,5 +1,6 @@
 package com.example.skillsim.service;
 
+import com.example.skillsim.enums.Handedness;
 import com.example.skillsim.model.ScoreEffect;
 import com.example.skillsim.model.ScoreSkill;
 import java.util.List;
@@ -786,5 +787,34 @@ class ScoreCalculatorTest {
                 ScoreCalculator.conditionProbabilitiesForPosition(position, null, null, cardType),
                 Map.of()
         ).total();
+    }
+
+    @Test
+    void 좌완_전용_조건은_우완_투수에게_발동하지_않는다() {
+        // HOF_040 빅 유닛의 "좌완 선발로 등판 시" 절. 우완 SP에게 적용되면 안 된다.
+        Map<String, Double> rightHanded = ScoreCalculator.conditionProbabilitiesForPosition(
+                "SP", null, null, "HOF", Handedness.RIGHT, Handedness.RIGHT);
+        assertThat(new ScoreCalculator().conditionProbability("좌완+포지션_SP", rightHanded)).isEqualTo(0.0);
+
+        Map<String, Double> leftHanded = ScoreCalculator.conditionProbabilitiesForPosition(
+                "SP", null, null, "HOF", Handedness.LEFT, Handedness.RIGHT);
+        assertThat(new ScoreCalculator().conditionProbability("좌완+포지션_SP", leftHanded)).isEqualTo(1.0);
+    }
+
+    @Test
+    void 투타_방향이_없으면_우완_우타로_간주한다() {
+        Map<String, Double> defaults = ScoreCalculator.conditionProbabilitiesForPosition("SP", null, null, "HOF");
+        assertThat(defaults.get("좌완")).isEqualTo(0.0);
+        assertThat(defaults.get("우완")).isEqualTo(1.0);
+        assertThat(defaults.get("우타")).isEqualTo(1.0);
+    }
+
+    @Test
+    void 스위치_타자는_좌타와_우타_조건을_모두_만족한다() {
+        Map<String, Double> sw = ScoreCalculator.conditionProbabilitiesForPosition(
+                "DH", null, null, "HOF", Handedness.RIGHT, Handedness.SWITCH);
+        assertThat(sw.get("좌타")).isEqualTo(1.0);
+        assertThat(sw.get("우타")).isEqualTo(1.0);
+        assertThat(sw.get("스위치타")).isEqualTo(1.0);
     }
 }

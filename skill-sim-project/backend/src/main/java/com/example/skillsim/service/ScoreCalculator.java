@@ -1,5 +1,6 @@
 package com.example.skillsim.service;
 
+import com.example.skillsim.enums.Handedness;
 import com.example.skillsim.model.ScoreEffect;
 import com.example.skillsim.model.ScoreSkill;
 import java.util.ArrayList;
@@ -242,13 +243,14 @@ public class ScoreCalculator {
             new StatComparisonResolver(),
             new CardGradeResolver(),
             new PositionGateResolver(),
+            new HandednessGateResolver(),
             new SlotGateResolver(),
             new InningResolver(),
             new InningRangeResolver(),
             new PlateAppearanceResolver()
     );
 
-    private static final Map<String, Double> DEFAULT_CONDITION_PROBABILITIES = buildConditionProbabilities("BATTER", null, null, null);
+    private static final Map<String, Double> DEFAULT_CONDITION_PROBABILITIES = buildConditionProbabilities("BATTER", null, null, null, null, null);
 
     public Result calculate(List<Selection> selections, Map<String, Double> statWeights) {
         return calculate(selections, statWeights, DEFAULT_CONDITION_PROBABILITIES, Map.of());
@@ -343,21 +345,42 @@ public class ScoreCalculator {
             Integer pitcherSlot,
             String cardType
     ) {
-        return buildConditionProbabilities(position, battingOrder, pitcherSlot, cardType);
+        return conditionProbabilitiesForPosition(position, battingOrder, pitcherSlot, cardType, null, null);
+    }
+
+    /**
+     * 투/타 방향까지 반영한 조건 확률표.
+     *
+     * <p>방향이 주어지지 않으면 우완/우타로 간주한다. 좌완 전용 절(예: 빅 유닛의 "좌완 선발로 등판 시")이
+     * 방향 미상일 때 발동하지 않도록 하기 위한 보수적 기본값이다.
+     */
+    public static Map<String, Double> conditionProbabilitiesForPosition(
+            String position,
+            Integer battingOrder,
+            Integer pitcherSlot,
+            String cardType,
+            Handedness throwHand,
+            Handedness batHand
+    ) {
+        return buildConditionProbabilities(position, battingOrder, pitcherSlot, cardType, throwHand, batHand);
     }
 
     private static Map<String, Double> buildConditionProbabilities(
             String position,
             Integer battingOrder,
             Integer pitcherSlot,
-            String cardType
+            String cardType,
+            Handedness throwHand,
+            Handedness batHand
     ) {
         ConditionContext context = new ConditionContext(
                 SkillRules.normalizePosition(position),
                 SkillRules.roleForPosition(position),
                 battingOrder,
                 pitcherSlot,
-                cardType
+                cardType,
+                throwHand == null ? Handedness.RIGHT : throwHand,
+                batHand == null ? Handedness.RIGHT : batHand
         );
         Map<String, Double> probabilities = new HashMap<>();
         CONDITION_RESOLVERS.forEach(resolver -> resolver.apply(probabilities, context));
@@ -373,7 +396,9 @@ public class ScoreCalculator {
             String role,
             Integer battingOrder,
             Integer pitcherSlot,
-            String cardType
+            String cardType,
+            Handedness throwHand,
+            Handedness batHand
     ) {
     }
 
@@ -381,6 +406,21 @@ public class ScoreCalculator {
         @Override
         public void apply(Map<String, Double> target, ConditionContext context) {
             target.putAll(probabilities);
+        }
+    }
+
+    /** 선수 본인의 투/타 방향 게이트. 확률이 아니라 참/거짓이다. */
+    private static final class HandednessGateResolver implements ConditionResolver {
+        @Override
+        public void apply(Map<String, Double> probabilities, ConditionContext context) {
+            Handedness thrown = context.throwHand();
+            Handedness bats = context.batHand();
+            probabilities.put("좌완", thrown == Handedness.LEFT ? 1.0 : 0.0);
+            probabilities.put("우완", thrown == Handedness.RIGHT ? 1.0 : 0.0);
+            // 스위치 타자는 좌/우 양쪽 상황을 모두 만족한다.
+            probabilities.put("좌타", bats == Handedness.LEFT || bats == Handedness.SWITCH ? 1.0 : 0.0);
+            probabilities.put("우타", bats == Handedness.RIGHT || bats == Handedness.SWITCH ? 1.0 : 0.0);
+            probabilities.put("스위치타", bats == Handedness.SWITCH ? 1.0 : 0.0);
         }
     }
 

@@ -72,7 +72,7 @@ fun SimulatorScreen(
                 LabeledDropdown(
                     label = AppStrings.t(languageCode, "label_card_type"),
                     selected = state.cardType,
-                    options = CardType.entries,
+                    options = CardType.entries.filter { it != CardType.SUPREME_MOMENT },
                     optionLabel = { cardTypeLabel(it.name) },
                     onSelected = viewModel::setCardType,
                 )

@@ -7,5 +7,6 @@ public enum CardType {
     WBC,
     WBC_SIGNATURE_BLACK,
     HOF,
-    MOMENT
+    MOMENT,
+    SUPREME_MOMENT
 }

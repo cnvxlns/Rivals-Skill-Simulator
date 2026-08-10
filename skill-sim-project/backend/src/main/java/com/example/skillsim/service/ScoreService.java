@@ -190,6 +190,7 @@ public class ScoreService {
             case "WBC" -> List.of("NORMAL", "WBC");
             case "WBC_BLACK" -> List.of("NORMAL", "WBC", "BLACK");
             case "MOMENT" -> List.of("NORMAL", "MOMENT");
+            case "SUPREME_MOMENT" -> List.of("NORMAL", "MOMENT");
             case "HOF" -> List.of("NORMAL", "HOF");
             default -> List.of(cardType);
         };

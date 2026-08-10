@@ -92,6 +92,23 @@ class ScoreServiceTest {
     }
 
     @Test
+    void listSkillsForSupremeMomentIncludesNormalAndMomentPools() {
+        ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
+        ScoreSkill gold = scoreSkill("G_001", "NORMAL", "BATTER", "배팅머신",
+                effect("파워", "ALWAYS", "1/2/3/4/5/6/7/8/9"));
+        ScoreSkill moment = scoreSkill("M_009", "MOMENT", "BATTER", "파워 히터",
+                effect("파워", "ALWAYS", "6"));
+        when(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(List.of(gold));
+        when(repository.findByCardTypeIgnoreCase("MOMENT")).thenReturn(List.of(moment));
+        ScoreService service = new ScoreService(repository, new ScoreCalculator(), Map.of("파워", 1.0));
+
+        List<ScoreSkillOption> options = service.listSkills("SUPREME_MOMENT", "BATTER");
+
+        assertThat(options).extracting(ScoreSkillOption::getSkillId)
+                .containsExactly("G_001", "M_009");
+    }
+
+    @Test
     void calculateReturnsTotalPerSkillAndPerStat() {
         ScoreSkillRepository repository = mock(ScoreSkillRepository.class);
         ScoreSkill skill = scoreSkill("S_001", "NORMAL", "BATTER", "좌투선호",

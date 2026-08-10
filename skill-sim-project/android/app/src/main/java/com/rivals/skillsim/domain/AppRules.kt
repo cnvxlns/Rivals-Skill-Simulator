@@ -13,6 +13,7 @@ object AppRules {
             CardType.SIGNATURE,
             CardType.WBC,
             CardType.HOF,
-            CardType.MOMENT -> BaseSlotCount
+            CardType.MOMENT,
+            CardType.SUPREME_MOMENT -> BaseSlotCount
         }
 }

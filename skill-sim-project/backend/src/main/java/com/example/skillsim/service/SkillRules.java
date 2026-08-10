@@ -32,7 +32,7 @@ final class SkillRules {
             case "SIGNATURE", "NORMAL" -> "NORMAL";
             case "SIGNATURE_BLACK", "BLACK" -> "BLACK";
             case "WBC_SIGNATURE_BLACK", "WBC_BLACK" -> "WBC_BLACK";
-            case "WBC", "MOMENT", "HOF" -> normalized;
+            case "WBC", "MOMENT", "HOF", "SUPREME_MOMENT" -> normalized;
             default -> throw new IllegalArgumentException("Unsupported card type: " + cardType);
         };
     }
@@ -48,7 +48,7 @@ final class SkillRules {
 
     static List<Level> gradeLadder(String cardType) {
         return switch (normalizeCardType(cardType)) {
-            case "MOMENT" -> List.of(Level.S);
+            case "MOMENT", "SUPREME_MOMENT" -> List.of(Level.S);
             case "WBC", "WBC_BLACK" -> List.of(Level.S, Level.S1, Level.S2);
             case "BLACK" -> List.of(Level.D, Level.C, Level.B, Level.A, Level.S, Level.S1, Level.S2);
             case "HOF" -> List.of(Level.D, Level.C, Level.B, Level.A, Level.S, Level.S1);

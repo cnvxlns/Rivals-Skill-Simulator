@@ -38,6 +38,7 @@ enum class CardType {
     WBC_SIGNATURE_BLACK,
     HOF,
     MOMENT,
+    SUPREME_MOMENT,
 }
 
 enum class Position {

@@ -213,13 +213,16 @@ public class ScoreCalculator {
 
     // 도전정신(상대등급우세): 자기 카드 등급 기준 P(상대 선수 등급 > 내 등급).
     // 상대 라인업이 프라임/시그니처/모먼트/HOF 위주라는 메타 가정에서 산출한 값 (agy×3+codex×3 2라운드 토론 합의).
+    // WBC 계열은 일반 계열의 리스킨(동일 등급)이므로 WBC=NORMAL(프라임/시그니처), WBC_BLACK=BLACK과 같은 값을 사용한다.
+    // SUPREME_MOMENT(슈프림 모먼트)는 모먼트<슈프림모먼트<시그니처 순서를 반영해 MOMENT와 NORMAL의 중간값을 사용한다.
     private static final String DEFAULT_CARD_TYPE = "BLACK";
     private static final Map<String, Double> OPPONENT_GRADE_ADVANTAGE_PROBABILITIES_BY_CARD_TYPE = Map.of(
             "MOMENT", 0.40,
+            "SUPREME_MOMENT", 0.30,
             "NORMAL", 0.20,
-            "WBC", 0.15,
+            "WBC", 0.20,
             "BLACK", 0.05,
-            "WBC_BLACK", 0.02,
+            "WBC_BLACK", 0.05,
             "HOF", 0.00
     );
 

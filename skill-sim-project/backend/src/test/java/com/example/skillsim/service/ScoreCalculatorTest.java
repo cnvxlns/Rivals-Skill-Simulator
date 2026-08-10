@@ -414,20 +414,29 @@ class ScoreCalculatorTest {
     void appliesOpponentGradeAdvantageProbabilityByOwnCardType() {
         assertThat(totalForCondition("BATTER", "상대등급우세")).isEqualTo(0.50);
         assertThat(totalForCondition("BATTER", "상대등급우세", "MOMENT")).isEqualTo(4.00);
+        assertThat(totalForCondition("BATTER", "상대등급우세", "SUPREME_MOMENT")).isEqualTo(3.00);
         assertThat(totalForCondition("BATTER", "상대등급우세", "SIGNATURE")).isEqualTo(2.00);
-        assertThat(totalForCondition("BATTER", "상대등급우세", "WBC")).isEqualTo(1.50);
+        assertThat(totalForCondition("BATTER", "상대등급우세", "WBC")).isEqualTo(2.00);
         assertThat(totalForCondition("BATTER", "상대등급우세", "SIGNATURE_BLACK")).isEqualTo(0.50);
-        assertThat(totalForCondition("BATTER", "상대등급우세", "WBC_SIGNATURE_BLACK")).isEqualTo(0.20);
+        assertThat(totalForCondition("BATTER", "상대등급우세", "WBC_SIGNATURE_BLACK")).isEqualTo(0.50);
         assertThat(totalForCondition("BATTER", "상대등급우세", "HOF")).isEqualTo(0.00);
     }
 
     @Test
-    void opponentGradeAdvantageProbabilitiesAreStrictlyDecreasingUpTheLadder() {
+    void wbcTierMatchesItsNonWbcCounterpartAsARebrandNotADifferentGrade() {
         Map<String, Double> table = ScoreCalculator.getOpponentGradeAdvantageProbabilitiesByCardType();
-        List<String> lowToHigh = List.of("MOMENT", "NORMAL", "WBC", "BLACK", "WBC_BLACK", "HOF");
+
+        assertThat(table.get("WBC")).isEqualTo(table.get("NORMAL"));
+        assertThat(table.get("WBC_BLACK")).isEqualTo(table.get("BLACK"));
+    }
+
+    @Test
+    void opponentGradeAdvantageProbabilitiesAreNonIncreasingUpTheLadder() {
+        Map<String, Double> table = ScoreCalculator.getOpponentGradeAdvantageProbabilitiesByCardType();
+        List<String> lowToHigh = List.of("MOMENT", "SUPREME_MOMENT", "NORMAL", "WBC", "BLACK", "WBC_BLACK", "HOF");
 
         for (int i = 1; i < lowToHigh.size(); i++) {
-            assertThat(table.get(lowToHigh.get(i))).isLessThan(table.get(lowToHigh.get(i - 1)));
+            assertThat(table.get(lowToHigh.get(i))).isLessThanOrEqualTo(table.get(lowToHigh.get(i - 1)));
         }
         assertThat(table.get("HOF")).isEqualTo(0.00);
     }

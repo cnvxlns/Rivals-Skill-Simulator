@@ -17,6 +17,7 @@ class SkillRulesTest {
         assertThat(SkillRules.slotCount(CardType.HOF)).isEqualTo(3);
         assertThat(SkillRules.slotCount(CardType.WBC)).isEqualTo(3);
         assertThat(SkillRules.slotCount(CardType.MOMENT)).isEqualTo(3);
+        assertThat(SkillRules.slotCount(CardType.SUPREME_MOMENT)).isEqualTo(3);
         assertThat(SkillRules.slotCount(CardType.SIGNATURE_BLACK)).isEqualTo(4);
         assertThat(SkillRules.slotCount("WBC_SIGNATURE_BLACK")).isEqualTo(4);
         assertThat(SkillRules.slotCount("BLACK")).isEqualTo(4);
@@ -37,6 +38,8 @@ class SkillRulesTest {
         assertThat(SkillRules.gradeLadder("WBC_SIGNATURE_BLACK"))
                 .containsExactly(Level.S, Level.S1, Level.S2);
         assertThat(SkillRules.gradeLadder("MOMENT"))
+                .containsExactly(Level.S);
+        assertThat(SkillRules.gradeLadder("SUPREME_MOMENT"))
                 .containsExactly(Level.S);
     }
 

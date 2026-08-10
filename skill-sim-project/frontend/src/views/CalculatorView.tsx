@@ -110,6 +110,7 @@ const CalculatorView = ({ onViewMethodology }: CalculatorViewProps) => {
                 <option value={CardType.WBC_SIGNATURE_BLACK}>WBC Signature Black</option>
                 <option value={CardType.HOF}>HOF</option>
                 <option value={CardType.MOMENT}>Moment</option>
+                <option value={CardType.SUPREME_MOMENT}>Supreme Moment</option>
               </select>
             </div>
 

@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/health")
 @CrossOrigin(originPatterns = {
-    "http://localhost:3000",
+    "http://localhost:8081",
     "https://rivals-skill-random-generator-api.onrender.com",
     "https://*.vercel.app"
 })

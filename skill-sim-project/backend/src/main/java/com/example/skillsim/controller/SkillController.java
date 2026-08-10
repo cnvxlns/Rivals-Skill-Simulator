@@ -8,7 +8,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import java.util.List;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,11 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/skills")
-@CrossOrigin(originPatterns = {
-    "http://localhost:8081",
-    "https://rivals-skill-random-generator-api.onrender.com",
-    "https://*.vercel.app"
-})
 @RequiredArgsConstructor
 @Slf4j
 public class SkillController {

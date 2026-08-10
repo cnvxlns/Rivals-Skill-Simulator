@@ -9,7 +9,6 @@ import com.example.skillsim.service.MethodologyService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,11 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/score")
-@CrossOrigin(originPatterns = {
-    "http://localhost:8081",
-    "https://rivals-skill-random-generator-api.onrender.com",
-    "https://*.vercel.app"
-})
 @RequiredArgsConstructor
 public class ScoreController {
 

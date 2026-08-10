@@ -178,6 +178,7 @@ export type RoleProbabilityEntry = {
   role: string;
   inningWeights: number[];
   gutsProbability: number;
+  patienceBelowVelocityProbability: number;
   nineBatterDuration: number;
   maestroCumulative: number;
 };

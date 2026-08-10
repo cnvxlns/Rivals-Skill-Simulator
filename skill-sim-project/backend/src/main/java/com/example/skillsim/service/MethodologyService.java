@@ -133,6 +133,7 @@ public class MethodologyService {
         List<MethodologyResponse.RoleProbabilityEntry> roleProbabilities = new ArrayList<>();
         Map<String, double[]> inningWeightsMap = ScoreCalculator.getInningWeightsByRole();
         Map<String, Double> gutsMap = ScoreCalculator.getGutsProbabilitiesByRole();
+        Map<String, Double> patienceBelowVelocityMap = ScoreCalculator.getPatienceBelowVelocityProbabilitiesByRole();
         Map<String, Double> durationMap = ScoreCalculator.getNineBatterDurationProbabilitiesByRole();
         Map<String, Double> maestroMap = ScoreCalculator.getMaestroCumulativeProbabilitiesByRole();
 
@@ -141,6 +142,7 @@ public class MethodologyService {
             double[] arr = inningWeightsMap.getOrDefault(role, new double[0]);
             List<Double> inningWeights = Arrays.stream(arr).boxed().toList();
             double guts = gutsMap.getOrDefault(role, 0.0);
+            double patienceBelowVelocity = patienceBelowVelocityMap.getOrDefault(role, 0.0);
             double duration = durationMap.getOrDefault(role, 0.0);
             double maestro = maestroMap.getOrDefault(role, 0.0);
 
@@ -148,6 +150,7 @@ public class MethodologyService {
                     role,
                     inningWeights,
                     guts,
+                    patienceBelowVelocity,
                     duration,
                     maestro
             ));

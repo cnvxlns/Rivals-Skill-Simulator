@@ -248,10 +248,14 @@ export default function MethodologyView() {
                     <CheckCircle2 size={16} className="text-emerald-400" />
                     Role: <span className="text-emerald-300">{entry.role}</span>
                   </h3>
-                  <div className="grid gap-4 sm:grid-cols-3 text-xs">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-xs">
                     <div className="bg-white/5 rounded-lg p-2.5">
                       <p className="text-indigo-300 font-semibold">{t('condition_guts_probability')}</p>
                       <p className="mt-1 text-base font-bold text-white">{entry.gutsProbability.toFixed(2)}</p>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-2.5">
+                      <p className="text-indigo-300 font-semibold">{t('condition_patience_below_velocity_probability')}</p>
+                      <p className="mt-1 text-base font-bold text-white">{entry.patienceBelowVelocityProbability.toFixed(2)}</p>
                     </div>
                     <div className="bg-white/5 rounded-lg p-2.5">
                       <p className="text-indigo-300 font-semibold">{t('condition_nine_batter_duration')}</p>

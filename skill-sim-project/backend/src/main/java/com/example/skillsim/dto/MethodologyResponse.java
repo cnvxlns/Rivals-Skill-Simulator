@@ -67,6 +67,7 @@ public class MethodologyResponse {
         private String role;
         private List<Double> inningWeights;
         private double gutsProbability;
+        private double patienceBelowVelocityProbability;
         private double nineBatterDuration;
         private double maestroCumulative;
     }

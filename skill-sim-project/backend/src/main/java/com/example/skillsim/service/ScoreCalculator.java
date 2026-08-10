@@ -60,6 +60,10 @@ public class ScoreCalculator {
         return GUTS_PROBABILITIES_BY_ROLE;
     }
 
+    public static Map<String, Double> getPatienceBelowVelocityProbabilitiesByRole() {
+        return PATIENCE_BELOW_VELOCITY_PROBABILITIES_BY_ROLE;
+    }
+
     public static Map<String, Double> getMaestroCumulativeProbabilitiesByRole() {
         return MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE;
     }
@@ -190,6 +194,14 @@ public class ScoreCalculator {
             "SP", 0.80,
             "RP", 0.95,
             "CP", 0.90
+    );
+
+    // "인내<구속"(투수 구속 > 상대 타자 인내)은 GUTS_PROBABILITIES_BY_ROLE(패기: 상대가 우세할 확률)의 반대 사건이므로 1 - 패기확률로 산출.
+    private static final Map<String, Double> PATIENCE_BELOW_VELOCITY_PROBABILITIES_BY_ROLE = Map.of(
+            "BATTER", 0.80,
+            "SP", 0.20,
+            "RP", 0.05,
+            "CP", 0.10
     );
 
     private static final Map<String, Double> MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE = Map.of(
@@ -450,10 +462,14 @@ public class ScoreCalculator {
                     context.role(),
                     GUTS_PROBABILITIES_BY_ROLE.get("BATTER")
             );
+            double patienceBelowVelocity = PATIENCE_BELOW_VELOCITY_PROBABILITIES_BY_ROLE.getOrDefault(
+                    context.role(),
+                    PATIENCE_BELOW_VELOCITY_PROBABILITIES_BY_ROLE.get("BATTER")
+            );
             probabilities.put("OVR열세", probability);
             probabilities.put("패기", probability);
-            probabilities.put("인내<구속", probability);
-            probabilities.put("구속>인내", probability);
+            probabilities.put("인내<구속", patienceBelowVelocity);
+            probabilities.put("구속>인내", patienceBelowVelocity);
             probabilities.put("구위>파워", 0.35);
             probabilities.put("선구>제구", 0.65);
             probabilities.put(BATTER_OFFENSE_OVER_DEFENSE_CONDITION, 1.00);

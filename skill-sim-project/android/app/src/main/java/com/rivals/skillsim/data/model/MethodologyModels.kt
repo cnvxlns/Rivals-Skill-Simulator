@@ -25,6 +25,7 @@ data class RoleProbabilityEntry(
     @SerializedName("role") val role: String,
     @SerializedName("inningWeights") val inningWeights: List<Double>,
     @SerializedName("gutsProbability") val gutsProbability: Double,
+    @SerializedName("patienceBelowVelocityProbability") val patienceBelowVelocityProbability: Double,
     @SerializedName("nineBatterDuration") val nineBatterDuration: Double,
     @SerializedName("maestroCumulative") val maestroCumulative: Double
 )

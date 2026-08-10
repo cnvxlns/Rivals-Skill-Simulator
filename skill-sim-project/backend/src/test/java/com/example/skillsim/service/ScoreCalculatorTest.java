@@ -299,7 +299,7 @@ class ScoreCalculatorTest {
     }
 
     @Test
-    void appliesStatComparisonProbabilitiesUsingDocumentedGutsTable() {
+    void appliesStatComparisonProbabilitiesUsingDocumentedPatienceBelowVelocityTable() {
         ScoreSkill skill = scoreSkill("M_041", "파워 피처",
                 effect("파워", "인내<구속", "10")
         );
@@ -330,10 +330,10 @@ class ScoreCalculatorTest {
                 Map.of()
         );
 
-        assertThat(batter.total()).isEqualTo(2.00);
-        assertThat(starter.total()).isEqualTo(8.00);
-        assertThat(reliever.total()).isEqualTo(9.50);
-        assertThat(closer.total()).isEqualTo(9.00);
+        assertThat(batter.total()).isEqualTo(8.00);
+        assertThat(starter.total()).isEqualTo(2.00);
+        assertThat(reliever.total()).isEqualTo(0.50);
+        assertThat(closer.total()).isEqualTo(1.00);
     }
 
     @Test
@@ -343,7 +343,14 @@ class ScoreCalculatorTest {
         assertThat(totalForCondition("RP", "OVR열세")).isEqualTo(9.50);
         assertThat(totalForCondition("CP", "OVR열세")).isEqualTo(9.00);
         assertThat(totalForCondition("RP", "패기")).isEqualTo(9.50);
-        assertThat(totalForCondition("CP", "구속>인내")).isEqualTo(9.00);
+    }
+
+    @Test
+    void appliesInverseOfGutsProbabilityToPatienceBelowVelocityTokens() {
+        assertThat(totalForCondition("BATTER", "구속>인내")).isEqualTo(8.00);
+        assertThat(totalForCondition("SP", "구속>인내")).isEqualTo(2.00);
+        assertThat(totalForCondition("RP", "구속>인내")).isEqualTo(0.50);
+        assertThat(totalForCondition("CP", "구속>인내")).isEqualTo(1.00);
     }
 
     @Test

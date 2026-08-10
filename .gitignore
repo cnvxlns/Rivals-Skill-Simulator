@@ -19,28 +19,9 @@ skill-sim-project/backend/simulator.db
 skill-sim-project/backend/*.log
 skill-sim-project/backend/.idea/
 
-# Android (Gradle / local SDK config)
-skill-sim-project/android/.gradle/
-skill-sim-project/android/build/
-skill-sim-project/android/app/build/
-skill-sim-project/android/local.properties
-skill-sim-project/android/.idea/
-
-# Frontend (Next.js)
-skill-sim-project/frontend/node_modules/
-skill-sim-project/frontend/.next/
-skill-sim-project/frontend/.next/**
-skill-sim-project/frontend/.next/cache/
-skill-sim-project/frontend/.next/server/
-skill-sim-project/frontend/.next/static/
-skill-sim-project/frontend/.turbo/
-skill-sim-project/frontend/.vercel/
-skill-sim-project/frontend/npm-debug.log*
-skill-sim-project/frontend/yarn-error.log*
-skill-sim-project/frontend/*.log
-skill-sim-project/frontend/pnpm-lock.yaml
-skill-sim-project/frontend/.idea/
-skill-sim-project/frontend/tsconfig.tsbuildinfo
+# App (Expo React Native)
+# 세부 규칙은 skill-sim-project/app/.gitignore 참고.
+skill-sim-project/app/.idea/
 
 # Working docs / internal assets (planning notes, data-conversion scripts, recordings)
 # The skill-change rules spec is tracked; everything else under docs/ stays ignored.

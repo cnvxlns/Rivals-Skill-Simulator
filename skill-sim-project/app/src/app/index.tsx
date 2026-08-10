@@ -5,7 +5,6 @@ import { useTranslation } from '@/lib/i18n';
 import { useBackendWarmup } from '@/lib/useBackendWarmup';
 import { useAppTheme } from '@/theme/useTheme';
 import { SegmentedTabs } from '@/components/ui';
-import LanguageSelector from '@/components/LanguageSelector';
 import WakeUpOverlay from '@/components/WakeUpOverlay';
 import SimulatorView from '@/views/SimulatorView';
 import CalculatorView from '@/views/CalculatorView';
@@ -34,16 +33,12 @@ export default function HomeScreen() {
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View
           style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
             paddingHorizontal: spacing.lg,
             paddingTop: spacing.md,
             paddingBottom: spacing.sm,
           }}
         >
           <Text style={[typography.headlineSmall, { color: colors.onBackground }]}>{t('hdr_title')}</Text>
-          <LanguageSelector />
         </View>
 
         <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}>

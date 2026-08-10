@@ -15,7 +15,8 @@ import {
   Toggle,
 } from '../components/ui';
 
-const cardTypeOptions = Object.values(CardType);
+// SUPREME_MOMENT은 점수 계산 전용이라 뽑기 시뮬레이터에서는 제외한다.
+const cardTypeOptions = Object.values(CardType).filter((o) => o !== CardType.SUPREME_MOMENT);
 const ticketOptions = Object.values(TicketType);
 
 export default function SimulatorView() {

@@ -130,6 +130,7 @@ export default function MethodologyView() {
                 <Text style={[typography.titleSmall, { color: colors.primary }]}>Role: {e.role}</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   <InfoChip text={`${t('condition_guts_probability')}: ${e.gutsProbability.toFixed(2)}`} />
+                  <InfoChip text={`${t('condition_patience_below_velocity_probability')}: ${e.patienceBelowVelocityProbability.toFixed(2)}`} />
                   <InfoChip text={`${t('condition_nine_batter_duration')}: ${e.nineBatterDuration.toFixed(2)}`} />
                   <InfoChip text={`${t('condition_maestro_cumulative')}: ${e.maestroCumulative.toFixed(3)}`} />
                 </View>

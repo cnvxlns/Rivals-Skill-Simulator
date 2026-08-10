@@ -35,6 +35,7 @@ export enum CardType {
   WBC_SIGNATURE_BLACK = 'WBC_SIGNATURE_BLACK',
   HOF = 'HOF',
   MOMENT = 'MOMENT',
+  SUPREME_MOMENT = 'SUPREME_MOMENT',
 }
 
 export enum Position {
@@ -178,6 +179,7 @@ export type RoleProbabilityEntry = {
   role: string;
   inningWeights: number[];
   gutsProbability: number;
+  patienceBelowVelocityProbability: number;
   nineBatterDuration: number;
   maestroCumulative: number;
 };

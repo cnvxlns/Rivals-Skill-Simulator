@@ -19,11 +19,8 @@ dependencies {
     // Spring Boot Starters (버전은 플러그인이 자동 관리)
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 
-    // DB & Tools
-    implementation 'org.xerial:sqlite-jdbc:3.45.2.0'
-    implementation 'org.hibernate.orm:hibernate-community-dialects:6.4.4.Final'
+    // CSV 파싱
     implementation 'com.opencsv:opencsv:5.7.1'
 
     // Lombok (컴파일 시에만 필요)

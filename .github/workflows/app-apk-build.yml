@@ -1,0 +1,48 @@
+# 네이티브 변경이 있을 때만 실행한다. EAS 무료 티어는 Android 월 15회다.
+# 빌드가 끝나면 internal distribution 설치 URL이 나오는데, 이 URL은 빌드마다 바뀐다.
+# 웹 설치 버튼을 갱신하려면 Vercel의 EXPO_PUBLIC_APK_URL 환경변수를 새 URL로 바꾸고 재배포한다.
+name: EAS Build (APK)
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'eas.json build profile'
+        type: choice
+        options: [preview, production]
+        default: preview
+
+defaults:
+  run:
+    working-directory: skill-sim-project/app
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: skill-sim-project/app/package-lock.json
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - name: Build APK
+        env:
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+        run: eas build --platform android --profile ${{ inputs.profile }} --non-interactive --wait
+
+      - name: Print install URL
+        run: |
+          echo "### APK 설치 URL" >> "$GITHUB_STEP_SUMMARY"
+          eas build:list --platform android --limit 1 --json --non-interactive \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s)[0];console.log(b.artifacts?.buildUrl||b.artifacts?.applicationArchiveUrl||'(없음)')})" \
+            >> "$GITHUB_STEP_SUMMARY"

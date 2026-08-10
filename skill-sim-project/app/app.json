@@ -10,7 +10,12 @@
     "ios": {
       "icon": "./assets/expo.icon"
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "android": {
+      "package": "com.cnvxlns.rivalsskillsim",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

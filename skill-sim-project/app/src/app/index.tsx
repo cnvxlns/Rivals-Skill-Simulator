@@ -5,6 +5,7 @@ import { useTranslation } from '@/lib/i18n';
 import { useBackendWarmup } from '@/lib/useBackendWarmup';
 import { useAppTheme } from '@/theme/useTheme';
 import { SegmentedTabs } from '@/components/ui';
+import ApkInstallButton from '@/components/ApkInstallButton';
 import WakeUpOverlay from '@/components/WakeUpOverlay';
 import SimulatorView from '@/views/SimulatorView';
 import CalculatorView from '@/views/CalculatorView';
@@ -41,7 +42,8 @@ export default function HomeScreen() {
           <Text style={[typography.headlineSmall, { color: colors.onBackground }]}>{t('hdr_title')}</Text>
         </View>
 
-        <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}>
+        <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, gap: spacing.sm }}>
+          <ApkInstallButton />
           <SegmentedTabs tabs={tabs} selected={tab} onSelect={setTab} />
         </View>
 

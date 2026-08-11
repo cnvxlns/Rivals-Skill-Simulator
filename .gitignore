@@ -23,10 +23,15 @@ skill-sim-project/backend/.idea/
 # 세부 규칙은 skill-sim-project/app/.gitignore 참고.
 skill-sim-project/app/.idea/
 
-# Working docs / internal assets (planning notes, data-conversion scripts, recordings)
-# The skill-change rules spec is tracked; everything else under docs/ stays ignored.
+# Working docs / internal assets (planning notes, recordings)
+# 데이터 원천과 변환기는 추적한다. CSV는 파생물이라 원본이 없으면 복구가 불가능하다
+# (블랙 스킬 레벨은 화면 녹화 판독으로 복원해야 했다). 나머지 docs/는 계속 제외.
 skill-sim-project/docs/*
 !skill-sim-project/docs/skillsim_logics.json
+!skill-sim-project/docs/rivals_skills.xlsx
+!skill-sim-project/docs/convert_xlsx.py
+!skill-sim-project/docs/test_convert_xlsx.py
+!skill-sim-project/docs/score_effects_manual_review.csv
 
 # Python (data-conversion scripts under docs/)
 __pycache__/

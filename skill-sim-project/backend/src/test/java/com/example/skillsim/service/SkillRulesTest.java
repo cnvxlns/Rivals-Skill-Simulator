@@ -4,6 +4,7 @@ import com.example.skillsim.enums.CardType;
 import com.example.skillsim.enums.Level;
 import com.example.skillsim.enums.Tier;
 import com.example.skillsim.model.ScoreSkill;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -122,4 +123,23 @@ class SkillRulesTest {
                 .values(values)
                 .build();
     }
+
+    @Test
+    void 블랙_스킬은_D부터_S2까지_7단계_라벨을_가진다() {
+        // 영상 복구 전에는 수치가 3개뿐이라 라벨이 D/C/B로 잘렸고,
+        // levelIndex(S)=5가 3으로 클램프되어 S를 고르면 S2 값이 적용됐다.
+        ScoreSkill black = ScoreSkill.builder()
+                .skillKey("BLACK_001")
+                .cardType("BLACK")
+                .position("BATTER")
+                .name("퓨어 히터")
+                .effects(List.of(effect("1/2/3/4/5/8/11")))
+                .build();
+
+        assertThat(SkillRules.maxLevel(black)).isEqualTo(7);
+        assertThat(SkillRules.gradeLabels("BLACK", SkillRules.maxLevel(black)))
+                .containsExactly("D", "C", "B", "A", "S", "S1", "S2");
+        assertThat(SkillRules.levelIndex(Level.S, "BLACK")).isEqualTo(5);
+    }
+
 }

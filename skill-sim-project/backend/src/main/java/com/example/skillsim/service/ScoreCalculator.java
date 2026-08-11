@@ -132,6 +132,7 @@ public class ScoreCalculator {
     private static final Map<String, Double> PLATE_SITUATION_PROBABILITIES = Map.of(
             "초구", 0.30,
             "스트라이크타격", 0.55,
+            "1스트라이크", 0.30,
             "2스트라이크", 0.35
     );
 
@@ -472,6 +473,20 @@ public class ScoreCalculator {
         }
     }
 
+    /**
+     * 상대 팀 누적 3홈런 이후 경기 종료까지 유지되는 버프의 노출 비율.
+     * P(상대팀 경기당 홈런 3개 이상) x 발동 후 잔여 타석 비율로 근사한다.
+     * 게임 내 실제 경기당 팀 홈런(lambda)이 확정되지 않아 잠정값이며 민감도가 크다(±2배).
+     * lambda=1.1 -> 0.04, lambda=1.6 -> 0.06, lambda=2.0 -> 0.12
+     */
+    private static final double OPPONENT_THREE_HOMERUN_EXPOSURE = 0.06;
+
+    /**
+     * 한 이닝에 출루 2명을 허용한 뒤 이닝 종료까지 유지되는 버프의 노출 비율.
+     * 이닝을 음이항(3아웃 도달까지)으로 두고 버프 활성 타자 수 / 이닝당 총 상대 타자 수로 산정.
+     */
+    private static final double INNING_TWO_BASERUNNERS_EXPOSURE = 0.25;
+
     private static final class DurationResolver implements ConditionResolver {
         @Override
         public void apply(Map<String, Double> probabilities, ConditionContext context) {
@@ -479,6 +494,10 @@ public class ScoreCalculator {
             probabilities.put("등판후3타자", THREE_BATTER_DURATION_PROBABILITIES_BY_ROLE.getOrDefault(context.role(), 0.0));
             probabilities.put("등판후4타자", FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE.getOrDefault(context.role(), 0.0));
             probabilities.put("두번째타석까지", secondPlateAppearanceProbability(context.battingOrder()));
+            // 아래 둘은 "발동 확률"이 아니라 "버프가 켜져 있는 기회의 비율"이다.
+            // 등판후N타자·마에스트로누적과 같은 시간평균 노출 비율 척도를 따른다.
+            probabilities.put("상대팀홈런3", OPPONENT_THREE_HOMERUN_EXPOSURE);
+            probabilities.put("이닝출루2인이상", INNING_TWO_BASERUNNERS_EXPOSURE);
         }
 
         private double secondPlateAppearanceProbability(Integer battingOrder) {

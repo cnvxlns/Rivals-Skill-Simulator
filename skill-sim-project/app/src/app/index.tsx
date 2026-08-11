@@ -7,23 +7,23 @@ import { useAppTheme } from '@/theme/useTheme';
 import { SegmentedTabs } from '@/components/ui';
 import ApkInstallButton from '@/components/ApkInstallButton';
 import WakeUpOverlay from '@/components/WakeUpOverlay';
-import SimulatorView from '@/views/SimulatorView';
+import ScoreTableView from '@/views/ScoreTableView';
 import CalculatorView from '@/views/CalculatorView';
 import MethodologyView from '@/views/MethodologyView';
 
-type TabKey = 'simulator' | 'calculator' | 'methodology';
+type TabKey = 'table' | 'calculator' | 'methodology';
 
 const DISCLAIMER =
   'This project is an unofficial fan-made application and is not affiliated with, endorsed, sponsored, or specifically approved by Com2uS Corp., MLB, or MLB Players Inc. All game data, skill names, and intellectual property are the sole property of their respective owners. This tool is intended for educational and portfolio purposes only.';
 
 export default function HomeScreen() {
-  const [tab, setTab] = useState<TabKey>('simulator');
+  const [tab, setTab] = useState<TabKey>('table');
   const { t } = useTranslation();
   const { status, elapsedSeconds, retry } = useBackendWarmup();
   const { colors, typography, spacing } = useAppTheme();
 
   const tabs: { key: TabKey; label: string }[] = [
-    { key: 'simulator', label: t('tab_simulator') },
+    { key: 'table', label: t('tab_score_table') },
     { key: 'calculator', label: t('tab_calculator') },
     { key: 'methodology', label: t('tab_methodology') },
   ];
@@ -52,7 +52,7 @@ export default function HomeScreen() {
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxxl * 2, gap: spacing.md }}
           keyboardShouldPersistTaps="handled"
         >
-          {tab === 'simulator' ? <SimulatorView /> : null}
+          {tab === 'table' ? <ScoreTableView /> : null}
           {tab === 'calculator' ? <CalculatorView onViewMethodology={() => setTab('methodology')} /> : null}
           {tab === 'methodology' ? <MethodologyView /> : null}
 

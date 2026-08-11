@@ -131,6 +131,33 @@ export type ScoreRequest = {
   batHand?: Handedness;
 };
 
+export type ScoreTableRequest = {
+  position: Position | SubPosition | string;
+  battingOrder?: number | null;
+  pitcherSlot?: number | null;
+  throwHand?: Handedness;
+  batHand?: Handedness;
+  userStats?: Record<string, number>;
+};
+
+export type ScoreTableEntry = {
+  skillId: string;
+  name: string;
+  description?: string | null;
+  score: number;
+  appliedGrade: string;
+};
+
+export type ScoreTierGroup = {
+  tier: string;
+  totalCount: number;
+  entries: ScoreTableEntry[];
+};
+
+export type ScoreTableResponse = {
+  tiers: ScoreTierGroup[];
+};
+
 export type ScoreStatBreakdown = {
   stat: string;
   value: number;

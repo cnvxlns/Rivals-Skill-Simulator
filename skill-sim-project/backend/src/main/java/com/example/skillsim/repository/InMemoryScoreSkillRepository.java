@@ -46,6 +46,11 @@ public class InMemoryScoreSkillRepository implements ScoreSkillRepository {
     }
 
     @Override
+    public List<ScoreSkill> findAll() {
+        return List.copyOf(bySkillKey.values());
+    }
+
+    @Override
     public void deleteAll() {
         bySkillKey = Map.of();
         byId = Map.of();

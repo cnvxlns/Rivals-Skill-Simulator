@@ -5,6 +5,9 @@ import com.example.skillsim.dto.ScoreRequest;
 import com.example.skillsim.dto.ScoreResponse;
 import com.example.skillsim.dto.ScoreSelection;
 import com.example.skillsim.dto.ScoreSkillOption;
+import com.example.skillsim.dto.ScoreTableRequest;
+import com.example.skillsim.dto.ScoreTableResponse;
+import com.example.skillsim.enums.Level;
 import com.example.skillsim.model.ScoreEffect;
 import com.example.skillsim.model.ScoreSkill;
 import com.example.skillsim.repository.ScoreSkillRepository;
@@ -13,6 +16,8 @@ import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -315,5 +320,71 @@ public class ScoreService {
             List<String> globalWarnings,
             Map<String, List<String>> perSkillWarnings
     ) {
+    }
+
+    /**
+     * 전체 스킬을 S레벨 기준으로 채점해 티어별 내림차순으로 돌려준다.
+     *
+     * <p>S가 없는 스킬(수치 단계가 5단계 미만)은 자기 최대 등급으로 내려서 채점하고,
+     * 실제 적용된 등급을 함께 반환한다. 효과 행이 없는 스킬은 0점으로 포함한다 —
+     * 능력치가 아니라 확률을 바꾸는 효과라 현재 모델로 측정할 수 없을 뿐이다.
+     *
+     * @param topN 티어별 상위 몇 개까지 담을지. 0 이하면 전부 담는다.
+     */
+    public ScoreTableResponse buildScoreTable(ScoreTableRequest request, int topN) {
+        String normalizedPosition = normalizeRequiredOrThrow(request.getPosition(), "Position selection is required.");
+        Map<String, Double> conditionProbabilities = ScoreCalculator.conditionProbabilitiesForPosition(
+                normalizedPosition,
+                request.getBattingOrder(),
+                request.getPitcherSlot(),
+                null,
+                request.getThrowHand(),
+                request.getBatHand()
+        );
+        Map<String, Double> statWeights = statWeightsSupplier.get();
+
+        Map<SkillTier, List<ScoreTableResponse.Entry>> grouped = new EnumMap<>(SkillTier.class);
+        for (ScoreSkill skill : scoreSkillRepository.findAll()) {
+            SkillTier tier = SkillTier.of(skill);
+            if (tier == null || !SkillRules.matchesPosition(skill.getPosition(), normalizedPosition)) {
+                continue;
+            }
+            int level = appliedLevel(skill);
+            ScoreCalculator.Result result = scoreCalculator.calculate(
+                    List.of(new ScoreCalculator.Selection(skill, level)),
+                    statWeights,
+                    conditionProbabilities,
+                    request.getUserStats()
+            );
+            grouped.computeIfAbsent(tier, key -> new ArrayList<>()).add(ScoreTableResponse.Entry.builder()
+                    .skillId(skill.getSkillKey())
+                    .name(skill.getName())
+                    .description(skill.getDescription())
+                    .score(result.total())
+                    .appliedGrade(SkillRules.gradeLabels(skill.getCardType(), maxLevel(skill)).get(level - 1))
+                    .build());
+        }
+
+        List<ScoreTableResponse.TierGroup> tiers = new ArrayList<>();
+        for (SkillTier tier : SkillTier.DISPLAY_ORDER) {
+            List<ScoreTableResponse.Entry> entries = grouped.getOrDefault(tier, List.of());
+            if (entries.isEmpty()) {
+                continue;
+            }
+            entries.sort(Comparator.comparingDouble(ScoreTableResponse.Entry::getScore).reversed()
+                    .thenComparing(ScoreTableResponse.Entry::getSkillId));
+            int total = entries.size();
+            tiers.add(ScoreTableResponse.TierGroup.builder()
+                    .tier(tier.key())
+                    .totalCount(total)
+                    .entries(topN > 0 && total > topN ? List.copyOf(entries.subList(0, topN)) : List.copyOf(entries))
+                    .build());
+        }
+        return ScoreTableResponse.builder().tiers(tiers).build();
+    }
+
+    /** S레벨. 사다리에서 S 위치가 스킬의 최대 단계를 넘으면 최대 단계로 내린다. */
+    private int appliedLevel(ScoreSkill skill) {
+        return Math.min(SkillRules.levelIndex(Level.S, skill.getCardType()), maxLevel(skill));
     }
 }

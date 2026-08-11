@@ -19,6 +19,8 @@ public interface ScoreSkillRepository {
 
     Optional<ScoreSkill> findById(Long id);
 
+    List<ScoreSkill> findAll();
+
     void deleteAll();
 
     void saveAll(Collection<ScoreSkill> skills);

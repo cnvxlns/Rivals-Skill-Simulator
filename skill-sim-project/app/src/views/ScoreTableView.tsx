@@ -6,8 +6,15 @@ import { useScoreContext } from '../lib/useScoreContext';
 import { useTranslation } from '../lib/i18n';
 import { useAppTheme } from '../theme/useTheme';
 import { InfoChip, LabeledDropdown, SectionCard } from '../components/ui';
+import { useResponsive } from '../lib/useResponsive';
 
 const TOP_N = 10;
+
+/**
+ * 점수표에 노출할 티어. 아이언·브론즈·실버는 실전에서 쓰지 않아 제외한다.
+ * 검색에는 계속 걸리므로 개별 스킬 점수는 확인할 수 있다.
+ */
+const HIDDEN_TIERS = new Set(['iron', 'bronze', 'silver']);
 
 export default function ScoreTableView() {
   const ctx = useScoreContext();
@@ -19,6 +26,14 @@ export default function ScoreTableView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+
+  const { isWide, isSplit } = useResponsive();
+
+  /** 넓은 화면에서 폼 컨트롤을 2열로 깐다. 드롭다운 하나가 전폭을 먹는 낭비를 없앤다. */
+  const field = isWide ? { flexGrow: 1, flexBasis: 260, maxWidth: '49%' as const } : undefined;
+  const formGrid = isWide
+    ? { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 14, alignItems: 'flex-end' as const }
+    : undefined;
 
   const pitcherSubs: SubPosition[] = ['ALL', 'SP', 'RP', 'CP'];
   const batterSubs: SubPosition[] = ['ALL', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
@@ -112,29 +127,32 @@ export default function ScoreTableView() {
       <Text style={[typography.bodyMedium, { color: colors.secondaryText }]}>{t('score_table_desc')}</Text>
 
       <SectionCard title={t('score_settings')}>
-        <LabeledDropdown
+        <View style={formGrid}>
+        <View style={field}><LabeledDropdown
           label={t('label_position')}
           selected={ctx.position}
           options={[Position.PITCHER, Position.BATTER]}
           optionLabel={(o) => (o === Position.PITCHER ? t('position_pitcher') : t('position_batter'))}
           onSelect={(o) => ctx.setPosition(o)}
-        />
+        /></View>
+        <View style={field}>
         <LabeledDropdown
           label={t('label_sub_position')}
           selected={(ctx.subPosition || 'ALL') as SubPosition}
           options={subOptions}
           optionLabel={(o) => (o === 'ALL' ? t('option_all_sub_positions') : o)}
           onSelect={(o) => ctx.setSubPosition(o === 'ALL' ? '' : o)}
-        />
+        /></View>
         {ctx.position === Position.PITCHER ? (
-          <LabeledDropdown
+          <View style={field}><LabeledDropdown
             label={t('label_throw_hand')}
             selected={ctx.throwHand}
             options={[Handedness.RIGHT, Handedness.LEFT]}
             optionLabel={(o) => (o === Handedness.LEFT ? t('hand_left_throw') : t('hand_right_throw'))}
             onSelect={(o) => ctx.setThrowHand(o)}
-          />
+          /></View>
         ) : (
+          <View style={field}>
           <LabeledDropdown
             label={t('label_bat_hand')}
             selected={ctx.batHand}
@@ -143,26 +161,28 @@ export default function ScoreTableView() {
               o === Handedness.LEFT ? t('hand_left_bat') : o === Handedness.SWITCH ? t('hand_switch') : t('hand_right_bat')
             }
             onSelect={(o) => ctx.setBatHand(o)}
-          />
+          /></View>
         )}
         {ctx.position === Position.BATTER ? (
-          <LabeledDropdown
+          <View style={field}><LabeledDropdown
             label={t('label_batting_order')}
             selected={ctx.battingOrder}
             options={[null, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
             optionLabel={(o) => (o == null ? t('option_average_batting_order') : String(o))}
             onSelect={(o) => ctx.setBattingOrder(o)}
-          />
+          /></View>
         ) : null}
         {ctx.position === Position.PITCHER && (ctx.subPosition === 'SP' || ctx.subPosition === 'RP') ? (
-          <LabeledDropdown
+          <View style={field}><LabeledDropdown
             label={t('label_pitcher_slot')}
             selected={ctx.pitcherSlot}
             options={ctx.subPosition === 'SP' ? [null, 1, 2, 3, 4, 5] : [null, 1, 2, 3, 4, 5, 6]}
             optionLabel={(o) => (o == null ? '-' : String(o))}
             onSelect={(o) => ctx.setPitcherSlot(o)}
-          />
+          /></View>
         ) : null}
+
+        </View>
 
         {!ctx.hasSpecificPosition ? (
           <View
@@ -219,25 +239,37 @@ export default function ScoreTableView() {
 
       {error ? <Text style={{ color: colors.error }}>{tk(error)}</Text> : null}
 
-      {!loading && table
-        ? table.tiers.map((group) => (
-            <SectionCard
-              key={group.tier}
-              title={`${tk(`tier_${group.tier}`)}  ·  ${group.totalCount}`}
-            >
-              {group.entries.slice(0, TOP_N).map((entry, i) => (
-                <Row key={entry.skillId} rank={i + 1} entry={entry} />
-              ))}
-              {group.totalCount > TOP_N ? (
-                <Text style={[typography.bodySmall, { color: colors.muted, textAlign: 'right' }]}>
-                  {t('score_table_more_prefix')}
-                  {group.totalCount - TOP_N}
-                  {t('score_table_more_suffix')}
-                </Text>
-              ) : null}
-            </SectionCard>
-          ))
-        : null}
+      {!loading && table ? (
+        <View
+          style={
+            isSplit
+              ? { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, alignItems: 'flex-start' }
+              : { gap: spacing.md }
+          }
+        >
+          {table.tiers
+            .filter((group) => !HIDDEN_TIERS.has(group.tier))
+            .map((group) => (
+              <SectionCard
+                key={group.tier}
+                title={`${tk(`tier_${group.tier}`)}  ·  ${group.totalCount}`}
+                // 정확히 이등분한다. flexBasis만 두면 넓은 화면에서 3단이 된다.
+                style={isSplit ? { width: '49%', flexGrow: 0, flexShrink: 0 } : undefined}
+              >
+                {group.entries.slice(0, TOP_N).map((entry, i) => (
+                  <Row key={entry.skillId} rank={i + 1} entry={entry} />
+                ))}
+                {group.totalCount > TOP_N ? (
+                  <Text style={[typography.bodySmall, { color: colors.muted, textAlign: 'right' }]}>
+                    {t('score_table_more_prefix')}
+                    {group.totalCount - TOP_N}
+                    {t('score_table_more_suffix')}
+                  </Text>
+                ) : null}
+              </SectionCard>
+            ))}
+        </View>
+      ) : null}
     </View>
   );
 }

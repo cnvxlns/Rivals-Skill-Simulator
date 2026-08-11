@@ -6,6 +6,7 @@ import { useTranslation } from '../lib/i18n';
 import { useAppTheme } from '../theme/useTheme';
 import { cardTypeLabel } from '../lib/format';
 import { LabeledDropdown, PrimaryActionButton, ScoreHero, SectionCard } from '../components/ui';
+import { useResponsive } from '../lib/useResponsive';
 
 const cardTypeOptions = Object.values(CardType);
 
@@ -13,6 +14,13 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
   const calc = useScoreCalculator();
   const { t } = useTranslation();
   const { colors, typography, radius } = useAppTheme();
+  const { isWide, isSplit } = useResponsive();
+
+  // 넓은 화면에서 컨트롤을 여러 열로 깐다. 세로로만 쌓으면 스크롤만 길어진다.
+  const grid = isWide ? { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 14 } : undefined;
+  const field = isWide ? { flexGrow: 1, flexBasis: 220, maxWidth: '32%' as const } : undefined;
+  const statField = isWide ? { flexGrow: 1, flexBasis: 150, maxWidth: '24%' as const } : undefined;
+  const slotCard = isSplit ? { width: '49%' as const } : undefined;
   const tk = (key: string) => t(key as never);
 
   const pitcherSubs: SubPosition[] = ['ALL', 'SP', 'RP', 'CP'];
@@ -29,36 +37,40 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
       <Text style={[typography.headlineSmall, { color: colors.onBackground }]}>{t('calculator_title')}</Text>
 
       <SectionCard title={t('score_settings')}>
-        <LabeledDropdown
+        <View style={grid}>
+        <View style={field}><LabeledDropdown
           label={t('label_card_type')}
           selected={calc.cardType}
           options={cardTypeOptions}
           optionLabel={(o) => cardTypeLabel(o)}
           onSelect={(o) => calc.setCardType(o)}
-        />
+        /></View>
+        <View style={field}>
         <LabeledDropdown
           label={t('label_position')}
           selected={calc.position}
           options={[Position.PITCHER, Position.BATTER]}
-          optionLabel={(o) => (o === Position.PITCHER ? 'Pitcher' : 'Batter')}
+          optionLabel={(o) => (o === Position.PITCHER ? t('position_pitcher') : t('position_batter'))}
           onSelect={(o) => calc.setPosition(o)}
-        />
+        /></View>
+        <View style={field}>
         <LabeledDropdown
           label={t('label_sub_position')}
           selected={(calc.subPosition || 'ALL') as SubPosition}
           options={subOptions}
           optionLabel={(o) => (o === 'ALL' ? t('option_all_sub_positions') : o)}
           onSelect={(o) => calc.setSubPosition(o === 'ALL' ? '' : o)}
-        />
+        /></View>
         {calc.position === Position.PITCHER ? (
-          <LabeledDropdown
+          <View style={field}><LabeledDropdown
             label={t('label_throw_hand')}
             selected={calc.throwHand}
             options={[Handedness.RIGHT, Handedness.LEFT]}
             optionLabel={(o) => (o === Handedness.LEFT ? t('hand_left_throw') : t('hand_right_throw'))}
             onSelect={(o) => calc.setThrowHand(o)}
-          />
+          /></View>
         ) : (
+          <View style={field}>
           <LabeledDropdown
             label={t('label_bat_hand')}
             selected={calc.batHand}
@@ -67,30 +79,32 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
               o === Handedness.LEFT ? t('hand_left_bat') : o === Handedness.SWITCH ? t('hand_switch') : t('hand_right_bat')
             }
             onSelect={(o) => calc.setBatHand(o)}
-          />
+          /></View>
         )}
         {calc.position === Position.BATTER ? (
-          <LabeledDropdown
+          <View style={field}><LabeledDropdown
             label={t('label_batting_order')}
             selected={calc.battingOrder}
             options={[null, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
             optionLabel={(o) => (o == null ? t('option_average_batting_order') : String(o))}
             onSelect={(o) => calc.updateBattingOrder(o)}
-          />
+          /></View>
         ) : null}
         {calc.position === Position.PITCHER && (calc.subPosition === 'SP' || calc.subPosition === 'RP') ? (
-          <LabeledDropdown
+          <View style={field}><LabeledDropdown
             label={t('label_position')}
             selected={calc.pitcherSlot}
             options={calc.subPosition === 'SP' ? [null, 1, 2, 3, 4, 5] : [null, 1, 2, 3, 4, 5, 6]}
             optionLabel={(o) => (o == null ? '-' : String(o))}
             onSelect={(o) => calc.updatePitcherSlot(o)}
-          />
+          /></View>
         ) : null}
+        </View>
       </SectionCard>
 
       <Text style={[typography.titleMedium, { color: colors.onSurface }]}>{t('score_skill_slots')}</Text>
 
+      <View style={isSplit ? { flexDirection: 'row', flexWrap: 'wrap', gap: 12 } : { gap: 12 }}>
       {Array.from({ length: calc.slotCount }, (_, i) => i).map((index) => {
         const selection = calc.selections[index];
         const selectedSkill = calc.skills.find((s) => s.skillId === selection?.skillId);
@@ -99,14 +113,14 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
         return (
           <View
             key={`slot-${index}`}
-            style={{
+            style={[{
               backgroundColor: colors.surface,
               borderRadius: radius.medium,
               borderWidth: 1,
               borderColor: colors.outline,
               padding: 14,
               gap: 8,
-            }}
+            }, slotCard]}
           >
             <Text style={[typography.titleSmall, { color: colors.onSurface }]}>
               {t('slot_label')} {index + 1}
@@ -131,10 +145,12 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
           </View>
         );
       })}
+      </View>
 
       <SectionCard title={t('score_user_stats')}>
+        <View style={grid}>
         {calc.visibleStats.map((stat) => (
-          <View key={stat} style={{ gap: 4 }}>
+          <View key={stat} style={[{ gap: 4 }, statField]}>
             <Text style={[typography.labelMedium, { color: colors.secondaryText }]}>{tk(`stat_${stat}`)}</Text>
             <TextInput
               value={String(Math.round(calc.userStats[stat] ?? 0))}
@@ -153,6 +169,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
             />
           </View>
         ))}
+        </View>
         <Text onPress={calc.resetUserStats} style={[typography.labelLarge, { color: colors.primary }]}>
           {t('score_reset_stats')}
         </Text>

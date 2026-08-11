@@ -5,6 +5,7 @@ import { useTranslation } from '../lib/i18n';
 import { useAppTheme } from '../theme/useTheme';
 import { InfoChip, PrimaryActionButton, SectionCard, SegmentedTabs } from '../components/ui';
 import Formula from '../components/Formula';
+import { useResponsive } from '../lib/useResponsive';
 
 
 /** 산정 공식의 LaTeX 표기. 웹에서는 KaTeX로 조판된다. */
@@ -86,6 +87,11 @@ export default function MethodologyView() {
   const { colors, typography, radius } = useAppTheme();
   const tk = (key: string) => t(key as never);
   const [group, setGroup] = useState<GroupKey>('static');
+  const { isSplit } = useResponsive();
+
+  // 수식 카드는 폭을 다 쓰지 않는다. 넓은 화면에서는 좌우로 나눠 스크롤을 줄인다.
+  const formulaGrid = isSplit ? { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 12 } : undefined;
+  const formulaItem = isSplit ? { width: '49%' as const } : undefined;
 
   if (loading) {
     return (
@@ -132,14 +138,14 @@ export default function MethodologyView() {
 
   const FormulaCard = ({ item }: { item: { displayText: string; descriptionKey: string } }) => (
     <View
-      style={{
+      style={[{
         backgroundColor: colors.surfaceVariant,
         borderColor: colors.outline,
         borderWidth: 1,
         borderRadius: radius.small,
         padding: 12,
         gap: 6,
-      }}
+      }, formulaItem]}
     >
       <Text style={[typography.labelLarge, { color: colors.primary }]}>{tk(item.descriptionKey)}</Text>
       <Formula tex={TEX_BY_KEY[item.descriptionKey] ?? ''} fallback={UNICODE_BY_KEY[item.descriptionKey] ?? item.displayText} />
@@ -174,11 +180,13 @@ export default function MethodologyView() {
       <Text style={[typography.bodyMedium, { color: colors.secondaryText }]}>{t('methodology_desc')}</Text>
 
       <SectionCard title={t('methodology_section_formula')}>
+        <View style={formulaGrid}>
         <FormulaCard item={formula.perSkillFormula} />
         <FormulaCard item={formula.totalFormula} />
         <FormulaCard item={formula.percentEffectRule} />
         <FormulaCard item={formula.roundingRule} />
         <FormulaCard item={formula.conditionCombinationRule} />
+        </View>
       </SectionCard>
 
       <SectionCard title={t('methodology_section_stat_weights')}>

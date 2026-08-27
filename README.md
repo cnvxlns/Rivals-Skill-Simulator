@@ -11,10 +11,10 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 - 정적 데이터 시드: `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 애플리케이션 시작 시 읽어 SQLite DB에 적재하며, 스킬 변경 롤과 점수 계산이 동일한 스킬 데이터를 공유합니다.
 
 ## 기술 스택
-**Frontend**  
-![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=next.js&logoColor=white)
+**App (Web / Android)**  
+![Expo](https://img.shields.io/badge/Expo-000020?style=flat&logo=expo&logoColor=white)
+![React Native](https://img.shields.io/badge/React_Native-61DAFB?style=flat&logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
-![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat&logo=tailwindcss&logoColor=white)
 
 **Backend**  
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=flat&logo=springboot&logoColor=white)
@@ -22,16 +22,18 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=flat&logo=gradle&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat&logo=sqlite&logoColor=white)
 
-- Frontend: Next.js 14(App Router), TypeScript, Tailwind CSS, axios, lucide-react 아이콘.
+- App: Expo SDK 57, React Native, expo-router, TypeScript, axios. 웹과 안드로이드를 한 코드베이스로 빌드합니다.
 - Backend: Spring Boot 3.2, Java 17, Gradle(Wrapper), Spring Data JPA, SQLite, OpenCSV.
 - DB: SQLite(`simulator.db`) 사용, `schema.sql`로 필요한 테이블을 생성합니다.
 
 ## 폴더 구조
 ```
-skill-sim-project/
-├── backend   # Spring Boot API 서버 (포트 8080, SQLite + CSV 시드)
-├── frontend  # Next.js 14 UI (포트 3000, axios로 /api/skills/roll 및 /api/score 호출)
-└── README.md # 본 문서
+Rivals-Skill-Simulator/
+├── backend    # Spring Boot API 서버 (포트 8080, SQLite + CSV 시드)
+├── app        # Expo(React Native) 앱 — 웹/안드로이드 공용 UI, axios로 /api/skills/roll 및 /api/score 호출
+├── docs       # 데이터 원천(rivals_skills.xlsx)과 변환기(convert_xlsx.py), 기획 노트
+├── .github    # EAS 빌드/OTA 배포, Render keep-alive 워크플로
+└── README.md  # 본 문서
 ```
 
 ## 실행 방법
@@ -39,25 +41,24 @@ skill-sim-project/
 1. 필수: JDK 17 (Gradle Wrapper 포함)
 2. 실행:
    ```bash
-   cd skill-sim-project/backend
+   cd backend
    ./gradlew bootRun
    ```
    - Windows PowerShell/명령프롬프트에서는 `gradlew.bat bootRun`
 3. 기본 포트는 `http://localhost:8080`입니다. `simulator.db`는 루트에 생성되며, 부팅 시 `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 읽어 데이터를 적재합니다.
 
-### 2) Frontend (Next.js)
-1. 필수: Node.js 18.17+ (Next.js 14 요구), npm
+### 2) App (Expo)
+1. 필수: Node.js 20+, npm
 2. 실행:
    ```bash
-   cd skill-sim-project/frontend
+   cd app
    npm install
-   npm run dev
+   npm run web      # 안드로이드는 npm run android
    ```
-3. 기본 포트는 `http://localhost:3000`이며, 백엔드가 8080에서 떠 있어야 API 요청이 성공합니다.
-4. 프로덕션 빌드:
+3. 기본 포트는 `http://localhost:8081`이며, 백엔드가 8080에서 떠 있어야 API 요청이 성공합니다. 백엔드 주소는 `EXPO_PUBLIC_API_URL`로 지정합니다.
+4. 웹 프로덕션 빌드:
    ```bash
-   npm run build
-   npm start
+   npx expo export -p web   # 결과물은 dist/
    ```
 
 ## API 개요

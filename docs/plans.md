@@ -12,7 +12,7 @@
 
 ## 1. 목표
 
-기존 웹 프론트엔드(`skill-sim-project/frontend`, Next.js)와 **거의 동일한 역할**을 수행하는 네이티브 안드로이드 앱을 `android/` 디렉토리에 구축한다.
+기존 웹 프론트엔드(`frontend`, Next.js)와 **거의 동일한 역할**을 수행하는 네이티브 안드로이드 앱을 `android/` 디렉토리에 구축한다.
 
 웹 프론트엔드는 다음 두 기능을 제공한다. 안드로이드 앱도 동일하게 제공한다.
 
@@ -169,7 +169,7 @@ android/
 | 날짜 | 내용 |
 |------|------|
 | 2026-07-01 | 계획 문서 작성. 설계 결정 확정(REST 재사용 · 풀 패리티 · Compose/MVVM · 사용자 스탯 오프라인 캐싱). |
-| 2026-07-01 | M1 완료. `skill-sim-project/android/`에 Android Gradle 프로젝트를 구성하고 Compose 기반 빈 화면을 추가했다. 검증: `:app:testDebugUnitTest`, `:app:assembleDebug` 성공. |
+| 2026-07-01 | M1 완료. `android/`에 Android Gradle 프로젝트를 구성하고 Compose 기반 빈 화면을 추가했다. 검증: `:app:testDebugUnitTest`, `:app:assembleDebug` 성공. |
 | 2026-07-01 | M2 data 레이어 완료. `types/index.ts` 계약에 맞춘 Kotlin 모델, 4개 Retrofit 엔드포인트, `SkillRepository`를 추가하고 응답 JSON 파싱 테스트를 통과했다. |
 | 2026-07-01 | M2 DataStore 기반 구성 완료. 언어, 계산기 설정, 사용자 스탯을 Preferences DataStore로 저장/복원하는 래퍼와 round-trip 테스트를 추가했다. |
 | 2026-07-01 | M3~M7 최종 완료. 모먼트 테마 연동 및 1번 슬롯 잠금 규칙이 적용된 시뮬레이터, 타순 입력 및 내/상대 스탯 분해 렌더링이 반영된 계산기를 구축했다. 웹 translations.ts의 5개국어 문자열을 완벽하게 이식하고 DataStore 저장/복원 검증 및 Gradle 단위 테스트를 통과시켰다. |
@@ -224,7 +224,7 @@ ScoreDataLoader.getStatWeights()             ─┼─→ MethodologyService ─
 
 ## E. 작업 항목
 
-### E-1. 백엔드 (Spring, `skill-sim-project/backend`)
+### E-1. 백엔드 (Spring, `backend`)
 1. **상수 노출 리팩터**: `service/ScoreCalculator.java`의 위 상수 그룹들을 **public static 읽기전용 접근자**로 노출한다(불변 복사본 반환). 계산 코드는 계속 동일 상수를 사용 → 단일 소스 보장. (대안: `ScoreConstants` 클래스로 추출 후 양쪽에서 참조 — 더 깔끔하나 변경폭 큼. 접근자 방식 권장.)
 2. **DTO** `dto/MethodologyResponse.java` 신설:
    - `formula`: `perSkillFormula`, `totalFormula`, `percentEffectRule`(기본값 120/500 포함), `roundingRule`, `conditionCombinationRule` — 각 항목에 표시용 문자열 + `descriptionKey`.
@@ -234,7 +234,7 @@ ScoreDataLoader.getStatWeights()             ─┼─→ MethodologyService ─
 4. **엔드포인트**: `controller/ScoreController.java`에 `@GetMapping("/methodology")` 추가 → `GET /api/score/methodology`. (기존 CORS 설정 상속)
 5. **테스트**: `MethodologyServiceTest` — 응답에 알려진 값 포함 검증(예: static `홈`=0.3, `원정`=0.7), statWeights 비어있지 않음, 각 값이 ScoreCalculator 상수와 일치(단일 소스 회귀 가드).
 
-### E-2. 프론트엔드 (Next.js, `skill-sim-project/frontend`)
+### E-2. 프론트엔드 (Next.js, `frontend`)
 1. `types/index.ts`: `Methodology*` 응답 타입 추가.
 2. `lib/api.ts`: `getMethodology()` (`GET /api/score/methodology`).
 3. `lib/useMethodology.ts`: 로드/에러 상태 훅.
@@ -243,7 +243,7 @@ ScoreDataLoader.getStatWeights()             ─┼─→ MethodologyService ─
 6. `CalculatorView.tsx`: 결과 수식 접기 영역(`score_formula`)에 "이 숫자는 어떻게 나오나요? → 산정 방식" 링크(해당 탭으로 전환).
 7. `locales/translations.ts`: 섹션 라벨 + 모든 `descriptionKey` 근거 문구를 **5개국어** 추가(누락 금지).
 
-### E-3. 앱 (Android/Compose, `skill-sim-project/android`)
+### E-3. 앱 (Android/Compose, `android`)
 1. `data/model/MethodologyModels.kt`: 백엔드 DTO와 1:1 일치.
 2. `data/api/SkillApi.kt`: `@GET("/api/score/methodology")`.
 3. `data/repository/SkillRepository.kt`: methodology 조회 메서드.

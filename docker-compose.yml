@@ -1,0 +1,29 @@
+# 백엔드 실행 스택.
+#
+# 앱(Expo web)은 컨테이너에 넣지 않는다. 웹은 Vercel이 정적 호스팅하고,
+# 개발 중에는 호스트에서 `cd app && npm run web`으로 띄운다.
+#
+# 기본 스택은 백엔드 포트를 호스트에 열지 않는다. 운영에서는 Cloudflare 터널
+# 뒤에만 두기 때문이다. 호스트에서 직접 붙어야 하면 dev 오버라이드를 겹친다.
+#
+#   로컬 개발  docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#   개인 서버  docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
+#
+# 백엔드는 클래스패스 CSV를 데이터 원천으로 쓰고 DB를 두지 않는다(application.properties).
+# 상태가 없으므로 볼륨이 필요 없고, 컨테이너를 지우고 다시 만들어도 잃을 데이터가 없다.
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      # 터널 도메인을 반드시 추가한다. 없으면 웹에서 CORS로 막힌다.
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:8081,https://*.vercel.app}
+      PORT: 8080
+    expose:
+      - '8080'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8080/api/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s

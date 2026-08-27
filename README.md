@@ -8,7 +8,7 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 - 스킬 레벨 보호: 슬롯별 `useLevelProtectionSlots` 플래그로 등급 하락을 방지하며, 기존 등급보다 낮아지지 않도록 처리합니다.
 - 포지션 필터: Pitcher/Batter 전용 스킬 풀을 분리하며, 요청에 포지션 누락 시 400 오류를 반환합니다.
 - 스킬 점수 계산기: 카드 타입과 포지션을 기준으로 스킬 3개(시그니처 블랙은 4개)와 레벨을 선택하면 총점, 스킬별 기여도, 스탯별 내역을 계산합니다.
-- 정적 데이터 시드: `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 애플리케이션 시작 시 읽어 SQLite DB에 적재하며, 스킬 변경 롤과 점수 계산이 동일한 스킬 데이터를 공유합니다.
+- 정적 데이터 시드: `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 애플리케이션 시작 시 읽어 메모리에 적재하며, 스킬 변경 롤과 점수 계산이 동일한 스킬 데이터를 공유합니다.
 
 ## 기술 스택
 **App (Web / Android)**  
@@ -20,19 +20,19 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=flat&logo=springboot&logoColor=white)
 ![Java](https://img.shields.io/badge/Java-007396?style=flat&logo=java&logoColor=white)
 ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=flat&logo=gradle&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat&logo=sqlite&logoColor=white)
 
 - App: Expo SDK 57, React Native, expo-router, TypeScript, axios. 웹과 안드로이드를 한 코드베이스로 빌드합니다.
-- Backend: Spring Boot 3.2, Java 17, Gradle(Wrapper), Spring Data JPA, SQLite, OpenCSV.
-- DB: SQLite(`simulator.db`) 사용, `schema.sql`로 필요한 테이블을 생성합니다.
+- Backend: Spring Boot 3.2.4, Java 17, Gradle(Wrapper), OpenCSV.
+- 데이터: 별도 DB 없이 클래스패스 CSV를 부팅 시 읽어 메모리에 적재합니다(`InMemoryScoreSkillRepository`). 서버는 상태를 갖지 않습니다.
 
 ## 폴더 구조
 ```
 Rivals-Skill-Simulator/
-├── backend    # Spring Boot API 서버 (포트 8080, SQLite + CSV 시드)
+├── backend    # Spring Boot API 서버 (포트 8080, CSV 시드)
 ├── app        # Expo(React Native) 앱 — 웹/안드로이드 공용 UI, axios로 /api/skills/roll 및 /api/score 호출
-├── docs       # 데이터 원천(rivals_skills.xlsx)과 변환기(convert_xlsx.py), 기획 노트
+├── docs       # 데이터 원천(rivals_skills.xlsx)과 변환기(convert_xlsx.py)
 ├── .github    # EAS 빌드/OTA 배포, Render keep-alive 워크플로
+├── docker-compose.yml         # 백엔드 실행 스택 (+ .dev / .tunnel 오버라이드)
 └── README.md  # 본 문서
 ```
 
@@ -55,7 +55,7 @@ Rivals-Skill-Simulator/
    ./gradlew bootRun
    ```
    - Windows PowerShell/명령프롬프트에서는 `gradlew.bat bootRun`
-3. 기본 포트는 `http://localhost:8080`입니다. `simulator.db`는 루트에 생성되며, 부팅 시 `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 읽어 데이터를 적재합니다.
+3. 기본 포트는 `http://localhost:8080`입니다. 부팅 시 `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 읽어 메모리에 적재합니다.
 
 ### 2) App (Expo)
 1. 필수: Node.js 20+, npm
@@ -70,6 +70,25 @@ Rivals-Skill-Simulator/
    ```bash
    npx expo export -p web   # 결과물은 dist/
    ```
+
+### 3) Docker로 백엔드 띄우기
+
+JDK 설치 없이 백엔드만 컨테이너로 올릴 때 씁니다. 앱은 컨테이너에 넣지 않습니다.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+`http://localhost:8080`에 열리며, 호스트에서 `cd app && npm run web`으로 띄운 Expo 웹(:8081)이 그대로 붙습니다.
+
+개인 서버에 Cloudflare 터널로 노출할 때는 터널 오버레이를 겹칩니다.
+
+```bash
+cp .env.example .env        # TUNNEL_TOKEN, APP_CORS_ALLOWED_ORIGINS 채우기
+docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
+```
+
+기본 스택(`docker-compose.yml`)은 백엔드 포트를 호스트에 열지 않습니다. 운영에서는 터널 뒤에만 두기 때문이며, 호스트에서 직접 붙어야 할 때만 dev 오버라이드를 겹칩니다. 백엔드는 클래스패스 CSV를 데이터 원천으로 쓰고 DB를 두지 않아 상태가 없으므로 볼륨이 필요 없습니다.
 
 ## API 개요
 ### 스킬 변경

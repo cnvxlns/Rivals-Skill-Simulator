@@ -61,8 +61,6 @@ backend/simulator.db
 # (블랙 스킬 레벨은 화면 녹화 판독으로 복원해야 했다). 나머지 docs/는 계속 제외.
 # ===========================
 docs/*
-!docs/plans.md
-!docs/superpowers/
 !docs/skillsim_logics.json
 !docs/rivals_skills.xlsx
 !docs/convert_xlsx.py

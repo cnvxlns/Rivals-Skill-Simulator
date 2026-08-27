@@ -25,7 +25,7 @@ export default function Formula({ tex, fallback }: { tex: string; fallback: stri
 
   return (
     <div
-      style={{ color: colors.onSurface, overflowX: 'auto', padding: '2px 0' }}
+      style={{ color: colors.onSurface, padding: '2px 0' }}
       // KaTeX가 생성한 마크업이며 사용자 입력이 아니다.
       dangerouslySetInnerHTML={{ __html: html }}
     />

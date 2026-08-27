@@ -16,7 +16,11 @@ export default function Root({ children }: PropsWithChildren) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <meta name="color-scheme" content="dark" />
-        <meta name="theme-color" content="#0B1020" />
+        <meta name="theme-color" content="#101216" />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css"
+        />
         <ScrollViewStyleReset />
         <style dangerouslySetInnerHTML={{ __html: BACKGROUND_STYLE }} />
       </head>
@@ -26,5 +30,9 @@ export default function Root({ children }: PropsWithChildren) {
 }
 
 const BACKGROUND_STYLE = `
-html, body, #root { background-color: #0B1020; color-scheme: dark; }
+html, body, #root {
+  background-color: #101216;
+  color-scheme: dark;
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
 `;

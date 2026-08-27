@@ -240,5 +240,48 @@ export const strings = {
   hand_right_bat: '우타',
   hand_switch: '스위치',
   apk_install: '안드로이드 앱 설치 (APK)',
-  apk_install_hint: '설치 시 "출처를 알 수 없는 앱" 허용이 필요할 수 있습니다.',
+  apk_install_hint: '안드로이드 브라우저에서만 표시됩니다. 설치 시 "출처를 알 수 없는 앱" 허용이 필요합니다.',
+
+  // ─ 리디자인에서 추가된 문구 ─
+  hdr_title_short: '스킬 도구',
+  hdr_unofficial: '비공식 팬 프로젝트',
+
+  // 셸 하단 면책조항. 핸드오프에 명시된 전문을 그대로 쓴다.
+  disclaimer_full:
+    'This is an unofficial fan-made project and is not affiliated with, endorsed by, or sponsored by Com2uS, Major League Baseball, or the MLB Players Association. All team names, logos, player names, and trademarks are the property of their respective owners. Skill values shown here are community estimates derived from in-game observation and may differ from actual game behaviour. No game assets, images, or fonts are used in this application.',
+  disclaimer_short:
+    'This is an unofficial fan-made project and is not affiliated with, endorsed by, or sponsored by Com2uS, Major League Baseball, or the MLB Players Association. All trademarks are the property of their respective owners.',
+
+  action_collapse: '접기',
+  action_expand: '펼치기',
+  action_expand_all: '모두 펼치기',
+  action_collapse_all: '모두 접기',
+
+  score_table_condition_hint: '조건을 바꾸면 아래 순위가 즉시 다시 매겨집니다',
+  score_table_top_n: 'TOP 10',
+  score_table_count_prefix: '전체 ',
+  score_table_count_middle: '개 · 표시 ',
+  score_table_count_suffix: '티어',
+  score_table_group_total_prefix: '전체 ',
+  score_table_group_total_suffix: '개',
+  score_table_more_view_prefix: '외 ',
+  score_table_more_view_suffix: '개 보기',
+  score_table_banner: '세부 포지션을 선택하지 않아 일부 스킬이 0점으로 표시됩니다.',
+  score_table_search_empty_hint: '스킬명 또는 ID를 입력하면 티어와 상관없이 찾아줍니다.',
+
+  methodology_formula_hint: '가로로 길면 좌우로 밀어 볼 수 있습니다',
+  methodology_weights_count_prefix: '',
+  methodology_weights_count_suffix: '개 항목',
+  methodology_sections_hint: '탭 중첩을 없애고 한 축으로 펼침',
+  methodology_summary_static: '모든 스킬에 공통 적용되는 발동 기준',
+  methodology_summary_role: '선발·불펜·마무리별 이닝 노출 분포',
+  methodology_summary_batting: '1~9번 타순의 타석 기대치 차이',
+  methodology_summary_reach: '타순 그룹별 타석 도달 확률',
+  methodology_summary_gates: '통과하지 못하면 0점이 되는 조건',
+  methodology_section_count_suffix: '개 절',
+  methodology_inning_suffix: '회',
+  methodology_pa_prefix: 'PA',
+
+  calculator_result_hint: '슬롯과 조건을 바꾸면 다시 계산해야 합니다',
+  calculator_empty: '슬롯의 스킬을 모두 고른 뒤 점수를 계산하세요.',
 } as const;

@@ -1,28 +1,50 @@
-import { darkColors, ThemeColors, typography, radius, spacing, gradeColor } from './index';
+import {
+  apkButton,
+  banner,
+  colors,
+  controlHeight,
+  fontFamily,
+  gradeStyle,
+  inactiveRow,
+  radius,
+  spacing,
+  tabularNums,
+  tierColor,
+  typography,
+} from './index';
 
 export type AppTheme = {
-  scheme: 'light' | 'dark';
-  colors: ThemeColors;
+  colors: typeof colors;
   typography: typeof typography;
   radius: typeof radius;
   spacing: typeof spacing;
-  gradeColor: (grade: string) => string;
+  controlHeight: typeof controlHeight;
+  fontFamily: typeof fontFamily;
+  tabularNums: typeof tabularNums;
+  banner: typeof banner;
+  apkButton: typeof apkButton;
+  inactiveRow: typeof inactiveRow;
+  tierColor: typeof tierColor;
+  gradeStyle: typeof gradeStyle;
 };
 
 /**
- * 앱 전체를 항상 다크로 고정한다.
- *
+ * 앱 전체를 항상 다크로 고정한다. 라이트 모드는 만들지 않는다.
  * 아이콘·스플래시가 다크 기준으로 만들어져 있어 시스템 설정을 따라가면 톤이 어긋난다.
- * lightColors는 theme/index.ts에 남겨 두었으니 되돌릴 때 여기만 고치면 된다.
  */
 export function useAppTheme(): AppTheme {
-  const colors = darkColors;
   return {
-    scheme: 'dark',
     colors,
     typography,
     radius,
     spacing,
-    gradeColor: (grade: string) => gradeColor(grade, colors),
+    controlHeight,
+    fontFamily,
+    tabularNums,
+    banner,
+    apkButton,
+    inactiveRow,
+    tierColor,
+    gradeStyle,
   };
 }

@@ -1,39 +1,56 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Text, TextInput, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Handedness, Position, ScoreTableEntry, ScoreTableResponse, SubPosition } from '../types';
 import { fetchScoreTable } from '../lib/api';
 import { useScoreContext } from '../lib/useScoreContext';
 import { useTranslation } from '../lib/i18n';
 import { useAppTheme } from '../theme/useTheme';
-import { InfoChip, LabeledDropdown, SectionCard } from '../components/ui';
+import {
+  ErrorState,
+  GradeChip,
+  InfoBanner,
+  LabeledDropdown,
+  LinkAction,
+  SearchInput,
+  SectionCard,
+  Skeleton,
+  TierChip,
+} from '../components/ui';
 import { useResponsive } from '../lib/useResponsive';
 
 const TOP_N = 10;
 
 /**
- * 점수표에 노출할 티어. 아이언·브론즈·실버는 실전에서 쓰지 않아 제외한다.
+ * 점수표에 노출할 티어와 그 순서. 아이언·브론즈·실버는 실전에서 쓰지 않아 제외한다.
  * 검색에는 계속 걸리므로 개별 스킬 점수는 확인할 수 있다.
  */
-const HIDDEN_TIERS = new Set(['iron', 'bronze', 'silver']);
+const VISIBLE_TIERS = ['gold', 'hof', 'moment', 'wbc', 'black'];
 
 export default function ScoreTableView() {
   const ctx = useScoreContext();
   const { t } = useTranslation();
-  const { colors, typography, radius, spacing } = useAppTheme();
+  const { colors, typography, spacing, radius, tabularNums, tierColor, inactiveRow } = useAppTheme();
   const tk = (key: string) => t(key as never);
 
   const [table, setTable] = useState<ScoreTableResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  // 세로로 긴 화면에서 조건 카드가 결과를 밀어내지 않게 접을 수 있다.
+  const [conditionsOpen, setConditionsOpen] = useState(true);
 
   const { isWide, isSplit } = useResponsive();
 
-  /** 넓은 화면에서 폼 컨트롤을 2열로 깐다. 드롭다운 하나가 전폭을 먹는 낭비를 없앤다. */
-  const field = isWide ? { flexGrow: 1, flexBasis: 260, maxWidth: '49%' as const } : undefined;
-  const formGrid = isWide
-    ? { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 14, alignItems: 'flex-end' as const }
-    : undefined;
+  /** 조건 컨트롤 열 수. 1000px+ 5열 / 720px+ 3열 / 그 이하 2열. */
+  const columns = isSplit ? 5 : isWide ? 3 : 2;
+  const gridGap = isWide ? 14 : 10;
+  const cell = {
+    // gap을 뺀 나머지를 균등 분할한다. flexBasis만 두면 열 수가 화면 폭에 따라 흔들린다.
+    width: `${100 / columns}%` as const,
+    paddingRight: gridGap,
+    paddingBottom: gridGap,
+  };
+  const grid = { flexDirection: 'row' as const, flexWrap: 'wrap' as const, marginRight: -gridGap, marginBottom: -gridGap };
 
   const pitcherSubs: SubPosition[] = ['ALL', 'SP', 'RP', 'CP'];
   const batterSubs: SubPosition[] = ['ALL', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
@@ -69,6 +86,15 @@ export default function ScoreTableView() {
     load();
   }, [load]);
 
+  /** 화면에 그릴 티어 그룹. 디자인이 정한 순서(골드→HOF→모먼트→WBC→블랙)로 고정한다. */
+  const groups = useMemo(() => {
+    if (!table) return [];
+    const byTier = new Map(table.tiers.map((g) => [String(g.tier).toLowerCase(), g]));
+    return VISIBLE_TIERS.map((tier) => byTier.get(tier)).filter((g): g is NonNullable<typeof g> => Boolean(g));
+  }, [table]);
+
+  const totalCount = useMemo(() => groups.reduce((sum, g) => sum + g.totalCount, 0), [groups]);
+
   const searchResults = useMemo(() => {
     const q = query.trim();
     if (!q || !table) return [];
@@ -83,36 +109,76 @@ export default function ScoreTableView() {
     return hits.slice(0, 20);
   }, [query, table]);
 
-  const Row = ({ rank, entry }: { rank: number | null; entry: ScoreTableEntry }) => {
+  /**
+   * 순위 행. 미발동(0점)이면 순위·이름·점수·등급칩 네 곳을 동시에 죽인다.
+   * 색 하나에만 의존하지 않도록 사유 문구도 항상 붙인다.
+   */
+  const Row = ({ rank, tier, entry }: { rank: number | null; tier?: string; entry: ScoreTableEntry }) => {
     const inactive = entry.score === 0;
     return (
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          gap: spacing.sm,
-          paddingVertical: 7,
+          gap: isWide ? 12 : 10,
+          paddingVertical: 11,
           borderBottomWidth: 1,
-          borderColor: colors.outline,
-          opacity: inactive ? 0.55 : 1,
+          borderColor: colors.divider,
         }}
       >
         {rank != null ? (
-          <Text style={[typography.labelMedium, { color: colors.muted, width: 22, textAlign: 'right' }]}>{rank}</Text>
-        ) : null}
-        <View style={{ flex: 1 }}>
-          <Text style={[typography.bodyMedium, { color: colors.onSurface }]} numberOfLines={1}>
-            {entry.name}
+          <Text
+            style={[
+              {
+                width: isWide ? 26 : 20,
+                textAlign: 'right',
+                fontSize: isWide ? 13 : 12.5,
+                fontWeight: '700',
+                color: inactive ? inactiveRow.rank : colors.muted,
+              },
+              tabularNums,
+            ]}
+          >
+            {rank}
           </Text>
+        ) : null}
+        {tier ? <TierChip tier={tier} label={tk(`tier_${tier}`)} /> : null}
+
+        <View style={{ flex: 1, gap: 3, minWidth: 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text
+              style={{
+                fontSize: isWide ? 14 : 13.5,
+                fontWeight: '600',
+                color: inactive ? inactiveRow.name : colors.onSurface,
+                flexShrink: 1,
+              }}
+              numberOfLines={1}
+            >
+              {entry.name}
+            </Text>
+            {/* 모바일은 열을 3개로 줄이려고 등급 칩을 스킬명 옆으로 올린다. */}
+            {!isWide ? <GradeChip grade={entry.appliedGrade} inactive={inactive} compact /> : null}
+          </View>
           {inactive ? (
-            <Text style={[typography.bodySmall, { color: colors.muted }]}>{t('score_table_inactive')}</Text>
+            <Text style={{ fontSize: isWide ? 11 : 10.5, color: colors.mutedFaint }} numberOfLines={1}>
+              {t('score_table_inactive')}
+            </Text>
           ) : null}
         </View>
-        <InfoChip text={entry.appliedGrade} />
+
+        {isWide ? <GradeChip grade={entry.appliedGrade} inactive={inactive} /> : null}
+
         <Text
           style={[
-            typography.titleSmall,
-            { color: inactive ? colors.muted : colors.primary, width: 62, textAlign: 'right' },
+            {
+              width: isWide ? 88 : undefined,
+              textAlign: 'right',
+              fontSize: isWide ? 17 : 16,
+              fontWeight: '800',
+              color: inactive ? inactiveRow.score : colors.accentValue,
+            },
+            tabularNums,
           ]}
         >
           {entry.score.toFixed(2)}
@@ -122,152 +188,207 @@ export default function ScoreTableView() {
   };
 
   return (
-    <View style={{ gap: 12 }}>
-      <Text style={[typography.headlineSmall, { color: colors.onBackground }]}>{t('score_table_title')}</Text>
-      <Text style={[typography.bodyMedium, { color: colors.secondaryText }]}>{t('score_table_desc')}</Text>
+    <View style={{ gap: spacing.md }}>
+      <Text style={[typography.title, { color: colors.onSurface }]}>{t('score_table_title')}</Text>
+      <Text style={{ color: colors.secondaryText, fontSize: 14, lineHeight: 24 }}>{t('score_table_desc')}</Text>
 
-      <SectionCard title={t('score_settings')}>
-        <View style={formGrid}>
-        <View style={field}><LabeledDropdown
-          label={t('label_position')}
-          selected={ctx.position}
-          options={[Position.PITCHER, Position.BATTER]}
-          optionLabel={(o) => (o === Position.PITCHER ? t('position_pitcher') : t('position_batter'))}
-          onSelect={(o) => ctx.setPosition(o)}
-        /></View>
-        <View style={field}>
-        <LabeledDropdown
-          label={t('label_sub_position')}
-          selected={(ctx.subPosition || 'ALL') as SubPosition}
-          options={subOptions}
-          optionLabel={(o) => (o === 'ALL' ? t('option_all_sub_positions') : o)}
-          onSelect={(o) => ctx.setSubPosition(o === 'ALL' ? '' : o)}
-        /></View>
-        {ctx.position === Position.PITCHER ? (
-          <View style={field}><LabeledDropdown
-            label={t('label_throw_hand')}
-            selected={ctx.throwHand}
-            options={[Handedness.RIGHT, Handedness.LEFT]}
-            optionLabel={(o) => (o === Handedness.LEFT ? t('hand_left_throw') : t('hand_right_throw'))}
-            onSelect={(o) => ctx.setThrowHand(o)}
-          /></View>
-        ) : (
-          <View style={field}>
-          <LabeledDropdown
-            label={t('label_bat_hand')}
-            selected={ctx.batHand}
-            options={[Handedness.RIGHT, Handedness.LEFT, Handedness.SWITCH]}
-            optionLabel={(o) =>
-              o === Handedness.LEFT ? t('hand_left_bat') : o === Handedness.SWITCH ? t('hand_switch') : t('hand_right_bat')
-            }
-            onSelect={(o) => ctx.setBatHand(o)}
-          /></View>
-        )}
-        {ctx.position === Position.BATTER ? (
-          <View style={field}><LabeledDropdown
-            label={t('label_batting_order')}
-            selected={ctx.battingOrder}
-            options={[null, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
-            optionLabel={(o) => (o == null ? t('option_average_batting_order') : String(o))}
-            onSelect={(o) => ctx.setBattingOrder(o)}
-          /></View>
-        ) : null}
-        {ctx.position === Position.PITCHER && (ctx.subPosition === 'SP' || ctx.subPosition === 'RP') ? (
-          <View style={field}><LabeledDropdown
-            label={t('label_pitcher_slot')}
-            selected={ctx.pitcherSlot}
-            options={ctx.subPosition === 'SP' ? [null, 1, 2, 3, 4, 5] : [null, 1, 2, 3, 4, 5, 6]}
-            optionLabel={(o) => (o == null ? '-' : String(o))}
-            onSelect={(o) => ctx.setPitcherSlot(o)}
-          /></View>
-        ) : null}
-
-        </View>
-
-        {!ctx.hasSpecificPosition ? (
-          <View
-            style={{
-              backgroundColor: colors.surfaceVariant,
-              borderColor: colors.outline,
-              borderWidth: 1,
-              borderRadius: radius.small,
-              padding: 10,
-            }}
-          >
-            <Text style={[typography.bodySmall, { color: colors.secondaryText }]}>
-              {t('score_table_pick_sub_position')}
+      {/* ── 조건 설정 ── */}
+      <SectionCard
+        title={t('score_settings')}
+        padding={isWide ? spacing.xxl : spacing.lg}
+        right={
+          isWide ? (
+            <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+              {t('score_table_condition_hint')}
             </Text>
+          ) : (
+            <LinkAction
+              text={conditionsOpen ? t('action_collapse') : t('action_expand')}
+              onPress={() => setConditionsOpen((v) => !v)}
+            />
+          )
+        }
+      >
+        {conditionsOpen ? (
+          <View style={grid}>
+            <View style={cell}>
+              <LabeledDropdown
+                label={t('label_position')}
+                selected={ctx.position}
+                options={[Position.PITCHER, Position.BATTER]}
+                optionLabel={(o) => (o === Position.PITCHER ? t('position_pitcher') : t('position_batter'))}
+                onSelect={(o) => ctx.setPosition(o)}
+              />
+            </View>
+            <View style={cell}>
+              <LabeledDropdown
+                label={t('label_sub_position')}
+                selected={(ctx.subPosition || 'ALL') as SubPosition}
+                options={subOptions}
+                optionLabel={(o) => (o === 'ALL' ? t('option_all_sub_positions') : o)}
+                onSelect={(o) => ctx.setSubPosition(o === 'ALL' ? '' : o)}
+              />
+            </View>
+            <View style={cell}>
+              {ctx.position === Position.PITCHER ? (
+                <LabeledDropdown
+                  label={t('label_throw_hand')}
+                  selected={ctx.throwHand}
+                  options={[Handedness.RIGHT, Handedness.LEFT]}
+                  optionLabel={(o) => (o === Handedness.LEFT ? t('hand_left_throw') : t('hand_right_throw'))}
+                  onSelect={(o) => ctx.setThrowHand(o)}
+                />
+              ) : (
+                <LabeledDropdown
+                  label={t('label_bat_hand')}
+                  selected={ctx.batHand}
+                  options={[Handedness.RIGHT, Handedness.LEFT, Handedness.SWITCH]}
+                  optionLabel={(o) =>
+                    o === Handedness.LEFT
+                      ? t('hand_left_bat')
+                      : o === Handedness.SWITCH
+                        ? t('hand_switch')
+                        : t('hand_right_bat')
+                  }
+                  onSelect={(o) => ctx.setBatHand(o)}
+                />
+              )}
+            </View>
+            {ctx.position === Position.BATTER ? (
+              <View style={cell}>
+                <LabeledDropdown
+                  label={t('label_batting_order')}
+                  selected={ctx.battingOrder}
+                  options={[null, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
+                  optionLabel={(o) => (o == null ? t('option_average_batting_order') : String(o))}
+                  onSelect={(o) => ctx.setBattingOrder(o)}
+                />
+              </View>
+            ) : null}
+            {ctx.position === Position.PITCHER && (ctx.subPosition === 'SP' || ctx.subPosition === 'RP') ? (
+              <View style={cell}>
+                <LabeledDropdown
+                  label={t('label_pitcher_slot')}
+                  selected={ctx.pitcherSlot}
+                  options={ctx.subPosition === 'SP' ? [null, 1, 2, 3, 4, 5] : [null, 1, 2, 3, 4, 5, 6]}
+                  optionLabel={(o) => (o == null ? '-' : String(o))}
+                  onSelect={(o) => ctx.setPitcherSlot(o)}
+                />
+              </View>
+            ) : null}
           </View>
         ) : null}
+
+        {!ctx.hasSpecificPosition ? <InfoBanner text={t('score_table_banner')} /> : null}
       </SectionCard>
 
-      <SectionCard title={t('score_table_search')}>
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder={t('score_table_search_placeholder')}
-          placeholderTextColor={colors.muted}
-          style={{
-            backgroundColor: colors.surfaceVariant,
-            borderColor: colors.outline,
-            borderWidth: 1,
-            borderRadius: radius.small,
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            color: colors.onSurface,
-          }}
-        />
-        {query.trim() ? (
-          searchResults.length ? (
-            searchResults.map(({ tier, entry }) => (
-              <View key={entry.skillId} style={{ gap: 2 }}>
-                <Text style={[typography.labelMedium, { color: colors.secondaryText }]}>{tk(`tier_${tier}`)}</Text>
-                <Row rank={null} entry={entry} />
-              </View>
-            ))
-          ) : (
-            <Text style={[typography.bodySmall, { color: colors.muted }]}>{t('score_table_no_match')}</Text>
-          )
-        ) : null}
-      </SectionCard>
-
-      {loading ? (
-        <View style={{ paddingVertical: 40, alignItems: 'center', gap: 12 }}>
-          <ActivityIndicator size="large" color={colors.primary} />
+      {/* ── 검색 ── */}
+      <View style={{ flexDirection: isWide ? 'row' : 'column', alignItems: isWide ? 'center' : 'stretch', gap: spacing.md }}>
+        <View style={{ flex: isWide ? 1 : undefined }}>
+          <SearchInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('score_table_search_placeholder')}
+            height={isWide ? 52 : 48}
+          />
         </View>
+        {table ? (
+          <Text style={{ color: colors.muted, fontSize: 12.5 }} numberOfLines={1}>
+            {t('score_table_count_prefix')}
+            <Text style={[{ color: colors.onSurface }, tabularNums]}>{totalCount}</Text>
+            {t('score_table_count_middle')}
+            <Text style={[{ color: colors.onSurface }, tabularNums]}>{groups.length}</Text>
+            {t('score_table_count_suffix')}
+          </Text>
+        ) : null}
+      </View>
+
+      {/* 검색 결과는 티어 카드 위에 삽입된다. 순위 번호 대신 티어 칩을 붙인다. */}
+      {query.trim() ? (
+        <SectionCard title={t('score_table_search')} padding={isWide ? spacing.xxl : spacing.lg}>
+          {searchResults.length ? (
+            searchResults.map(({ tier, entry }) => <Row key={entry.skillId} rank={null} tier={tier} entry={entry} />)
+          ) : (
+            <Text style={{ color: colors.muted, fontSize: 13 }}>{t('score_table_no_match')}</Text>
+          )}
+        </SectionCard>
       ) : null}
 
-      {error ? <Text style={{ color: colors.error }}>{tk(error)}</Text> : null}
+      {loading ? <Skeleton rows={6} /> : null}
 
-      {!loading && table ? (
+      {error && !loading ? <ErrorState message={tk(error)} onRetry={load} retryText={t('btn_retry')} /> : null}
+
+      {/* ── 티어 그룹 ── */}
+      {!loading && !error && table ? (
         <View
           style={
             isSplit
-              ? { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, alignItems: 'flex-start' }
+              ? { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', marginRight: -18, marginBottom: -18 }
               : { gap: spacing.md }
           }
         >
-          {table.tiers
-            .filter((group) => !HIDDEN_TIERS.has(group.tier))
-            .map((group) => (
-              <SectionCard
+          {groups.map((group) => {
+            const rail = tierColor(group.tier).hex;
+            return (
+              <View
                 key={group.tier}
-                title={`${tk(`tier_${group.tier}`)}  ·  ${group.totalCount}`}
                 // 정확히 이등분한다. flexBasis만 두면 넓은 화면에서 3단이 된다.
-                style={isSplit ? { width: '49%', flexGrow: 0, flexShrink: 0 } : undefined}
+                style={isSplit ? { width: '50%', paddingRight: 18, paddingBottom: 18 } : undefined}
               >
-                {group.entries.slice(0, TOP_N).map((entry, i) => (
-                  <Row key={entry.skillId} rank={i + 1} entry={entry} />
-                ))}
-                {group.totalCount > TOP_N ? (
-                  <Text style={[typography.bodySmall, { color: colors.muted, textAlign: 'right' }]}>
-                    {t('score_table_more_prefix')}
-                    {group.totalCount - TOP_N}
-                    {t('score_table_more_suffix')}
-                  </Text>
-                ) : null}
-              </SectionCard>
-            ))}
+                <View
+                  style={{
+                    backgroundColor: colors.surface,
+                    borderWidth: 1,
+                    borderColor: colors.outlineFaint,
+                    borderRadius: isWide ? radius.cardLg : radius.card,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* 티어색은 이 레일과 아래 칩 두 곳에서만 쓴다. 행 안으로 번지게 하지 않는다. */}
+                  <View style={{ height: 4, backgroundColor: rail }} />
+
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: spacing.md,
+                      paddingHorizontal: isWide ? 22 : 16,
+                      paddingTop: 18,
+                      paddingBottom: 6,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, flexShrink: 1 }}>
+                      <TierChip tier={group.tier} label={tk(`tier_${group.tier}`)} />
+                      <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+                        {t('score_table_group_total_prefix')}
+                        {group.totalCount}
+                        {t('score_table_group_total_suffix')}
+                      </Text>
+                    </View>
+                    <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 0.66 }}>
+                      {t('score_table_top_n')}
+                    </Text>
+                  </View>
+
+                  <View style={{ paddingHorizontal: isWide ? 22 : 16, paddingTop: 8, paddingBottom: 20 }}>
+                    {group.entries.slice(0, TOP_N).map((entry, i) => (
+                      <Row key={entry.skillId} rank={i + 1} entry={entry} />
+                    ))}
+                    {group.totalCount > TOP_N ? (
+                      <View style={{ paddingTop: 13, alignItems: 'flex-end' }}>
+                        <Text style={{ color: colors.accentAction, fontSize: 12.5, fontWeight: '600' }}>
+                          {t('score_table_more_view_prefix')}
+                          {group.totalCount - TOP_N}
+                          {t('score_table_more_view_suffix')}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            );
+          })}
         </View>
       ) : null}
     </View>

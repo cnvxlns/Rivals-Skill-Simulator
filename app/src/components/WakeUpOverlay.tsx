@@ -1,9 +1,10 @@
 import React from 'react';
-import { ActivityIndicator, Modal, Text, View } from 'react-native';
+import { Modal, Text, View } from 'react-native';
 import { useTranslation } from '../lib/i18n';
 import { WarmupStatus } from '../lib/useBackendWarmup';
 import { useAppTheme } from '../theme/useTheme';
 import { PrimaryActionButton } from './ui';
+import { AppMark } from './icons';
 
 export default function WakeUpOverlay({
   status,
@@ -15,7 +16,7 @@ export default function WakeUpOverlay({
   onRetry: () => void;
 }) {
   const { t } = useTranslation();
-  const { colors, typography, radius, spacing } = useAppTheme();
+  const { colors, typography, radius, spacing, tabularNums } = useAppTheme();
 
   const visible = status === 'waking' || status === 'error';
   if (!visible) return null;
@@ -26,7 +27,7 @@ export default function WakeUpOverlay({
       <View
         style={{
           flex: 1,
-          backgroundColor: 'rgba(11,16,32,0.95)',
+          backgroundColor: 'rgba(7,8,11,0.88)',
           alignItems: 'center',
           justifyContent: 'center',
           padding: spacing.xxl,
@@ -39,40 +40,49 @@ export default function WakeUpOverlay({
             backgroundColor: colors.surface,
             borderColor: colors.outline,
             borderWidth: 1,
-            borderRadius: radius.large,
-            padding: spacing.xxxl,
+            borderRadius: radius.shell,
+            padding: 30,
             alignItems: 'center',
             gap: spacing.md,
           }}
         >
           {!isError ? (
             <>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={[typography.titleMedium, { color: colors.onSurface, textAlign: 'center' }]}>
+              <AppMark size={44} />
+              <Text style={[typography.card, { color: colors.onSurface, textAlign: 'center' }]}>
                 {t('warmup_waking')}
               </Text>
-              <Text style={[typography.bodySmall, { color: colors.secondaryText, textAlign: 'center' }]}>
+              <Text style={{ color: colors.secondaryText, fontSize: 12, lineHeight: 19, textAlign: 'center' }}>
                 {t('warmup_sub_waking')}
               </Text>
               <View
                 style={{
                   backgroundColor: colors.surfaceVariant,
-                  borderRadius: 999,
+                  borderRadius: radius.pill,
                   paddingHorizontal: 14,
                   paddingVertical: 6,
                 }}
               >
-                <Text style={[typography.labelMedium, { color: colors.primary }]}>
+                <Text
+                  style={[
+                    { color: colors.accentValue, fontSize: 12, lineHeight: 19, fontWeight: '800' },
+                    tabularNums,
+                  ]}
+                >
                   {t('warmup_elapsed')}: {elapsedSeconds}s
                 </Text>
               </View>
             </>
           ) : (
             <>
-              <Text style={[typography.titleMedium, { color: colors.error, textAlign: 'center' }]}>
+              <Text style={[typography.card, { color: colors.error, textAlign: 'center' }]}>
                 {t('warmup_error')}
               </Text>
-              <PrimaryActionButton text={t('warmup_retry')} onPress={onRetry} style={{ marginTop: spacing.md }} />
+              <PrimaryActionButton
+                text={t('warmup_retry')}
+                onPress={onRetry}
+                style={{ marginTop: spacing.md, width: '100%' }}
+              />
             </>
           )}
         </View>

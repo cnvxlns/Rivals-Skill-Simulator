@@ -36,6 +36,16 @@ Rivals-Skill-Simulator/
 └── README.md  # 본 문서
 ```
 
+## 브랜치 전략
+
+| 브랜치 | 역할 |
+|---|---|
+| `deploy` | 배포 브랜치. Vercel(웹)과 Render(백엔드)가 이 브랜치를 바라보며, push 시 EAS OTA 업데이트도 나갑니다. |
+| `develop` | 기본 브랜치. 일상 개발은 여기서 분기하고 여기로 머지합니다. |
+| `feat/*`, `fix/*`, `chore/*` | `develop`에서 분기해 작업 후 `develop`으로 PR. |
+
+릴리즈는 `develop` → `deploy` PR로 올립니다. `deploy`에 직접 커밋하지 않습니다.
+
 ## 실행 방법
 ### 1) Backend (Spring Boot)
 1. 필수: JDK 17 (Gradle Wrapper 포함)

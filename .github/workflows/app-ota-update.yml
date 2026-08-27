@@ -5,7 +5,7 @@ name: EAS Update (OTA)
 
 on:
   push:
-    branches: [main]
+    branches: [deploy]
     paths:
       - 'app/src/**'
       - 'app/assets/**'

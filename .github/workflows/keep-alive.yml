@@ -1,12 +1,14 @@
 # Keeps the Render free-tier backend awake by pinging its health endpoint.
 name: Keep Render backend awake
 
+# 스케줄 중단: 배포를 내렸다. 살아 있지 않은 URL을 계속 찌르면 --fail 때문에
+# 5분마다 실패 메일이 온다. 재배포하면 아래 URL을 새 주소로 바꾸고 cron 주석만 푼다.
 on:
-  schedule:
-    # GitHub scheduled events are best-effort and can be delayed or dropped,
-    # especially near the start of each hour. Keep the interval below Render's
-    # 15-minute idle window and avoid :00.
-    - cron: '3/5 * * * *'
+  # schedule:
+  #   # GitHub scheduled events are best-effort and can be delayed or dropped,
+  #   # especially near the start of each hour. Keep the interval below Render's
+  #   # 15-minute idle window and avoid :00.
+  #   - cron: '3/5 * * * *'
   workflow_dispatch:
 
 jobs:

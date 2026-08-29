@@ -39,6 +39,8 @@ export default function ScoreTableView() {
   const [query, setQuery] = useState('');
   // 세로로 긴 화면에서 조건 카드가 결과를 밀어내지 않게 접을 수 있다.
   const [conditionsOpen, setConditionsOpen] = useState(true);
+  // 티어별 펼침 여부. 데이터는 이미 전량 받아두므로 자르기만 풀면 된다.
+  const [expandedTiers, setExpandedTiers] = useState<Record<string, boolean>>({});
 
   const { width, isWide, isSplit } = useResponsive();
 
@@ -83,6 +85,8 @@ export default function ScoreTableView() {
         0, // 전체를 받아 검색까지 클라이언트에서 처리한다 (233개라 부담 없음)
       );
       setTable(data);
+      // 조건이 바뀌면 순위가 통째로 달라진다. 펼쳐둔 상태를 유지할 이유가 없다.
+      setExpandedTiers({});
     } catch {
       setError('score_table_error');
     } finally {
@@ -382,16 +386,23 @@ export default function ScoreTableView() {
                   </View>
 
                   <View style={{ paddingHorizontal: isWide ? 26 : 20, paddingTop: 10, paddingBottom: 24 }}>
-                    {group.entries.slice(0, TOP_N).map((entry, i) => (
-                      <Row key={entry.skillId} rank={i + 1} entry={entry} />
-                    ))}
+                    {(expandedTiers[group.tier] ? group.entries : group.entries.slice(0, TOP_N)).map(
+                      (entry, i) => (
+                        <Row key={entry.skillId} rank={i + 1} entry={entry} />
+                      ),
+                    )}
                     {group.totalCount > TOP_N ? (
                       <View style={{ paddingTop: 16, alignItems: 'flex-end' }}>
-                        <Text style={{ color: colors.accentAction, fontSize: 14.5, fontWeight: '600' }}>
-                          {t('score_table_more_view_prefix')}
-                          {group.totalCount - TOP_N}
-                          {t('score_table_more_view_suffix')}
-                        </Text>
+                        <LinkAction
+                          text={
+                            expandedTiers[group.tier]
+                              ? t('action_collapse')
+                              : `${t('score_table_more_view_prefix')}${group.totalCount - TOP_N}${t('score_table_more_view_suffix')}`
+                          }
+                          onPress={() =>
+                            setExpandedTiers((prev) => ({ ...prev, [group.tier]: !prev[group.tier] }))
+                          }
+                        />
                       </View>
                     ) : null}
                   </View>

@@ -74,9 +74,6 @@ export default function HomeScreen() {
                   {t(isWide ? 'hdr_title' : 'hdr_title_short')}
                 </Text>
               </View>
-              <Text style={{ color: colors.muted, fontSize: 14, flexShrink: 0 }} numberOfLines={1}>
-                {t('hdr_unofficial')}
-              </Text>
             </View>
 
             <SegmentedTabs tabs={tabs} selected={tab} onSelect={setTab} stretch={!isWide} />

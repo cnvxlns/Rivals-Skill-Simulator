@@ -244,7 +244,6 @@ export const strings = {
 
   // ─ 리디자인에서 추가된 문구 ─
   hdr_title_short: '전력분석실',
-  hdr_unofficial: '비공식 팬 프로젝트',
 
   // 셸 하단 면책조항. 핸드오프에 명시된 전문을 그대로 쓴다.
   disclaimer_full:

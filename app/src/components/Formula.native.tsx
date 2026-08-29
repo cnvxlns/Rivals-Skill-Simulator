@@ -13,6 +13,6 @@ import { useAppTheme } from '../theme/useTheme';
 export default function Formula({ tex, fallback }: { tex: string; fallback: string }) {
   const { colors } = useAppTheme();
   return (
-    <Text style={{ color: colors.onSurface, fontSize: 13, lineHeight: 20, fontFamily: 'monospace' }}>{fallback}</Text>
+    <Text style={{ color: colors.onSurface, fontSize: 15, lineHeight: 20, fontFamily: 'monospace' }}>{fallback}</Text>
   );
 }

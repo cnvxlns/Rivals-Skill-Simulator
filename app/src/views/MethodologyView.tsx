@@ -156,7 +156,7 @@ export default function MethodologyView() {
         gap: spacing.md,
       }}
     >
-      <Text style={{ color: colors.secondaryText, fontSize: 12, fontWeight: '700', letterSpacing: 0.48 }}>
+      <Text style={{ color: colors.secondaryText, fontSize: 14, fontWeight: '700', letterSpacing: 0.48 }}>
         {tk(item.descriptionKey)}
       </Text>
       {/* 수식은 가로로 길어질 수 있다. 넘치면 잘리지 않고 밀어 볼 수 있어야 한다. */}
@@ -179,7 +179,7 @@ export default function MethodologyView() {
 
   /* ── 표형 절 ── */
 
-  const valueColumnWidth = isWide ? 130 : 90;
+  const valueColumnWidth = isWide ? 150 : 105;
 
   const Table = ({ rows }: { rows: { token: string; value: string; description: string }[] }) => (
     <View style={{ borderWidth: 1, borderColor: colors.outlineFaint, borderRadius: 13, overflow: 'hidden' }}>
@@ -188,11 +188,11 @@ export default function MethodologyView() {
           flexDirection: 'row',
           gap: spacing.md,
           backgroundColor: colors.surfaceVariant,
-          paddingHorizontal: isWide ? 18 : 14,
-          paddingVertical: 11,
+          paddingHorizontal: isWide ? 22 : 18,
+          paddingVertical: 14,
         }}
       >
-        <Text style={{ flex: 1, color: colors.secondaryText, fontSize: 11.5, fontWeight: '700', letterSpacing: 0.46 }}>
+        <Text style={{ flex: 1, color: colors.secondaryText, fontSize: 13.5, fontWeight: '700', letterSpacing: 0.46 }}>
           {t('methodology_col_description')}
         </Text>
         <Text
@@ -200,7 +200,7 @@ export default function MethodologyView() {
             width: valueColumnWidth,
             textAlign: 'right',
             color: colors.secondaryText,
-            fontSize: 11.5,
+            fontSize: 13.5,
             fontWeight: '700',
             letterSpacing: 0.46,
           }}
@@ -215,20 +215,20 @@ export default function MethodologyView() {
             flexDirection: 'row',
             gap: spacing.md,
             alignItems: 'flex-start',
-            paddingHorizontal: isWide ? 18 : 14,
-            paddingVertical: 13,
+            paddingHorizontal: isWide ? 22 : 18,
+            paddingVertical: 16,
             borderTopWidth: 1,
             borderColor: colors.divider,
           }}
         >
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text style={{ color: colors.onSurface, fontSize: 13.5, lineHeight: 21 }}>{row.description}</Text>
+          <View style={{ flex: 1, gap: 5 }}>
+            <Text style={{ color: colors.onSurface, fontSize: 15.5, lineHeight: 21 }}>{row.description}</Text>
             {/* 내부 토큰은 보조 표기다. 사용자용 문구가 주 표기. */}
-            <Text style={{ color: colors.mutedFaint, fontSize: 11, fontFamily: 'monospace' }}>{row.token}</Text>
+            <Text style={{ color: colors.mutedFaint, fontSize: 13, fontFamily: 'monospace' }}>{row.token}</Text>
           </View>
           <Text
             style={[
-              { width: valueColumnWidth, textAlign: 'right', color: colors.accentValue, fontSize: 15, fontWeight: '800' },
+              { width: valueColumnWidth, textAlign: 'right', color: colors.accentValue, fontSize: 17, fontWeight: '800' },
               tabularNums,
             ]}
           >
@@ -279,10 +279,10 @@ export default function MethodologyView() {
                 gap: spacing.smd,
               }}
             >
-              <Text style={{ color: colors.accentAction, fontSize: 14, fontWeight: '700' }}>
+              <Text style={{ color: colors.accentAction, fontSize: 16, fontWeight: '700' }}>
                 {t('methodology_role_label')} {e.role}
               </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 11 }}>
                 <WeightChip label={t('condition_guts_probability')} value={e.gutsProbability.toFixed(2)} />
                 <WeightChip
                   label={t('condition_patience_below_velocity_probability')}
@@ -291,7 +291,7 @@ export default function MethodologyView() {
                 <WeightChip label={t('condition_nine_batter_duration')} value={e.nineBatterDuration.toFixed(2)} />
                 <WeightChip label={t('condition_maestro_cumulative')} value={e.maestroCumulative.toFixed(3)} />
               </View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 11 }}>
                 {e.inningWeights.map((w, idx) => (
                   <StatChip key={idx} label={`${idx + 1}${t('methodology_inning_suffix')}`} value={w.toFixed(3)} />
                 ))}
@@ -333,8 +333,8 @@ export default function MethodologyView() {
                 gap: spacing.smd,
               }}
             >
-              <Text style={{ color: colors.accentAction, fontSize: 14, fontWeight: '700' }}>{tk(e.descriptionKey)}</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+              <Text style={{ color: colors.accentAction, fontSize: 16, fontWeight: '700' }}>{tk(e.descriptionKey)}</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 11 }}>
                 {e.reachProbabilities.map((p, idx) => (
                   <StatChip key={idx} label={`${t('methodology_pa_prefix')}${idx + 1}`} value={p.toFixed(3)} />
                 ))}
@@ -374,21 +374,21 @@ export default function MethodologyView() {
         opacity: pressed ? 0.72 : 1,
       })}
     >
-      <Text style={{ color: colors.secondaryText, fontSize: 12, fontWeight: '600' }}>{text}</Text>
+      <Text style={{ color: colors.secondaryText, fontSize: 14, fontWeight: '600' }}>{text}</Text>
     </Pressable>
   );
 
   return (
     <View style={{ gap: spacing.md }}>
       <Text style={[typography.title, { color: colors.onSurface }]}>{t('methodology_title')}</Text>
-      <Text style={{ color: colors.secondaryText, fontSize: 14, lineHeight: 24 }}>{t('methodology_desc')}</Text>
+      <Text style={{ color: colors.secondaryText, fontSize: 16, lineHeight: 24 }}>{t('methodology_desc')}</Text>
 
       {/* ── 산정 공식 ── */}
       <SectionCard
         title={t('methodology_section_formula')}
         padding={isWide ? spacing.xxl : spacing.lg}
         right={
-          <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+          <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={1}>
             {t('methodology_formula_hint')}
           </Text>
         }
@@ -407,13 +407,13 @@ export default function MethodologyView() {
         title={t('methodology_section_stat_weights')}
         padding={isWide ? spacing.xxl : spacing.lg}
         right={
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
+          <Text style={{ color: colors.muted, fontSize: 14 }}>
             {Object.keys(statWeights).length}
             {t('methodology_weights_count_suffix')}
           </Text>
         }
       >
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 11 }}>
           {Object.entries(statWeights).map(([stat, weight]) => (
             <WeightChip key={stat} label={tk(`stat_${stat}`)} value={weight.toFixed(2)} />
           ))}
@@ -430,9 +430,9 @@ export default function MethodologyView() {
             gap: spacing.smd,
           }}
         >
-          <View style={{ gap: 3, flexShrink: 1 }}>
+          <View style={{ gap: 4, flexShrink: 1 }}>
             <Text style={[typography.card, { color: colors.onSurface }]}>{t('methodology_section_conditions')}</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
+            <Text style={{ color: colors.muted, fontSize: 14 }}>
               {SECTION_ORDER.length}
               {t('methodology_section_count_suffix')} · {t('methodology_sections_hint')}
             </Text>
@@ -463,14 +463,14 @@ export default function MethodologyView() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: spacing.lg,
-                  paddingHorizontal: isWide ? 22 : 16,
-                  paddingVertical: 18,
+                  paddingHorizontal: isWide ? 26 : 20,
+                  paddingVertical: 22,
                   opacity: pressed ? 0.72 : 1,
                 })}
               >
                 <View
                   style={{
-                    width: 26,
+                    width: 32,
                     height: 26,
                     borderRadius: radius.chip,
                     alignItems: 'center',
@@ -479,26 +479,26 @@ export default function MethodologyView() {
                   }}
                 >
                   <Text
-                    style={{ color: isOpen ? colors.onAccentAction : colors.secondaryText, fontSize: 12, fontWeight: '800' }}
+                    style={{ color: isOpen ? colors.onAccentAction : colors.secondaryText, fontSize: 14, fontWeight: '800' }}
                   >
                     {index + 1}
                   </Text>
                 </View>
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text style={{ color: colors.onSurface, fontSize: 15, fontWeight: '700' }}>{section.title}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={2}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={{ color: colors.onSurface, fontSize: 17, fontWeight: '700' }}>{section.title}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={2}>
                     {section.summary}
                   </Text>
                 </View>
                 <Text
-                  style={{ color: isOpen ? colors.accentAction : colors.muted, fontSize: 12, fontWeight: '700' }}
+                  style={{ color: isOpen ? colors.accentAction : colors.muted, fontSize: 14, fontWeight: '700' }}
                   numberOfLines={1}
                 >
                   {isOpen ? `${t('action_collapse')} ▲` : `${t('action_expand')} ▼`}
                 </Text>
               </Pressable>
 
-              {isOpen ? <View style={{ paddingHorizontal: isWide ? 22 : 16, paddingBottom: 22 }}>{section.body}</View> : null}
+              {isOpen ? <View style={{ paddingHorizontal: isWide ? 26 : 20, paddingBottom: 26 }}>{section.body}</View> : null}
             </View>
           );
         })}

@@ -20,7 +20,7 @@ export default function Formula({ tex, fallback }: { tex: string; fallback: stri
   }, [tex]);
 
   if (!html) {
-    return <div style={{ color: colors.onSurface, fontFamily: 'monospace', fontSize: 13 }}>{fallback}</div>;
+    return <div style={{ color: colors.onSurface, fontFamily: 'monospace', fontSize: 15 }}>{fallback}</div>;
   }
 
   return (

@@ -50,7 +50,7 @@ export default function ScoreTableView() {
   const columns = isSplit ? 5 : isWide ? 3 : 2;
 
   /** 티어 카드 열 수. 카드 하나가 440px 아래로 좁아지지 않는 선에서 최대한 늘린다. */
-  const tierColumns = columnsFor(width, 440, { min: 2, max: 5 });
+  const tierColumns = columnsFor(width, 500, { min: 2, max: 5 });
   const gridGap = isWide ? 14 : 10;
   const cell = {
     // gap을 뺀 나머지를 균등 분할한다. flexBasis만 두면 열 수가 화면 폭에 따라 흔들린다.
@@ -128,8 +128,8 @@ export default function ScoreTableView() {
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          gap: isWide ? 12 : 10,
-          paddingVertical: 11,
+          gap: isWide ? 15 : 12,
+          paddingVertical: 14,
           borderBottomWidth: 1,
           borderColor: colors.divider,
         }}
@@ -138,9 +138,9 @@ export default function ScoreTableView() {
           <Text
             style={[
               {
-                width: isWide ? 26 : 20,
+                width: isWide ? 30 : 24,
                 textAlign: 'right',
-                fontSize: isWide ? 13 : 12.5,
+                fontSize: isWide ? 15 : 14.5,
                 fontWeight: '700',
                 color: inactive ? inactiveRow.rank : colors.muted,
               },
@@ -152,13 +152,13 @@ export default function ScoreTableView() {
         ) : null}
         {tier ? <TierChip tier={tier} label={tk(`tier_${tier}`)} /> : null}
 
-        <View style={{ flex: 1, gap: 3, minWidth: 0 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             {/* 표는 등급 하나로 고정 채점하므로 x·y·z를 실제 수치로 바꾼 설명을 쓴다. */}
             <TooltipTarget text={entry.resolvedDescription ?? entry.description} style={{ flexShrink: 1, minWidth: 0 }}>
               <Text
                 style={{
-                  fontSize: isWide ? 14 : 13.5,
+                  fontSize: isWide ? 16 : 15.5,
                   fontWeight: '600',
                   color: inactive ? inactiveRow.name : colors.onSurface,
                 }}
@@ -171,7 +171,7 @@ export default function ScoreTableView() {
             {!isWide ? <GradeChip grade={entry.appliedGrade} inactive={inactive} compact /> : null}
           </View>
           {inactive ? (
-            <Text style={{ fontSize: isWide ? 11 : 10.5, color: colors.mutedFaint }} numberOfLines={1}>
+            <Text style={{ fontSize: isWide ? 13 : 12.5, color: colors.mutedFaint }} numberOfLines={1}>
               {t('score_table_inactive')}
             </Text>
           ) : null}
@@ -182,9 +182,9 @@ export default function ScoreTableView() {
         <Text
           style={[
             {
-              width: isWide ? 88 : undefined,
+              width: isWide ? 100 : undefined,
               textAlign: 'right',
-              fontSize: isWide ? 17 : 16,
+              fontSize: isWide ? 19 : 18,
               fontWeight: '800',
               color: inactive ? inactiveRow.score : colors.accentValue,
             },
@@ -200,7 +200,7 @@ export default function ScoreTableView() {
   return (
     <View style={{ gap: spacing.md }}>
       <Text style={[typography.title, { color: colors.onSurface }]}>{t('score_table_title')}</Text>
-      <Text style={{ color: colors.secondaryText, fontSize: 14, lineHeight: 24 }}>{t('score_table_desc')}</Text>
+      <Text style={{ color: colors.secondaryText, fontSize: 16, lineHeight: 24 }}>{t('score_table_desc')}</Text>
 
       {/* ── 조건 설정 ── */}
       <SectionCard
@@ -208,7 +208,7 @@ export default function ScoreTableView() {
         padding={isWide ? spacing.xxl : spacing.lg}
         right={
           isWide ? (
-            <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+            <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={1}>
               {t('score_table_condition_hint')}
             </Text>
           ) : (
@@ -303,7 +303,7 @@ export default function ScoreTableView() {
           />
         </View>
         {table ? (
-          <Text style={{ color: colors.muted, fontSize: 12.5 }} numberOfLines={1}>
+          <Text style={{ color: colors.muted, fontSize: 14.5 }} numberOfLines={1}>
             {t('score_table_count_prefix')}
             <Text style={[{ color: colors.onSurface }, tabularNums]}>{totalCount}</Text>
             {t('score_table_count_middle')}
@@ -319,7 +319,7 @@ export default function ScoreTableView() {
           {searchResults.length ? (
             searchResults.map(({ tier, entry }) => <Row key={entry.skillId} rank={null} tier={tier} entry={entry} />)
           ) : (
-            <Text style={{ color: colors.muted, fontSize: 13 }}>{t('score_table_no_match')}</Text>
+            <Text style={{ color: colors.muted, fontSize: 15 }}>{t('score_table_no_match')}</Text>
           )}
         </SectionCard>
       ) : null}
@@ -333,7 +333,7 @@ export default function ScoreTableView() {
         <View
           style={
             isSplit
-              ? { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', marginRight: -18, marginBottom: -18 }
+              ? { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', marginRight: -22, marginBottom: -22 }
               : { gap: spacing.md }
           }
         >
@@ -343,7 +343,7 @@ export default function ScoreTableView() {
               <View
                 key={group.tier}
                 // 폭에서 계산한 열 수로 정확히 나눈다. flexBasis만 두면 열 수가 흔들린다.
-                style={isSplit ? { width: `${100 / tierColumns}%` as const, paddingRight: 18, paddingBottom: 18 } : undefined}
+                style={isSplit ? { width: `${100 / tierColumns}%` as const, paddingRight: 22, paddingBottom: 22 } : undefined}
               >
                 <View
                   style={{
@@ -363,31 +363,31 @@ export default function ScoreTableView() {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       gap: spacing.md,
-                      paddingHorizontal: isWide ? 22 : 16,
-                      paddingTop: 18,
-                      paddingBottom: 6,
+                      paddingHorizontal: isWide ? 26 : 20,
+                      paddingTop: 22,
+                      paddingBottom: 8,
                     }}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, flexShrink: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flexShrink: 1 }}>
                       <TierChip tier={group.tier} label={tk(`tier_${group.tier}`)} />
-                      <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+                      <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={1}>
                         {t('score_table_group_total_prefix')}
                         {group.totalCount}
                         {t('score_table_group_total_suffix')}
                       </Text>
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 0.66 }}>
+                    <Text style={{ color: colors.muted, fontSize: 13, fontWeight: '600', letterSpacing: 0.66 }}>
                       {t('score_table_top_n')}
                     </Text>
                   </View>
 
-                  <View style={{ paddingHorizontal: isWide ? 22 : 16, paddingTop: 8, paddingBottom: 20 }}>
+                  <View style={{ paddingHorizontal: isWide ? 26 : 20, paddingTop: 10, paddingBottom: 24 }}>
                     {group.entries.slice(0, TOP_N).map((entry, i) => (
                       <Row key={entry.skillId} rank={i + 1} entry={entry} />
                     ))}
                     {group.totalCount > TOP_N ? (
-                      <View style={{ paddingTop: 13, alignItems: 'flex-end' }}>
-                        <Text style={{ color: colors.accentAction, fontSize: 12.5, fontWeight: '600' }}>
+                      <View style={{ paddingTop: 16, alignItems: 'flex-end' }}>
+                        <Text style={{ color: colors.accentAction, fontSize: 14.5, fontWeight: '600' }}>
                           {t('score_table_more_view_prefix')}
                           {group.totalCount - TOP_N}
                           {t('score_table_more_view_suffix')}

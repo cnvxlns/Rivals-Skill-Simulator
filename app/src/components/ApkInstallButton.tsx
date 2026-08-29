@@ -31,11 +31,11 @@ export default function ApkInstallButton() {
         onPress={() => Linking.openURL(APK_URL!)}
         style={({ pressed }) => ({
           width: '100%',
-          height: isWide ? 48 : 50,
+          height: isWide ? 56 : 58,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 9,
+          gap: 11,
           backgroundColor: apkButton.background,
           borderWidth: 1,
           borderColor: apkButton.border,
@@ -44,12 +44,12 @@ export default function ApkInstallButton() {
         })}
       >
         <DownloadIcon size={20} color={apkButton.text} />
-        <Text style={{ color: apkButton.text, fontSize: 14, fontWeight: '700' }}>{t('apk_install')}</Text>
+        <Text style={{ color: apkButton.text, fontSize: 16, fontWeight: '700' }}>{t('apk_install')}</Text>
       </Pressable>
       <Text
         style={{
           color: colors.mutedFaint,
-          fontSize: 11,
+          fontSize: 13,
           lineHeight: 17.6,
           textAlign: isWide ? 'left' : 'center',
         }}

@@ -74,7 +74,7 @@ export default function HomeScreen() {
                   {t(isWide ? 'hdr_title' : 'hdr_title_short')}
                 </Text>
               </View>
-              <Text style={{ color: colors.muted, fontSize: 12, flexShrink: 0 }} numberOfLines={1}>
+              <Text style={{ color: colors.muted, fontSize: 14, flexShrink: 0 }} numberOfLines={1}>
                 {t('hdr_unofficial')}
               </Text>
             </View>
@@ -114,7 +114,7 @@ export default function HomeScreen() {
                     style={{
                       flex: 1,
                       color: colors.mutedFaint,
-                      fontSize: 11.5,
+                      fontSize: 13.5,
                       lineHeight: 20.125,
                     }}
                   >
@@ -132,7 +132,7 @@ export default function HomeScreen() {
                   <Text
                     style={{
                       color: colors.mutedFaint,
-                      fontSize: 11.5,
+                      fontSize: 13.5,
                       lineHeight: 20.125,
                     }}
                   >

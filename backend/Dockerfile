@@ -6,13 +6,16 @@ WORKDIR /app
 # src가 바뀌어도 이 레이어는 재사용되므로 매 배포마다 의존성을 다시 받지 않는다.
 COPY gradlew gradlew.bat build.gradle settings.gradle ./
 COPY gradle ./gradle
-RUN chmod +x ./gradlew \
+# 캐시 마운트를 쓰면 build.gradle이 바뀌어 레이어가 깨져도 이미 받아둔 의존성은 재사용한다.
+# 마운트는 이미지 레이어에 남지 않아 원격 빌더(Render 등)에는 효과가 없다. 로컬 빌드용 이득이다.
+RUN --mount=type=cache,target=/root/.gradle \
+    chmod +x ./gradlew \
     && ./gradlew --no-daemon dependencies --configuration runtimeClasspath > /dev/null
 
 # 소스 변경 시 여기서부터 재실행된다.
 # test를 명시해야 실제로 돈다. bootJar 단독은 test를 태스크 그래프에 넣지 않는다.
 COPY src ./src
-RUN ./gradlew --no-daemon clean test bootJar
+RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon clean test bootJar
 
 # 2. Run Stage
 FROM eclipse-temurin:17-jre-alpine

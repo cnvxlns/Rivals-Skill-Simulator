@@ -1,13 +1,18 @@
-# 로컬 개발 오버라이드.
+# 로컬 개발 오버라이드. compose가 자동으로 얹으므로 `docker compose up` 한 줄이면 된다.
 #
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# 기본 스택은 포트를 호스트에 열지 않는다(운영은 터널 뒤에 둔다).
+# 개발에서는 브라우저가 직접 붙어야 하므로 여기서 연다.
 #
-# JDK 설치 없이 백엔드를 띄우고, 호스트에서 돌리는 Expo dev 서버(:8081)가
-# http://localhost:8080 으로 붙게 한다. 기본 CORS 허용 목록에 localhost:8081이
-# 이미 들어 있으므로 추가 설정은 필요 없다.
+# 주의: 개인 서버에서 운영할 때는 이 파일이 자동으로 얹히지 않도록
+# -f docker-compose.yml -f docker-compose.tunnel.yml 를 명시해야 한다.
 services:
+  app:
+    ports:
+      - '8081:80'
+    restart: 'no'
+
   backend:
+    # 앱을 거치지 않고 API를 직접 찔러볼 때 쓴다. 앱만 볼 거면 없어도 된다.
     ports:
       - '8080:8080'
-    # 개발 중에는 죽은 컨테이너를 되살리지 않는다. 로그를 봐야 하기 때문이다.
     restart: 'no'

@@ -16,7 +16,7 @@ import {
   Skeleton,
   TierChip,
 } from '../components/ui';
-import { useResponsive } from '../lib/useResponsive';
+import { columnsFor, useResponsive } from '../lib/useResponsive';
 
 const TOP_N = 10;
 
@@ -39,10 +39,17 @@ export default function ScoreTableView() {
   // 세로로 긴 화면에서 조건 카드가 결과를 밀어내지 않게 접을 수 있다.
   const [conditionsOpen, setConditionsOpen] = useState(true);
 
-  const { isWide, isSplit } = useResponsive();
+  const { width, isWide, isSplit } = useResponsive();
 
-  /** 조건 컨트롤 열 수. 1000px+ 5열 / 720px+ 3열 / 그 이하 2열. */
+  /**
+   * 조건 컨트롤 열 수. 1000px+ 5열 / 720px+ 3열 / 그 이하 2열.
+   *
+   * 컨트롤은 4개뿐이라 폭이 늘어도 열을 늘리지 않는다. 늘리면 드롭다운만 좁아진다.
+   */
   const columns = isSplit ? 5 : isWide ? 3 : 2;
+
+  /** 티어 카드 열 수. 카드 하나가 440px 아래로 좁아지지 않는 선에서 최대한 늘린다. */
+  const tierColumns = columnsFor(width, 440, { min: 2, max: 5 });
   const gridGap = isWide ? 14 : 10;
   const cell = {
     // gap을 뺀 나머지를 균등 분할한다. flexBasis만 두면 열 수가 화면 폭에 따라 흔들린다.
@@ -332,8 +339,8 @@ export default function ScoreTableView() {
             return (
               <View
                 key={group.tier}
-                // 정확히 이등분한다. flexBasis만 두면 넓은 화면에서 3단이 된다.
-                style={isSplit ? { width: '50%', paddingRight: 18, paddingBottom: 18 } : undefined}
+                // 폭에서 계산한 열 수로 정확히 나눈다. flexBasis만 두면 열 수가 흔들린다.
+                style={isSplit ? { width: `${100 / tierColumns}%` as const, paddingRight: 18, paddingBottom: 18 } : undefined}
               >
                 <View
                   style={{

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from '@/lib/i18n';
 import { useBackendWarmup } from '@/lib/useBackendWarmup';
 import { useAppTheme } from '@/theme/useTheme';
-import { CONTENT_MAX_WIDTH, useResponsive } from '@/lib/useResponsive';
+import { GUTTER, useResponsive } from '@/lib/useResponsive';
 import { SegmentedTabs } from '@/components/ui';
 import { AppMark } from '@/components/icons';
 import ApkInstallButton from '@/components/ApkInstallButton';
@@ -22,9 +22,9 @@ export default function HomeScreen() {
   const { colors, typography, spacing } = useAppTheme();
   const { isWide } = useResponsive();
 
-  // 넓은 화면에서 콘텐츠가 화면 끝까지 늘어나면 한 줄이 너무 길어 읽기 어렵고
-  // 두 단어짜리 드롭다운이 1400px를 가로지른다. 본문 폭을 제한하고 가운데 정렬한다.
-  const container = { width: '100%' as const, maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' as const };
+  // 폭 상한을 두지 않는다. 넓어진 폭은 한 줄을 늘리는 데 쓰지 않고 그리드 열 수를
+  // 늘려 흡수한다(columnsFor). 좌우에는 GUTTER만 둔다.
+  const container = { width: '100%' as const };
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'table', label: t('tab_score_table') },
@@ -32,7 +32,7 @@ export default function HomeScreen() {
     { key: 'methodology', label: t('tab_methodology') },
   ];
 
-  const horizontalPadding = isWide ? spacing.huge : spacing.lg;
+  const horizontalPadding = isWide ? GUTTER : spacing.lg;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>

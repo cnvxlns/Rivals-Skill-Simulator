@@ -15,7 +15,7 @@ import {
   ScoreHero,
   SectionCard,
 } from '../components/ui';
-import { useResponsive } from '../lib/useResponsive';
+import { columnsFor, useResponsive } from '../lib/useResponsive';
 
 const cardTypeOptions = Object.values(CardType);
 
@@ -23,7 +23,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
   const calc = useScoreCalculator();
   const { t } = useTranslation();
   const { colors, typography, radius, spacing, tabularNums } = useAppTheme();
-  const { isWide, isSplit } = useResponsive();
+  const { width, isWide, isSplit } = useResponsive();
 
   const controlWidth = isSplit ? '18.5%' : isWide ? '31%' : '47.5%';
   const statWidth = isSplit ? '23.5%' : isWide ? '31%' : '47.5%';
@@ -44,8 +44,12 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
     flexGrow: 1,
     minWidth: 0,
   };
+  // 슬롯은 카드 종류에 따라 3개 또는 4개다. 열 폭 하한을 두고 폭에서 열 수를 구한다.
+  // 컨테이너가 gap을 쓰므로 정확히 100/n%로 두면 마지막 열이 다음 줄로 밀린다. 1%p 뺀다.
+  const slotColumns = columnsFor(width, 420, { min: 2, max: 4 });
+  const slotBasis = `${100 / slotColumns - 1}%` as const;
   const slotCard: ViewStyle | undefined = isSplit
-    ? { flexBasis: '49%', maxWidth: '49%', flexGrow: 1 }
+    ? { flexBasis: slotBasis, maxWidth: slotBasis, flexGrow: 1 }
     : undefined;
   const linkTouchTarget: ViewStyle = {
     minHeight: 44,

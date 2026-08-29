@@ -16,6 +16,9 @@ import {
 
 const BASE_SLOT_COUNT = 3;
 
+/** 평균 타순 개념을 두지 않으므로 지정이 없으면 1번타자로 본다. 백엔드와 같은 전제다. */
+const DEFAULT_BATTING_ORDER = 1;
+
 /**
  * 빈 슬롯에 스킬을 처음 넣었을 때의 레벨.
  *
@@ -60,7 +63,7 @@ export function useScoreCalculator() {
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userStats, setUserStats] = useState<Record<string, number>>(defaultUserStats);
-  const [battingOrder, setBattingOrder] = useState<number | null>(1);
+  const [battingOrder, setBattingOrder] = useState<number | null>(DEFAULT_BATTING_ORDER);
   const [pitcherSlot, setPitcherSlot] = useState<number | null>(null);
   const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
   const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);
@@ -105,7 +108,7 @@ export function useScoreCalculator() {
 
   useEffect(() => {
     setSubPosition(defaultSubPosition(position));
-    setBattingOrder(null);
+    setBattingOrder(DEFAULT_BATTING_ORDER);
     setPitcherSlot(null);
     setResult(null);
   }, [position]);

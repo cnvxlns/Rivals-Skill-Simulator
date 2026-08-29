@@ -118,6 +118,10 @@ export default function MethodologyView() {
 
   const { formula, statWeights, conditionProbabilities } = data;
 
+  // 가중치가 0인 스탯(제구·인내·구속·주루·수비·지구력)은 총점에 전혀 기여하지 않는다.
+  // 목록에 두면 실제로 쓰이는 다섯 개가 묻히므로 화면에서는 뺀다. API는 전부 내려준다.
+  const weightedStats = Object.entries(statWeights).filter(([, weight]) => weight > 0);
+
   // 복합 조건(A+B)은 각 부분의 설명을 찾아 이어 붙인다.
   // 예전에는 설명 키가 없으면 토큰 자체를 그대로 내보내 '타순3_4_5+타순4_5' 같은
   // 내부 문자열이 사용자에게 노출됐다.
@@ -387,11 +391,6 @@ export default function MethodologyView() {
       <SectionCard
         title={t('methodology_section_formula')}
         padding={isWide ? spacing.xxl : spacing.lg}
-        right={
-          <Text style={{ color: colors.muted, fontSize: 16 }} numberOfLines={1}>
-            {t('methodology_formula_hint')}
-          </Text>
-        }
       >
         <View style={{ flexDirection: isSplit ? 'row' : 'column', flexWrap: 'wrap', gap: spacing.mdl }}>
           {formulaItems.map((item, i) => (
@@ -408,13 +407,13 @@ export default function MethodologyView() {
         padding={isWide ? spacing.xxl : spacing.lg}
         right={
           <Text style={{ color: colors.muted, fontSize: 16 }}>
-            {Object.keys(statWeights).length}
+            {weightedStats.length}
             {t('methodology_weights_count_suffix')}
           </Text>
         }
       >
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 13 }}>
-          {Object.entries(statWeights).map(([stat, weight]) => (
+          {weightedStats.map(([stat, weight]) => (
             <WeightChip key={stat} label={tk(`stat_${stat}`)} value={weight.toFixed(2)} />
           ))}
         </View>

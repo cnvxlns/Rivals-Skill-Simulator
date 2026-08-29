@@ -270,7 +270,6 @@ export const strings = {
   score_table_banner: '세부 포지션을 선택하지 않아 일부 스킬이 0점으로 표시됩니다.',
   score_table_search_empty_hint: '스킬명 또는 ID를 입력하면 티어와 상관없이 찾아줍니다.',
 
-  methodology_formula_hint: '가로로 길면 좌우로 밀어 볼 수 있습니다',
   methodology_weights_count_prefix: '',
   methodology_weights_count_suffix: '개 항목',
   methodology_sections_hint: '탭 중첩을 없애고 한 축으로 펼침',

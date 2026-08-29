@@ -71,24 +71,40 @@ Rivals-Skill-Simulator/
    npx expo export -p web   # 결과물은 dist/
    ```
 
-### 3) Docker로 백엔드 띄우기
+### 3) Docker로 전체 스택 한 번에 (권장)
 
-JDK 설치 없이 백엔드만 컨테이너로 올릴 때 씁니다. 앱은 컨테이너에 넣지 않습니다.
+Node도 JDK도 설치할 필요 없이 프론트와 백엔드가 같이 뜹니다.
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+docker compose up --build
 ```
 
-`http://localhost:8080`에 열리며, 호스트에서 `cd app && npm run web`으로 띄운 Expo 웹(:8081)이 그대로 붙습니다.
+`http://localhost:8081` 하나로 끝입니다. `docker-compose.override.yml`이 자동으로 얹혀 포트를 열어 줍니다.
 
-개인 서버에 Cloudflare 터널로 노출할 때는 터널 오버레이를 겹칩니다.
+구조는 nginx가 앱의 정적 빌드를 서빙하면서 `/api`만 백엔드로 프록시하는 형태입니다. 같은 오리진이라 CORS 설정이 필요 없고, 앱 번들에 백엔드 주소를 박아 넣지도 않습니다(`app/src/lib/api.ts`가 환경변수가 없으면 상대경로 `/api`로 떨어집니다).
+
+```
+브라우저 ──> localhost:8081  app (nginx)
+                              ├── /        정적 파일 (expo export -p web 산출물)
+                              └── /api/*   proxy_pass ──> backend:8080 (Spring)
+```
+
+**첫 빌드는 오래 걸립니다.** 컨테이너 안에서 Gradle 의존성과 npm 패키지를 처음부터 받고, 백엔드는 이미지 빌드 중에 전체 테스트까지 돌립니다. 두 Dockerfile 모두 BuildKit 캐시 마운트를 쓰므로 두 번째부터는 훨씬 빠릅니다.
+
+개인 서버에 Cloudflare 터널로 노출할 때는 override를 빼고 터널 오버레이를 겹칩니다. 이때는 호스트에 포트를 열지 않습니다.
 
 ```bash
-cp .env.example .env        # TUNNEL_TOKEN, APP_CORS_ALLOWED_ORIGINS 채우기
+cp .env.example .env        # TUNNEL_TOKEN 채우기
 docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
 ```
 
-기본 스택(`docker-compose.yml`)은 백엔드 포트를 호스트에 열지 않습니다. 운영에서는 터널 뒤에만 두기 때문이며, 호스트에서 직접 붙어야 할 때만 dev 오버라이드를 겹칩니다. 백엔드는 클래스패스 CSV를 데이터 원천으로 쓰고 DB를 두지 않아 상태가 없으므로 볼륨이 필요 없습니다.
+| 파일 | 역할 |
+|---|---|
+| `docker-compose.yml` | app + backend 기본 스택. 포트를 호스트에 열지 않습니다 |
+| `docker-compose.override.yml` | 로컬 개발용. compose가 자동으로 얹어 8081(앱)·8080(API)을 엽니다 |
+| `docker-compose.tunnel.yml` | 개인 서버용 cloudflared. app을 터널로 노출합니다 |
+
+백엔드는 클래스패스 CSV를 데이터 원천으로 쓰고 DB를 두지 않아 상태가 없습니다. 볼륨이 필요 없고 컨테이너를 지웠다 다시 만들어도 잃을 데이터가 없습니다.
 
 ## API 개요
 ### 스킬 변경

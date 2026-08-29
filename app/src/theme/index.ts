@@ -127,13 +127,13 @@ export const fontFamily = {
 
 // M3 15단을 7단으로 줄였다. 표 안 숫자는 전부 tabular-nums 고정폭이어야 한다.
 export const typography = {
-  hero: { fontSize: 46, lineHeight: 52, fontWeight: '800' as const, letterSpacing: -0.4 },
-  title: { fontSize: 30, lineHeight: 38, fontWeight: '700' as const, letterSpacing: -0.28 },
-  section: { fontSize: 22, lineHeight: 30, fontWeight: '700' as const, letterSpacing: -0.2 },
-  card: { fontSize: 18, lineHeight: 26, fontWeight: '700' as const },
-  body: { fontSize: 16, lineHeight: 28, fontWeight: '600' as const },
-  label: { fontSize: 14, lineHeight: 22, fontWeight: '600' as const },
-  caption: { fontSize: 13, lineHeight: 22, fontWeight: '500' as const },
+  hero: { fontSize: 48, lineHeight: 56, fontWeight: '800' as const, letterSpacing: -0.4 },
+  title: { fontSize: 32, lineHeight: 42, fontWeight: '700' as const, letterSpacing: -0.28 },
+  section: { fontSize: 24, lineHeight: 34, fontWeight: '700' as const, letterSpacing: -0.2 },
+  card: { fontSize: 20, lineHeight: 30, fontWeight: '700' as const },
+  body: { fontSize: 18, lineHeight: 32, fontWeight: '600' as const },
+  label: { fontSize: 16, lineHeight: 26, fontWeight: '600' as const },
+  caption: { fontSize: 15, lineHeight: 26, fontWeight: '500' as const },
 };
 
 /** 표에 세로로 쌓이는 숫자에 반드시 얹는다. RN 웹에서도 동작한다. */
@@ -142,19 +142,19 @@ export const tabularNums: TextStyle = { fontVariant: ['tabular-nums'] };
 // 밀도를 낮추려고 한 단계씩 올린 값이다(대략 +25%). 원 핸드오프는 8dp 배수를 쓰되
 // "조정해도 좋다"고 열어 뒀다. 여백은 98곳이 이 토큰을 쓰므로 여기가 가장 큰 지렛대다.
 export const spacing = {
-  xxs: 5,
-  xs: 8,
-  sm: 10,
-  smd: 12,
-  md: 15,
-  mdl: 18,
-  lg: 20,
-  lgx: 22,
-  xl: 25,
-  xxl: 30,
-  xxlx: 32,
-  xxxl: 38,
-  huge: 50,
+  xxs: 6,
+  xs: 10,
+  sm: 12,
+  smd: 14,
+  md: 18,
+  mdl: 22,
+  lg: 24,
+  lgx: 26,
+  xl: 30,
+  xxl: 36,
+  xxlx: 38,
+  xxxl: 46,
+  huge: 60,
 };
 
 export const radius = {

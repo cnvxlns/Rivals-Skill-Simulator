@@ -47,7 +47,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
   };
   // 슬롯은 카드 종류에 따라 3개 또는 4개다. 열 폭 하한을 두고 폭에서 열 수를 구한다.
   // 컨테이너가 gap을 쓰므로 정확히 100/n%로 두면 마지막 열이 다음 줄로 밀린다. 1%p 뺀다.
-  const slotColumns = columnsFor(width, 480, { min: 2, max: 4 });
+  const slotColumns = columnsFor(width, 540, { min: 2, max: 4 });
   const slotBasis = `${100 / slotColumns - 1}%` as const;
   const slotCard: ViewStyle | undefined = isSplit
     ? { flexBasis: slotBasis, maxWidth: slotBasis, flexGrow: 1 }
@@ -295,9 +295,9 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                     <Text
                       style={[
                         {
-                          minWidth: 100,
+                          minWidth: 116,
                           color: colors.accentValue,
-                          fontSize: 17,
+                          fontSize: 19,
                           fontWeight: '800',
                           textAlign: 'right',
                         },
@@ -340,9 +340,9 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                       <Text
                         style={[
                           {
-                            minWidth: 100,
+                            minWidth: 116,
                             color: colors.statMine,
-                            fontSize: 17,
+                            fontSize: 19,
                             fontWeight: '800',
                             textAlign: 'right',
                           },
@@ -380,9 +380,9 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                       <Text
                         style={[
                           {
-                            minWidth: 100,
+                            minWidth: 116,
                             color: colors.statOpponent,
-                            fontSize: 17,
+                            fontSize: 19,
                             fontWeight: '800',
                             textAlign: 'right',
                           },

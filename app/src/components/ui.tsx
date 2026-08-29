@@ -166,8 +166,8 @@ export function TierChip({ tier, label }: { tier: string; label: string }) {
   const { radius, tierColor } = useAppTheme();
   const c = tierColor(tier);
   return (
-    <View style={{ backgroundColor: c.soft, borderRadius: radius.chip, paddingHorizontal: 14, paddingVertical: 5 }}>
-      <Text style={{ color: c.hex, fontSize: 14, fontWeight: '800' }} numberOfLines={1}>
+    <View style={{ backgroundColor: c.soft, borderRadius: radius.chip, paddingHorizontal: 17, paddingVertical: 6 }}>
+      <Text style={{ color: c.hex, fontSize: 16, fontWeight: '800' }} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -200,7 +200,7 @@ export function GradeChip({
         alignItems: 'center',
       }}
     >
-      <Text style={{ color: s.text, fontSize: compact ? 12.5 : 13.5, fontWeight: '800' }} numberOfLines={1}>
+      <Text style={{ color: s.text, fontSize: compact ? 14.5 : 15.5, fontWeight: '800' }} numberOfLines={1}>
         {g}
       </Text>
     </View>
@@ -215,7 +215,7 @@ export function WeightChip({ label, value }: { label: string; value: string }) {
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 11,
+        gap: 13,
         backgroundColor: colors.surfaceVariant,
         borderWidth: 1,
         borderColor: colors.outline,
@@ -225,16 +225,16 @@ export function WeightChip({ label, value }: { label: string; value: string }) {
         paddingVertical: spacing.sm,
       }}
     >
-      <Text style={{ color: colors.secondaryText, fontSize: 14.5, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: colors.secondaryText, fontSize: 16.5, fontWeight: '600' }}>{label}</Text>
       <View
         style={{
           backgroundColor: colors.background,
           borderRadius: radius.pill,
-          paddingHorizontal: 11,
-          paddingVertical: 4,
+          paddingHorizontal: 13,
+          paddingVertical: 5,
         }}
       >
-        <Text style={[{ color: colors.accentValue, fontSize: 14, fontWeight: '800' }, tabularNums]}>{value}</Text>
+        <Text style={[{ color: colors.accentValue, fontSize: 16, fontWeight: '800' }, tabularNums]}>{value}</Text>
       </View>
     </View>
   );
@@ -250,16 +250,16 @@ export function StatChip({ label, value }: { label: string; value: string }) {
         borderWidth: 1,
         borderColor: colors.outline,
         borderRadius: radius.control,
-        paddingHorizontal: 18,
-        paddingVertical: 14,
-        minWidth: 96,
-        gap: 6,
+        paddingHorizontal: 22,
+        paddingVertical: 17,
+        minWidth: 112,
+        gap: 7,
       }}
     >
-      <Text style={{ color: colors.muted, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
+      <Text style={{ color: colors.muted, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>
         {label}
       </Text>
-      <Text style={[{ color: colors.accentValue, fontSize: 17, fontWeight: '800' }, tabularNums]} numberOfLines={1}>
+      <Text style={[{ color: colors.accentValue, fontSize: 19, fontWeight: '800' }, tabularNums]} numberOfLines={1}>
         {value}
       </Text>
     </View>
@@ -282,12 +282,12 @@ export function InfoBanner({ text, tone = 'warn' }: { text: string; tone?: 'warn
         borderColor: c.border,
         borderRadius: radius.control,
         paddingHorizontal: spacing.lg,
-        paddingVertical: 16,
+        paddingVertical: 19,
       }}
     >
       <View
         style={{
-          width: 24,
+          width: 28,
           height: 20,
           borderRadius: 999,
           backgroundColor: c.badge,
@@ -295,9 +295,9 @@ export function InfoBanner({ text, tone = 'warn' }: { text: string; tone?: 'warn
           justifyContent: 'center',
         }}
       >
-        <Text style={{ color: c.onBadge, fontSize: 15, fontWeight: '800' }}>!</Text>
+        <Text style={{ color: c.onBadge, fontSize: 17, fontWeight: '800' }}>!</Text>
       </View>
-      <Text style={{ color: c.text, fontSize: 15, lineHeight: 21, flex: 1 }}>{text}</Text>
+      <Text style={{ color: c.text, fontSize: 17, lineHeight: 21, flex: 1 }}>{text}</Text>
     </View>
   );
 }
@@ -351,7 +351,7 @@ export function SegmentedTabs<T extends string>({
             <Text
               style={{
                 color: active ? colors.onAccentAction : colors.secondaryText,
-                fontSize: stretch ? 15.5 : 16,
+                fontSize: stretch ? 17.5 : 18,
                 fontWeight: active ? '700' : '600',
               }}
               numberOfLines={1}
@@ -395,7 +395,7 @@ export function PrimaryActionButton({
           alignItems: 'center',
           justifyContent: 'center',
           flexDirection: 'row',
-          gap: 11,
+          gap: 13,
           backgroundColor: bg,
           opacity: pressed ? 0.72 : 1,
         },
@@ -403,7 +403,7 @@ export function PrimaryActionButton({
       ]}
     >
       {loading ? <ActivityIndicator size="small" color={fg} /> : null}
-      <Text style={{ color: fg, fontSize: 16, fontWeight: '700' }}>{text}</Text>
+      <Text style={{ color: fg, fontSize: 18, fontWeight: '700' }}>{text}</Text>
     </Pressable>
   );
 }
@@ -413,7 +413,7 @@ export function LinkAction({ text, onPress, style }: { text: string; onPress: ()
   const { colors } = useAppTheme();
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [{ opacity: pressed ? 0.72 : 1 }, style]}>
-      <Text style={{ color: colors.accentAction, fontSize: 14.5, fontWeight: '600' }}>{text}</Text>
+      <Text style={{ color: colors.accentAction, fontSize: 16.5, fontWeight: '600' }}>{text}</Text>
     </Pressable>
   );
 }
@@ -455,7 +455,7 @@ export function SearchInput({
         placeholderTextColor={colors.muted}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        style={[{ flex: 1, color: colors.onSurface, fontSize: 16, fontWeight: '600' }, NO_OUTLINE] as never}
+        style={[{ flex: 1, color: colors.onSurface, fontSize: 18, fontWeight: '600' }, NO_OUTLINE] as never}
       />
     </View>
   );
@@ -473,8 +473,8 @@ export function NumberField({
   const { colors, radius, controlHeight, tabularNums } = useAppTheme();
   const [focused, setFocused] = useState(false);
   return (
-    <View style={{ gap: 9 }}>
-      <Text style={{ color: colors.secondaryText, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>
+    <View style={{ gap: 11 }}>
+      <Text style={{ color: colors.secondaryText, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
         {label}
       </Text>
       <TextInput
@@ -487,13 +487,13 @@ export function NumberField({
           [
             {
               height: controlHeight.dropdown,
-              paddingHorizontal: 18,
+              paddingHorizontal: 22,
               borderRadius: radius.control,
               backgroundColor: colors.surfaceVariant,
               borderWidth: 1,
               borderColor: focused ? colors.accentAction : colors.outline,
               color: colors.onSurface,
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: '600',
             },
             tabularNums,
@@ -560,8 +560,8 @@ export function LabeledDropdown<T>({
   );
 
   return (
-    <View style={{ gap: 9 }}>
-      <Text style={{ color: colors.secondaryText, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>
+    <View style={{ gap: 11 }}>
+      <Text style={{ color: colors.secondaryText, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
         {label}
       </Text>
       <Pressable
@@ -572,7 +572,7 @@ export function LabeledDropdown<T>({
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: spacing.sm,
-          paddingHorizontal: 18,
+          paddingHorizontal: 22,
           borderRadius: radius.control,
           backgroundColor: colors.surfaceVariant,
           borderWidth: 1,
@@ -580,7 +580,7 @@ export function LabeledDropdown<T>({
           opacity: disabled ? 0.5 : pressed ? 0.72 : 1,
         })}
       >
-        <Text style={{ color: colors.onSurface, fontSize: 16, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+        <Text style={{ color: colors.onSurface, fontSize: 18, fontWeight: '600', flex: 1 }} numberOfLines={1}>
           {selectedLabel || placeholder || '선택 안 함'}
         </Text>
         <CaretDown size={12} color={colors.muted} />
@@ -610,7 +610,7 @@ export function LabeledDropdown<T>({
                 paddingBottom: spacing.md,
               }}
             >
-              <Text style={{ color: colors.onSurface, fontSize: 18, fontWeight: '700' }}>{label}</Text>
+              <Text style={{ color: colors.onSurface, fontSize: 20, fontWeight: '700' }}>{label}</Text>
               <LinkAction text="닫기" onPress={close} />
             </View>
 
@@ -646,7 +646,7 @@ export function LabeledDropdown<T>({
                     })}
                   >
                     <Text
-                      style={{ color: isSel ? colors.accentAction : colors.onSurface, fontSize: 17, fontWeight: '600' }}
+                      style={{ color: isSel ? colors.accentAction : colors.onSurface, fontSize: 19, fontWeight: '600' }}
                     >
                       {l}
                     </Text>
@@ -654,7 +654,7 @@ export function LabeledDropdown<T>({
                 );
               })}
               {!shown.length ? (
-                <Text style={{ color: colors.muted, fontSize: 15, padding: spacing.xl }}>일치하는 항목이 없습니다.</Text>
+                <Text style={{ color: colors.muted, fontSize: 17, padding: spacing.xl }}>일치하는 항목이 없습니다.</Text>
               ) : null}
               <View style={{ height: spacing.xxl }} />
             </ScrollView>
@@ -683,8 +683,8 @@ export function ScoreHero({ label, value }: { label: string; value: number }) {
       }}
     >
       <View style={{ width: 4, height: 54, borderRadius: 999, backgroundColor: colors.accentValue }} />
-      <View style={{ gap: 3, flex: 1 }}>
-        <Text style={{ color: colors.secondaryText, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>
+      <View style={{ gap: 4, flex: 1 }}>
+        <Text style={{ color: colors.secondaryText, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
           {label}
         </Text>
         <Text style={[typography.hero, { color: colors.accentValue }, tabularNums]} numberOfLines={1}>
@@ -725,7 +725,7 @@ export function ErrorState({
   return (
     <View style={{ gap: spacing.lg }}>
       <InfoBanner text={message} tone="error" />
-      <PrimaryActionButton text={retryText} onPress={onRetry} style={{ alignSelf: 'flex-start', paddingHorizontal: 30 }} />
+      <PrimaryActionButton text={retryText} onPress={onRetry} style={{ alignSelf: 'flex-start', paddingHorizontal: 36 }} />
     </View>
   );
 }
@@ -734,7 +734,7 @@ export function EmptyState({ text }: { text: string }) {
   const { colors, spacing } = useAppTheme();
   return (
     <View style={{ paddingVertical: spacing.huge, alignItems: 'center' }}>
-      <Text style={{ color: colors.muted, fontSize: 15, textAlign: 'center' }}>{text}</Text>
+      <Text style={{ color: colors.muted, fontSize: 17, textAlign: 'center' }}>{text}</Text>
     </View>
   );
 }
@@ -744,7 +744,7 @@ export function LoadingState({ text }: { text?: string }) {
   return (
     <View style={{ paddingVertical: spacing.huge, alignItems: 'center', gap: spacing.md }}>
       <ActivityIndicator size="large" color={colors.accentAction} />
-      {text ? <Text style={{ color: colors.secondaryText, fontSize: 15 }}>{text}</Text> : null}
+      {text ? <Text style={{ color: colors.secondaryText, fontSize: 17 }}>{text}</Text> : null}
     </View>
   );
 }

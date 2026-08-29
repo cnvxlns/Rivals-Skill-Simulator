@@ -69,7 +69,7 @@ export default function HomeScreen() {
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 1 }}>
-                <AppMark size={isWide ? 26 : 22} />
+                <AppMark size={isWide ? 30 : 26} />
                 <Text style={[typography.section, { color: colors.onSurface }]} numberOfLines={1}>
                   {t(isWide ? 'hdr_title' : 'hdr_title_short')}
                 </Text>
@@ -111,13 +111,13 @@ export default function HomeScreen() {
                     style={{
                       flex: 1,
                       color: colors.mutedFaint,
-                      fontSize: 13.5,
+                      fontSize: 15.5,
                       lineHeight: 20.125,
                     }}
                   >
                     {t('disclaimer_full')}
                   </Text>
-                  <View style={{ width: 280 }}>
+                  <View style={{ width: 320 }}>
                     <ApkInstallButton />
                   </View>
                 </>
@@ -129,7 +129,7 @@ export default function HomeScreen() {
                   <Text
                     style={{
                       color: colors.mutedFaint,
-                      fontSize: 13.5,
+                      fontSize: 15.5,
                       lineHeight: 20.125,
                     }}
                   >

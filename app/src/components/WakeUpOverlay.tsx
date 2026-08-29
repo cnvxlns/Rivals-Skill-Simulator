@@ -36,12 +36,12 @@ export default function WakeUpOverlay({
         <View
           style={{
             width: '100%',
-            maxWidth: 470,
+            maxWidth: 530,
             backgroundColor: colors.surface,
             borderColor: colors.outline,
             borderWidth: 1,
             borderRadius: radius.shell,
-            padding: 38,
+            padding: 46,
             alignItems: 'center',
             gap: spacing.md,
           }}
@@ -52,20 +52,20 @@ export default function WakeUpOverlay({
               <Text style={[typography.card, { color: colors.onSurface, textAlign: 'center' }]}>
                 {t('warmup_waking')}
               </Text>
-              <Text style={{ color: colors.secondaryText, fontSize: 14, lineHeight: 19, textAlign: 'center' }}>
+              <Text style={{ color: colors.secondaryText, fontSize: 16, lineHeight: 19, textAlign: 'center' }}>
                 {t('warmup_sub_waking')}
               </Text>
               <View
                 style={{
                   backgroundColor: colors.surfaceVariant,
                   borderRadius: radius.pill,
-                  paddingHorizontal: 18,
-                  paddingVertical: 8,
+                  paddingHorizontal: 22,
+                  paddingVertical: 10,
                 }}
               >
                 <Text
                   style={[
-                    { color: colors.accentValue, fontSize: 14, lineHeight: 19, fontWeight: '800' },
+                    { color: colors.accentValue, fontSize: 16, lineHeight: 19, fontWeight: '800' },
                     tabularNums,
                   ]}
                 >

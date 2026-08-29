@@ -1,0 +1,19 @@
+# core.autocrlf=true인 윈도우에서 체크아웃하면 워킹트리가 CRLF가 된다.
+# 도커 빌드 컨텍스트는 워킹트리를 그대로 쓰므로, 컨테이너 안에서 실행되는
+# 스크립트가 CRLF면 셔뱅이 `sh\r`로 읽혀 exit 127로 죽는다.
+# 리눅스로 들어가는 파일은 여기서 LF로 못 박는다.
+* text=auto
+
+gradlew      text eol=lf
+*.sh         text eol=lf
+Dockerfile   text eol=lf
+.dockerignore text eol=lf
+*.conf       text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+
+# 반대로 윈도우에서만 도는 것은 CRLF로 둔다.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.jar binary

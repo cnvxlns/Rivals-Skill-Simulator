@@ -104,7 +104,9 @@ export const strings = {
   score_table_search_placeholder: '스킬명 또는 ID로 검색',
   score_table_no_match: '일치하는 스킬이 없습니다.',
   score_table_error: '점수표를 불러오지 못했습니다.',
-  score_table_inactive: '이 포지션에서 미발동',
+  // 0점 경로는 셋이다: 포지션 게이트, 가중치 0인 스탯, 확률 0인 조건(랭킹대전 외 모드 등).
+  // "이 포지션에서 미발동"은 그중 하나만 지목해 나머지 두 경우에 거짓이 된다.
+  score_table_inactive: '현재 기준에서 0점',
   score_table_pick_sub_position: '세부 포지션을 고르면 포지션 전용 스킬이 정확히 채점됩니다. 지금은 일부 스킬이 0점으로 표시됩니다.',
   score_table_more_prefix: '외 ',
   score_table_more_suffix: '개',

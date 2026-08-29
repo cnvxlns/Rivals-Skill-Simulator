@@ -143,10 +143,8 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
               <LabeledDropdown
                 label={t('label_batting_order')}
                 selected={calc.battingOrder}
-                options={[null, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
-                optionLabel={(option) =>
-                  option == null ? t('option_average_batting_order') : String(option)
-                }
+                options={[1, 2, 3, 4, 5, 6, 7, 8, 9]}
+                optionLabel={(option) => String(option)}
                 onSelect={(option) => calc.updateBattingOrder(option)}
               />
             </View>

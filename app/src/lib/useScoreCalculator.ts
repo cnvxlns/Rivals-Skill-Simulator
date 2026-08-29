@@ -60,7 +60,7 @@ export function useScoreCalculator() {
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userStats, setUserStats] = useState<Record<string, number>>(defaultUserStats);
-  const [battingOrder, setBattingOrder] = useState<number | null>(null);
+  const [battingOrder, setBattingOrder] = useState<number | null>(1);
   const [pitcherSlot, setPitcherSlot] = useState<number | null>(null);
   const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
   const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);

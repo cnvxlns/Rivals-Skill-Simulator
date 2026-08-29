@@ -136,7 +136,8 @@ class ScoreCalculatorTest {
         Map<String, Double> middleOrder = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 4);
         Map<String, Double> lowerOrder = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 8);
 
-        assertThat(defaultOrder.get("타석1")).isCloseTo(1.0 / 3.595, within(0.0001));
+        // 타순 미지정은 1번타자와 같은 분포를 쓴다(예전에는 중위타선 평균이었다).
+        assertThat(defaultOrder.get("타석1")).isEqualTo(topOrder.get("타석1"));
         assertThat(middleOrder.get("타석2")).isCloseTo(1.0 / 3.595, within(0.0001));
         assertThat(middleOrder.get("타석3")).isCloseTo(0.90 / 3.595, within(0.0001));
         assertThat(middleOrder.get("타석4_7")).isCloseTo(0.695 / 3.595, within(0.0001));
@@ -293,7 +294,8 @@ class ScoreCalculatorTest {
                 Map.of()
         );
 
-        assertThat(defaultOrder.total()).isEqualTo(5.50);
+        // 타순 미지정은 1번타자와 같은 값이어야 한다.
+        assertThat(defaultOrder.total()).isEqualTo(topOrder.total());
         assertThat(topOrder.total()).isEqualTo(5.00);
         assertThat(middleOrder.total()).isEqualTo(5.50);
         assertThat(lowerOrder.total()).isEqualTo(5.80);
@@ -608,7 +610,8 @@ class ScoreCalculatorTest {
         // perStat 은 순수 증가량(value=10)만 표시하므로, 조건확률 반영은 가중 총점(total)으로 검증한다.
         assertThat(result.perStat()).containsEntry("파워", 10.00);
         assertThat(result.perStat()).containsEntry("정확", 10.00);
-        assertThat(result.total()).isEqualTo(26.22);
+        // 타순을 넘기지 않으면 1번타자로 본다. 타순1_2는 평균 0.222가 아니라 1.0으로 걸린다.
+        assertThat(result.total()).isEqualTo(34.00);
     }
 
     @Test

@@ -60,7 +60,8 @@ class MethodologyServiceTest {
                 .mapToDouble(e -> e.getValue())
                 .findFirst()
                 .orElse(0.0);
-        assertThat(order1).isEqualTo(0.111);
+        // 평균 타순 개념을 없애고 1번타자를 전제로 채점한다. 타순1은 항상 발동한다.
+        assertThat(order1).isEqualTo(1.0);
 
         // 6. Verify reach probabilities
         var reaches = response.getConditionProbabilities().getReachProbabilities();

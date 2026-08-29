@@ -273,8 +273,8 @@ export default function ScoreTableView() {
                 <LabeledDropdown
                   label={t('label_batting_order')}
                   selected={ctx.battingOrder}
-                  options={[null, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
-                  optionLabel={(o) => (o == null ? t('option_average_batting_order') : String(o))}
+                  options={[1, 2, 3, 4, 5, 6, 7, 8, 9]}
+                  optionLabel={(o) => String(o)}
                   onSelect={(o) => ctx.setBattingOrder(o)}
                 />
               </View>

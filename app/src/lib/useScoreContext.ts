@@ -36,7 +36,9 @@ export const defaultSubPosition = (position: Position): SubPosition =>
 export function useScoreContext() {
   const [position, setPosition] = useState<Position>(Position.BATTER);
   const [subPosition, setSubPosition] = useState<SubPosition | ''>(defaultSubPosition(Position.BATTER));
-  const [battingOrder, setBattingOrder] = useState<number | null>(null);
+  // 평균 타순 개념을 두지 않는다. 지정하지 않으면 어떤 타순 조건도 온전히 발동하지
+  // 않아 타순 조건 스킬이 일률적으로 눌렸다. 1번타자를 전제로 시작한다.
+  const [battingOrder, setBattingOrder] = useState<number | null>(1);
   const [pitcherSlot, setPitcherSlot] = useState<number | null>(null);
   const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
   const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);

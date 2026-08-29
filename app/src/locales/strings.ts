@@ -24,7 +24,6 @@ export const strings = {
   hint_sub_position: 'SP/RP/수비 포지션 필터',
   option_all_sub_positions: '모든 포지션',
   label_batting_order: '타순',
-  option_average_batting_order: '평균 타순',
   label_theme: '테마 선택',
   hint_theme: '모먼트 전용 스킬 대상 지정',
   no_theme: '해당 포지션에 모먼트 스킬 없음',

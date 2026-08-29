@@ -38,7 +38,7 @@ public class ScoreCalculator {
     }
 
     public static Map<String, Double> getBattingOrderDefaultProbabilities() {
-        return BATTING_ORDER_DEFAULT_PROBABILITIES;
+        return battingOrderProbabilities(DEFAULT_BATTING_ORDER);
     }
 
     public static Map<String, Double> getGameStateProbabilities() {
@@ -136,15 +136,31 @@ public class ScoreCalculator {
             "2스트라이크", 0.35
     );
 
-    private static final Map<String, Double> BATTING_ORDER_DEFAULT_PROBABILITIES = Map.ofEntries(
-            Map.entry("타순1", 0.111),
-            Map.entry("타순1_2", 0.222),
-            Map.entry("타순2_3", 0.222),
-            Map.entry("타순3_4_5", 0.333),
-            Map.entry("타순4_5", 0.222),
-            Map.entry("타순6_9", 0.444),
-            Map.entry("타순8_9", 0.222)
-    );
+    /**
+      * 타순이 지정되지 않았을 때 가정하는 타순.
+      *
+      * 예전에는 9개 타순의 평균(타순1 = 1/9 = 0.111)으로 채점했는데, 그러면 어떤 타순
+      * 조건도 완전히 발동하지 않아 타순 조건이 붙은 스킬이 일률적으로 눌렸다.
+      * 하나의 타순을 전제로 두는 편이 읽기도 쉽고 조건 스킬의 값도 제대로 드러난다.
+      */
+    static final int DEFAULT_BATTING_ORDER = 1;
+
+    /**
+     * 타순 조건 확률. 타순은 경기 중 고정이므로 값은 0 아니면 1이다.
+     *
+     * 채점과 산정 방식 화면이 같은 함수를 쓰게 해서 두 값이 어긋나지 않게 한다.
+     */
+    static Map<String, Double> battingOrderProbabilities(int battingOrder) {
+        return Map.ofEntries(
+                Map.entry("타순1", battingOrder == 1 ? 1.0 : 0.0),
+                Map.entry("타순1_2", isBetween(battingOrder, 1, 2) ? 1.0 : 0.0),
+                Map.entry("타순2_3", isBetween(battingOrder, 2, 3) ? 1.0 : 0.0),
+                Map.entry("타순3_4_5", isBetween(battingOrder, 3, 5) ? 1.0 : 0.0),
+                Map.entry("타순4_5", isBetween(battingOrder, 4, 5) ? 1.0 : 0.0),
+                Map.entry("타순6_9", isBetween(battingOrder, 6, 9) ? 1.0 : 0.0),
+                Map.entry("타순8_9", isBetween(battingOrder, 8, 9) ? 1.0 : 0.0)
+        );
+    }
 
     private static final Map<String, Double> GAME_STATE_PROBABILITIES = Map.ofEntries(
             Map.entry("리드", 0.37),
@@ -459,17 +475,8 @@ public class ScoreCalculator {
         @Override
         public void apply(Map<String, Double> probabilities, ConditionContext context) {
             Integer battingOrder = context.battingOrder();
-            if (battingOrder == null) {
-                probabilities.putAll(BATTING_ORDER_DEFAULT_PROBABILITIES);
-                return;
-            }
-            probabilities.put("타순1", battingOrder == 1 ? 1.0 : 0.0);
-            probabilities.put("타순1_2", isBetween(battingOrder, 1, 2) ? 1.0 : 0.0);
-            probabilities.put("타순2_3", isBetween(battingOrder, 2, 3) ? 1.0 : 0.0);
-            probabilities.put("타순3_4_5", isBetween(battingOrder, 3, 5) ? 1.0 : 0.0);
-            probabilities.put("타순4_5", isBetween(battingOrder, 4, 5) ? 1.0 : 0.0);
-            probabilities.put("타순6_9", isBetween(battingOrder, 6, 9) ? 1.0 : 0.0);
-            probabilities.put("타순8_9", isBetween(battingOrder, 8, 9) ? 1.0 : 0.0);
+            probabilities.putAll(battingOrderProbabilities(
+                    battingOrder == null ? DEFAULT_BATTING_ORDER : battingOrder));
         }
     }
 
@@ -500,10 +507,8 @@ public class ScoreCalculator {
             probabilities.put("이닝출루2인이상", INNING_TWO_BASERUNNERS_EXPOSURE);
         }
 
-        private double secondPlateAppearanceProbability(Integer battingOrder) {
-            if (battingOrder == null) {
-                return 0.55;
-            }
+        private double secondPlateAppearanceProbability(Integer order) {
+            int battingOrder = order == null ? DEFAULT_BATTING_ORDER : order;
             if (isBetween(battingOrder, 1, 2)) {
                 return 0.50;
             }
@@ -622,10 +627,8 @@ public class ScoreCalculator {
             }
         }
 
-        private double[] plateAppearanceReachProbabilities(Integer battingOrder) {
-            if (battingOrder == null) {
-                return MIDDLE_ORDER_PLATE_APPEARANCE_REACH;
-            }
+        private double[] plateAppearanceReachProbabilities(Integer order) {
+            int battingOrder = order == null ? DEFAULT_BATTING_ORDER : order;
             if (isBetween(battingOrder, 1, 2)) {
                 return TOP_ORDER_PLATE_APPEARANCE_REACH;
             }

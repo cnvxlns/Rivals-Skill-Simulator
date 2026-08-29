@@ -5,7 +5,7 @@ export const strings = {
   tab_calculator: '계산기',
   btn_roll: '스킬 변경',
   btn_reset: '초기화',
-  hdr_title: 'MLB 라이벌 스킬 도구',
+  hdr_title: '라이벌 전력분석실',
   hdr_subtitle: '모먼트 잠금 규칙 적용',
   ticket_skill_change: '스킬 변경권',
   ticket_premium: '고급 스킬 변경권',
@@ -243,7 +243,7 @@ export const strings = {
   apk_install_hint: '안드로이드 브라우저에서만 표시됩니다. 설치 시 "출처를 알 수 없는 앱" 허용이 필요합니다.',
 
   // ─ 리디자인에서 추가된 문구 ─
-  hdr_title_short: '스킬 도구',
+  hdr_title_short: '전력분석실',
   hdr_unofficial: '비공식 팬 프로젝트',
 
   // 셸 하단 면책조항. 핸드오프에 명시된 전문을 그대로 쓴다.

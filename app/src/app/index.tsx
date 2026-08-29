@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Head from 'expo-router/head';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from '@/lib/i18n';
@@ -36,6 +37,14 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {/*
+        제목은 여기서만 넣는다. +html.tsx에 <title>을 직접 쓰면 expo-router가 helmet으로
+        먼저 심는 빈 <title data-rh>와 중복되고, 브라우저는 앞선 빈 것을 쓴다.
+        Head는 웹에서만 의미가 있고 네이티브에서는 무시된다.
+      */}
+      <Head>
+        <title>라이벌 전력분석실 — MLB 라이벌 스킬 점수</title>
+      </Head>
       <WakeUpOverlay status={status} elapsedSeconds={elapsedSeconds} onRetry={retry} />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View

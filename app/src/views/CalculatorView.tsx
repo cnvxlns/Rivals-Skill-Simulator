@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Text, View, ViewStyle } from 'react-native';
 import { CardType, Handedness, Position, SubPosition } from '../types';
 import { useScoreCalculator } from '../lib/useScoreCalculator';
@@ -47,6 +47,9 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
   };
   // 슬롯은 카드 종류에 따라 3개 또는 4개다. 열 폭 하한을 두고 폭에서 열 수를 구한다.
   // 컨테이너가 gap을 쓰므로 정확히 100/n%로 두면 마지막 열이 다음 줄로 밀린다. 1%p 뺀다.
+  // 사용자 스탯은 기본값으로 두는 경우가 대부분이라 접어둔 채로 시작한다.
+  const [statsOpen, setStatsOpen] = useState(false);
+
   const slotColumns = columnsFor(width, 540, { min: 2, max: 4 });
   const slotBasis = `${100 / slotColumns - 1}%` as const;
   const slotCard: ViewStyle | undefined = isSplit
@@ -164,6 +167,40 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
         </View>
       </SectionCard>
 
+      {/*
+        스탯은 대부분 기본값 그대로 쓰고 스킬 조합만 바꿔 본다. 슬롯 위에 두되 접어서
+        기본 흐름(설정 -> 슬롯 -> 계산)을 가리지 않게 한다.
+      */}
+      <SectionCard
+        title={t('score_user_stats')}
+        right={
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            {statsOpen ? (
+              <LinkAction text={t('score_reset_stats')} onPress={calc.resetUserStats} style={linkTouchTarget} />
+            ) : null}
+            <LinkAction
+              text={statsOpen ? t('action_collapse') : t('action_expand')}
+              onPress={() => setStatsOpen((open) => !open)}
+              style={linkTouchTarget}
+            />
+          </View>
+        }
+      >
+        {statsOpen ? (
+          <View style={controlGrid}>
+            {calc.visibleStats.map((stat) => (
+              <View key={stat} style={statField}>
+                <NumberField
+                  label={tk(`stat_${stat}`)}
+                  value={String(Math.round(calc.userStats[stat] ?? 0))}
+                  onChangeText={(raw) => calc.updateUserStat(stat, parseFloat(raw) || 0)}
+                />
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </SectionCard>
+
       <Text style={[typography.card, { color: colors.onSurface }]}>{t('score_skill_slots')}</Text>
 
       <View
@@ -228,23 +265,6 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
           );
         })}
       </View>
-
-      <SectionCard
-        title={t('score_user_stats')}
-        right={<LinkAction text={t('score_reset_stats')} onPress={calc.resetUserStats} style={linkTouchTarget} />}
-      >
-        <View style={controlGrid}>
-          {calc.visibleStats.map((stat) => (
-            <View key={stat} style={statField}>
-              <NumberField
-                label={tk(`stat_${stat}`)}
-                value={String(Math.round(calc.userStats[stat] ?? 0))}
-                onChangeText={(raw) => calc.updateUserStat(stat, parseFloat(raw) || 0)}
-              />
-            </View>
-          ))}
-        </View>
-      </SectionCard>
 
       {calc.error ? <InfoBanner text={tk(calc.error)} tone="error" /> : null}
       <PrimaryActionButton

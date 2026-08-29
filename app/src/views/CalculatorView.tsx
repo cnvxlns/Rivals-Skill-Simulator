@@ -14,6 +14,7 @@ import {
   PrimaryActionButton,
   ScoreHero,
   SectionCard,
+  TooltipTarget,
 } from '../components/ui';
 import { columnsFor, useResponsive } from '../lib/useResponsive';
 
@@ -271,9 +272,15 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                       borderBottomColor: colors.divider,
                     }}
                   >
-                    <Text style={[typography.body, { color: colors.onSurface, flex: 1 }]} numberOfLines={1}>
-                      {skill.name}
-                    </Text>
+                    {/* 설명은 결과 응답에 없다. 스킬 목록에서 skillId로 찾는다. */}
+                    <TooltipTarget
+                      text={calc.skills.find((option) => option.skillId === skill.skillId)?.description}
+                      style={{ flex: 1, minWidth: 0 }}
+                    >
+                      <Text style={[typography.body, { color: colors.onSurface }]} numberOfLines={1}>
+                        {skill.name}
+                      </Text>
+                    </TooltipTarget>
                     <Text
                       style={[
                         {

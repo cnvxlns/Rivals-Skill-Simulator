@@ -3,10 +3,12 @@
 // 규칙 두 가지를 전 컴포넌트가 지킨다.
 //  1. 그림자를 쓰지 않는다. 면 분리는 외곽선 + 배경 명도차로만 한다(플랫폼별 동작이 달라서).
 //  2. hover에만 의존하는 정보를 두지 않는다. 웹과 앱이 같은 컴포넌트를 공유한다.
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
+import type { PropsWithChildren } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -17,6 +19,105 @@ import {
 } from 'react-native';
 import { useAppTheme } from '../theme/useTheme';
 import { CaretDown, SearchIcon } from './icons';
+
+/* ── 툴팁 ────────────────────────────────────────────────── */
+
+type TooltipRect = { x: number; y: number; width: number; height: number };
+type TooltipApi = { show: (text: string | null | undefined, rect: TooltipRect) => void; hide: () => void };
+
+const TooltipContext = React.createContext<TooltipApi | null>(null);
+
+const TOOLTIP_MAX_WIDTH = 340;
+const TOOLTIP_EDGE = 8;
+const TOOLTIP_OFFSET = 6;
+
+/**
+ * 설명 툴팁의 상태와 오버레이를 들고 있다.
+ *
+ * 티어 카드에 overflow:'hidden'이 걸려 있어(색 레일과 둥근 모서리를 자르려고) 카드 안에서
+ * 절대 위치로 띄우면 가장자리 행에서 잘린다. 그래서 오버레이 한 장을 화면 최상단에 두고,
+ * 열릴 때 measureInWindow로 잰 창 좌표에 그린다. 카드 경계와 스크롤 컨테이너에 무관해진다.
+ *
+ * 웹은 position:'fixed'라야 페이지 스크롤과 어긋나지 않는다. RN 스타일 타입에 없는 값이라
+ * 웹에서만 넣고 캐스팅한다. 네이티브는 루트 View 기준 absolute면 창 좌표와 일치한다.
+ */
+export function TooltipProvider({ children }: PropsWithChildren) {
+  const { colors, typography, radius, spacing } = useAppTheme();
+  const { width: windowWidth } = useWindowDimensions();
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
+
+  const api = useMemo<TooltipApi>(
+    () => ({
+      show: (text, rect) => {
+        const body = (text ?? '').trim();
+        if (!body) return;
+        // 오른쪽 끝 행에서 툴팁이 화면 밖으로 나가지 않게 가둔다.
+        const maxLeft = Math.max(TOOLTIP_EDGE, windowWidth - TOOLTIP_MAX_WIDTH - TOOLTIP_EDGE);
+        setTip({ text: body, x: Math.min(Math.max(rect.x, TOOLTIP_EDGE), maxLeft), y: rect.y + rect.height + TOOLTIP_OFFSET });
+      },
+      hide: () => setTip(null),
+    }),
+    [windowWidth],
+  );
+
+  return (
+    <TooltipContext.Provider value={api}>
+      {children}
+      {tip ? (
+        <View
+          // 커서를 가려 hover가 끊기면 툴팁이 깜빡인다. 이벤트를 받지 않는다.
+          pointerEvents="none"
+          style={{
+            position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as 'absolute',
+            left: tip.x,
+            top: tip.y,
+            maxWidth: TOOLTIP_MAX_WIDTH,
+            zIndex: 1000,
+            backgroundColor: colors.surfaceVariant,
+            borderWidth: 1,
+            borderColor: colors.outline,
+            borderRadius: radius.card,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+          }}
+        >
+          <Text style={[typography.body, { color: colors.secondaryText }]}>{tip.text}</Text>
+        </View>
+      ) : null}
+    </TooltipContext.Provider>
+  );
+}
+
+/**
+ * 감싼 내용에 설명 툴팁을 붙인다. 웹은 hover, 터치는 길게 누르기로 연다.
+ *
+ * hover에만 정보를 두지 않는다는 이 파일의 규칙 2를 지키려면 두 경로가 모두 필요하다.
+ * text가 비면 아무것도 감싸지 않고 그대로 통과시킨다.
+ */
+export function TooltipTarget({
+  text,
+  style,
+  children,
+}: PropsWithChildren<{ text?: string | null; style?: ViewStyle }>) {
+  const api = useContext(TooltipContext);
+  const ref = useRef<View>(null);
+
+  const open = useCallback(() => {
+    if (!api || !text) return;
+    ref.current?.measureInWindow((x, y, width, height) => api.show(text, { x, y, width, height }));
+  }, [api, text]);
+  const close = useCallback(() => api?.hide(), [api]);
+
+  if (!text) return <View style={style}>{children}</View>;
+
+  return (
+    <View ref={ref} collapsable={false} style={style}>
+      <Pressable onHoverIn={open} onHoverOut={close} onLongPress={open} onPressOut={close} delayLongPress={300}>
+        {children}
+      </Pressable>
+    </View>
+  );
+}
 
 /* ── 카드 ────────────────────────────────────────────────── */
 

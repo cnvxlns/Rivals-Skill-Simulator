@@ -15,6 +15,7 @@ import {
   SectionCard,
   Skeleton,
   TierChip,
+  TooltipTarget,
 } from '../components/ui';
 import { columnsFor, useResponsive } from '../lib/useResponsive';
 
@@ -153,17 +154,18 @@ export default function ScoreTableView() {
 
         <View style={{ flex: 1, gap: 3, minWidth: 0 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text
-              style={{
-                fontSize: isWide ? 14 : 13.5,
-                fontWeight: '600',
-                color: inactive ? inactiveRow.name : colors.onSurface,
-                flexShrink: 1,
-              }}
-              numberOfLines={1}
-            >
-              {entry.name}
-            </Text>
+            <TooltipTarget text={entry.description} style={{ flexShrink: 1, minWidth: 0 }}>
+              <Text
+                style={{
+                  fontSize: isWide ? 14 : 13.5,
+                  fontWeight: '600',
+                  color: inactive ? inactiveRow.name : colors.onSurface,
+                }}
+                numberOfLines={1}
+              >
+                {entry.name}
+              </Text>
+            </TooltipTarget>
             {/* 모바일은 열을 3개로 줄이려고 등급 칩을 스킬명 옆으로 올린다. */}
             {!isWide ? <GradeChip grade={entry.appliedGrade} inactive={inactive} compact /> : null}
           </View>

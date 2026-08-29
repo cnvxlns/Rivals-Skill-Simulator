@@ -6,7 +6,7 @@ import { useTranslation } from '@/lib/i18n';
 import { useBackendWarmup } from '@/lib/useBackendWarmup';
 import { useAppTheme } from '@/theme/useTheme';
 import { GUTTER, useResponsive } from '@/lib/useResponsive';
-import { SegmentedTabs } from '@/components/ui';
+import { SegmentedTabs, TooltipProvider } from '@/components/ui';
 import { AppMark } from '@/components/icons';
 import ApkInstallButton from '@/components/ApkInstallButton';
 import WakeUpOverlay from '@/components/WakeUpOverlay';
@@ -46,101 +46,104 @@ export default function HomeScreen() {
         <title>라이벌 전력분석실 — MLB 라이벌 스킬 점수</title>
       </Head>
       <WakeUpOverlay status={status} elapsedSeconds={elapsedSeconds} onRetry={retry} />
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <View
-          style={[
-            container,
-            {
-              paddingHorizontal: horizontalPadding,
-              paddingTop: isWide ? spacing.xxlx : spacing.lg,
-              paddingBottom: spacing.xl,
-              gap: spacing.xl,
-            },
-          ]}
-        >
+      {/* 툴팁 오버레이는 카드의 overflow:'hidden' 밖, 화면 최상단에 떠야 한다. */}
+      <TooltipProvider>
+        <SafeAreaView style={{ flex: 1 }} edges={['top']}>
           <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: spacing.md,
-            }}
+            style={[
+              container,
+              {
+                paddingHorizontal: horizontalPadding,
+                paddingTop: isWide ? spacing.xxlx : spacing.lg,
+                paddingBottom: spacing.xl,
+                gap: spacing.xl,
+              },
+            ]}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 1 }}>
-              <AppMark size={isWide ? 26 : 22} />
-              <Text style={[typography.section, { color: colors.onSurface }]} numberOfLines={1}>
-                {t(isWide ? 'hdr_title' : 'hdr_title_short')}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: spacing.md,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 1 }}>
+                <AppMark size={isWide ? 26 : 22} />
+                <Text style={[typography.section, { color: colors.onSurface }]} numberOfLines={1}>
+                  {t(isWide ? 'hdr_title' : 'hdr_title_short')}
+                </Text>
+              </View>
+              <Text style={{ color: colors.muted, fontSize: 12, flexShrink: 0 }} numberOfLines={1}>
+                {t('hdr_unofficial')}
               </Text>
             </View>
-            <Text style={{ color: colors.muted, fontSize: 12, flexShrink: 0 }} numberOfLines={1}>
-              {t('hdr_unofficial')}
-            </Text>
+
+            <SegmentedTabs tabs={tabs} selected={tab} onSelect={setTab} stretch={!isWide} />
           </View>
 
-          <SegmentedTabs tabs={tabs} selected={tab} onSelect={setTab} stretch={!isWide} />
-        </View>
-
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{
-            paddingHorizontal: horizontalPadding,
-            paddingTop: spacing.md,
-            paddingBottom: spacing.huge,
-            gap: spacing.md,
-            ...container,
-          }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {tab === 'table' ? <ScoreTableView /> : null}
-          {tab === 'calculator' ? <CalculatorView onViewMethodology={() => setTab('methodology')} /> : null}
-          {tab === 'methodology' ? <MethodologyView /> : null}
-
-          <View
-            style={{
-              borderTopWidth: 1,
-              borderTopColor: colors.divider,
-              paddingTop: spacing.xxlx,
-              marginTop: spacing.xxxl,
-              flexDirection: isWide ? 'row' : 'column',
-              gap: isWide ? spacing.huge : spacing.xl,
-              alignItems: 'flex-start',
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              paddingHorizontal: horizontalPadding,
+              paddingTop: spacing.md,
+              paddingBottom: spacing.huge,
+              gap: spacing.md,
+              ...container,
             }}
+            keyboardShouldPersistTaps="handled"
           >
-            {isWide ? (
-              <>
-                <Text
-                  style={{
-                    flex: 1,
-                    color: colors.mutedFaint,
-                    fontSize: 11.5,
-                    lineHeight: 20.125,
-                  }}
-                >
-                  {t('disclaimer_full')}
-                </Text>
-                <View style={{ width: 280 }}>
-                  <ApkInstallButton />
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={{ width: '100%' }}>
-                  <ApkInstallButton />
-                </View>
-                <Text
-                  style={{
-                    color: colors.mutedFaint,
-                    fontSize: 11.5,
-                    lineHeight: 20.125,
-                  }}
-                >
-                  {t('disclaimer_short')}
-                </Text>
-              </>
-            )}
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+            {tab === 'table' ? <ScoreTableView /> : null}
+            {tab === 'calculator' ? <CalculatorView onViewMethodology={() => setTab('methodology')} /> : null}
+            {tab === 'methodology' ? <MethodologyView /> : null}
+
+            <View
+              style={{
+                borderTopWidth: 1,
+                borderTopColor: colors.divider,
+                paddingTop: spacing.xxlx,
+                marginTop: spacing.xxxl,
+                flexDirection: isWide ? 'row' : 'column',
+                gap: isWide ? spacing.huge : spacing.xl,
+                alignItems: 'flex-start',
+              }}
+            >
+              {isWide ? (
+                <>
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: colors.mutedFaint,
+                      fontSize: 11.5,
+                      lineHeight: 20.125,
+                    }}
+                  >
+                    {t('disclaimer_full')}
+                  </Text>
+                  <View style={{ width: 280 }}>
+                    <ApkInstallButton />
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={{ width: '100%' }}>
+                    <ApkInstallButton />
+                  </View>
+                  <Text
+                    style={{
+                      color: colors.mutedFaint,
+                      fontSize: 11.5,
+                      lineHeight: 20.125,
+                    }}
+                  >
+                    {t('disclaimer_short')}
+                  </Text>
+                </>
+              )}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </TooltipProvider>
     </View>
   );
 }

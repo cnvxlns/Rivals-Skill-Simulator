@@ -61,6 +61,7 @@ export const strings = {
   score_search_skill: '스킬 검색',
   score_select_skill: '스킬 선택',
   score_level: '레벨',
+  score_level_empty: '스킬 먼저 선택',
   score_clear_slot: '슬롯 비우기',
   score_no_skills: '스킬 없음',
   score_total: '총점',

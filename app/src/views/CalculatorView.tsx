@@ -213,7 +213,12 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                 label={t('score_level')}
                 selected={Math.min(Math.max(selection?.level ?? 1, 1), maxLevel)}
                 options={levelOptions}
-                optionLabel={(level) => selectedSkill?.levelLabels?.[level - 1] ?? `Lv ${level}`}
+                // 스킬이 없으면 레벨이 의미가 없다. 빈 라벨을 주면 placeholder가 대신 나온다.
+                optionLabel={(level) =>
+                  selectedSkill ? selectedSkill.levelLabels?.[level - 1] ?? `Lv ${level}` : ''
+                }
+                placeholder={t('score_level_empty')}
+                disabled={!selectedSkill}
                 onSelect={(level) => calc.updateLevel(index, level)}
               />
               <LinkAction

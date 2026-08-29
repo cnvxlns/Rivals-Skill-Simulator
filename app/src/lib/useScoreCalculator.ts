@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { calculateScore, fetchScoreSkills } from './api';
+import { defaultSubPosition } from './useScoreContext';
 import {
   CardType,
   Handedness,
@@ -51,7 +52,7 @@ export type ScoreSlotSelection = {
 export function useScoreCalculator() {
   const [cardType, setCardType] = useState<CardType>(CardType.SIGNATURE);
   const [position, setPosition] = useState<Position>(Position.BATTER);
-  const [subPosition, setSubPosition] = useState<SubPosition | ''>('');
+  const [subPosition, setSubPosition] = useState<SubPosition | ''>(defaultSubPosition(Position.BATTER));
   const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
   const [selections, setSelections] = useState<ScoreSlotSelection[]>(Array(BASE_SLOT_COUNT).fill(null).map(() => ({ skillId: '', level: 1 })));
   const [result, setResult] = useState<ScoreResponse | null>(null);
@@ -103,7 +104,7 @@ export function useScoreCalculator() {
   }, [slotCount]);
 
   useEffect(() => {
-    setSubPosition('');
+    setSubPosition(defaultSubPosition(position));
     setBattingOrder(null);
     setPitcherSlot(null);
     setResult(null);

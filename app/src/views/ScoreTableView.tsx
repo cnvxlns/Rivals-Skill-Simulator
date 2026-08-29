@@ -154,7 +154,8 @@ export default function ScoreTableView() {
 
         <View style={{ flex: 1, gap: 3, minWidth: 0 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TooltipTarget text={entry.description} style={{ flexShrink: 1, minWidth: 0 }}>
+            {/* 표는 등급 하나로 고정 채점하므로 x·y·z를 실제 수치로 바꾼 설명을 쓴다. */}
+            <TooltipTarget text={entry.resolvedDescription ?? entry.description} style={{ flexShrink: 1, minWidth: 0 }}>
               <Text
                 style={{
                   fontSize: isWide ? 14 : 13.5,

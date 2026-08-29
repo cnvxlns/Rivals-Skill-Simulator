@@ -272,9 +272,15 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                       borderBottomColor: colors.divider,
                     }}
                   >
-                    {/* 설명은 결과 응답에 없다. 스킬 목록에서 skillId로 찾는다. */}
+                    {/*
+                      결과 응답의 설명은 그 슬롯에서 고른 레벨로 x·y·z가 치환돼 있다.
+                      구버전 응답이면 스킬 목록의 원문으로 떨어진다.
+                    */}
                     <TooltipTarget
-                      text={calc.skills.find((option) => option.skillId === skill.skillId)?.description}
+                      text={
+                        skill.resolvedDescription ??
+                        calc.skills.find((option) => option.skillId === skill.skillId)?.description
+                      }
                       style={{ flex: 1, minWidth: 0 }}
                     >
                       <Text style={[typography.body, { color: colors.onSurface }]} numberOfLines={1}>

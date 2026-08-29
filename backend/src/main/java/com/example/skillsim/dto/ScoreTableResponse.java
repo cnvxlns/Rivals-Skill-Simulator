@@ -35,6 +35,8 @@ public class ScoreTableResponse {
         private String skillId;
         private String name;
         private String description;
+        /** 설명의 x·y·z를 appliedGrade 기준 실제 수치로 바꾼 것. 치환할 수 없으면 원문과 같다. */
+        private String resolvedDescription;
         private double score;
         /** 실제 채점에 쓰인 등급. S가 없는 스킬은 자기 최대 등급으로 내려간다. */
         private String appliedGrade;

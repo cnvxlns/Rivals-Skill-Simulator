@@ -40,7 +40,10 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'wget', '-qO-', 'http://localhost:80/']
+      # localhost가 아니라 127.0.0.1이어야 한다. nginx.conf가 `listen 80;`만 두어
+      # IPv4로만 대기하는데, 컨테이너 안에서 localhost는 ::1로 먼저 해석돼
+      # connection refused가 난다. 백엔드는 JVM이 듀얼스택이라 걸리지 않았다.
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:80/']
       interval: 30s
       timeout: 5s
       retries: 3

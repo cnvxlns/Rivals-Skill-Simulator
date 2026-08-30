@@ -33,6 +33,7 @@ Rivals-Skill-Simulator/
 ├── docs       # 데이터 원천(rivals_skills.xlsx)과 변환기(convert_xlsx.py)
 ├── .github    # EAS 빌드/OTA 배포, Render keep-alive 워크플로
 ├── docker-compose.yml         # 백엔드 실행 스택 (+ .dev / .tunnel 오버라이드)
+├── Makefile   # docker compose / gradlew / npm 을 감싼 단축 명령 (make up)
 └── README.md  # 본 문서
 ```
 
@@ -76,7 +77,7 @@ Rivals-Skill-Simulator/
 Node도 JDK도 설치할 필요 없이 프론트와 백엔드가 같이 뜹니다.
 
 ```bash
-docker compose up --build
+make up                  # 또는 docker compose up --build
 ```
 
 `http://localhost:8081` 하나로 끝입니다. `docker-compose.override.yml`이 자동으로 얹혀 포트를 열어 줍니다.
@@ -95,7 +96,7 @@ docker compose up --build
 
 ```bash
 cp .env.example .env        # TUNNEL_TOKEN 채우기
-docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
+make tunnel-up              # 또는 docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
 ```
 
 | 파일 | 역할 |
@@ -105,6 +106,26 @@ docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
 | `docker-compose.tunnel.yml` | 개인 서버용 cloudflared. app을 터널로 노출합니다 |
 
 백엔드는 클래스패스 CSV를 데이터 원천으로 쓰고 DB를 두지 않아 상태가 없습니다. 볼륨이 필요 없고 컨테이너를 지웠다 다시 만들어도 잃을 데이터가 없습니다.
+
+### 4) Makefile 단축 명령
+
+위 명령들을 짧게 부르는 래퍼입니다. 새로운 실행 경로는 아니고, `docker compose`·`gradlew`·`npm`을 그대로 감싸기만 합니다. 인자 없이 `make`만 치면 목록이 나옵니다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `make up` | 전체 스택 기동, 포그라운드. `http://localhost:8081` |
+| `make up-d` | 같은 스택을 백그라운드로 |
+| `make down` | 컨테이너 정지 및 제거 |
+| `make restart` | `down` 후 `up-d` |
+| `make logs` | 로그 따라가기 |
+| `make ps` | 컨테이너 상태 |
+| `make build` / `make rebuild` | 이미지 빌드 / 캐시 없이 빌드 |
+| `make clean` | `down` + 볼륨·로컬 이미지 제거 |
+| `make tunnel-up` / `make tunnel-down` | 터널 오버레이 기동 / 정지 |
+| `make backend` | 도커 없이 Spring Boot 실행 (JDK 17 필요) |
+| `make app` | 도커 없이 Expo 웹 실행 (Node 20+ 필요) |
+
+윈도우에서는 `make`를 따로 설치해야 합니다(`winget install ezwinports.make`). Makefile이 셸을 `sh`로 고정하므로 PowerShell에서 실행해도 Git Bash에서 실행해도 동작이 같습니다. Git과 함께 설치되는 `sh.exe`가 PATH에 있어야 합니다.
 
 ## API 개요
 ### 스킬 변경

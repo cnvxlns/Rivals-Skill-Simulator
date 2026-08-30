@@ -7,7 +7,7 @@ WORKDIR /app
 COPY gradlew gradlew.bat build.gradle settings.gradle ./
 COPY gradle ./gradle
 # 캐시 마운트를 쓰면 build.gradle이 바뀌어 레이어가 깨져도 이미 받아둔 의존성은 재사용한다.
-# 마운트는 이미지 레이어에 남지 않아 원격 빌더(Render 등)에는 효과가 없다. 로컬 빌드용 이득이다.
+# 마운트는 이미지 레이어에 남지 않아 원격 빌더에는 효과가 없다. 로컬 빌드용 이득이다.
 RUN --mount=type=cache,target=/root/.gradle \
     chmod +x ./gradlew \
     && ./gradlew --no-daemon dependencies --configuration runtimeClasspath > /dev/null
@@ -26,5 +26,5 @@ RUN addgroup -S app && adduser -S -G app app
 COPY --from=build --chown=app:app /app/build/libs/*.jar app.jar
 USER app
 
-# 컨테이너 메모리 한도를 JVM이 인식하게 한다. Render 무료 티어는 512MB다.
+# 컨테이너 메모리 한도를 JVM이 인식하게 한다. 호스트가 메모리를 조여도 힙이 먼저 넘치지 않는다.
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

@@ -137,7 +137,7 @@ public class ScoreService {
                 conditionProbabilities,
                 request.getUserStats()
         );
-        return toResponse(result, undefinedConditionWarnings);
+        return toResponse(result, undefinedConditionWarnings, calculatorSelections);
     }
 
     private Integer validateBattingOrder(Integer battingOrder) {
@@ -252,13 +252,23 @@ public class ScoreService {
         return tokens;
     }
 
-    private ScoreResponse toResponse(ScoreCalculator.Result result, UndefinedConditionWarnings undefinedConditionWarnings) {
+    private ScoreResponse toResponse(
+            ScoreCalculator.Result result,
+            UndefinedConditionWarnings undefinedConditionWarnings,
+            List<ScoreCalculator.Selection> selections
+    ) {
+        // 설명의 수치는 사용자가 그 슬롯에서 고른 레벨을 따라야 화면의 점수와 같은 기준이 된다.
+        Map<String, ScoreCalculator.Selection> bySkillKey = new HashMap<>();
+        for (ScoreCalculator.Selection selection : selections) {
+            bySkillKey.putIfAbsent(selection.skill().getSkillKey(), selection);
+        }
         return ScoreResponse.builder()
                 .total(result.total())
                 .perSkill(result.perSkill().stream()
                         .map(skill -> ScoreResponse.SkillScore.builder()
                                 .skillId(skill.skillKey())
                                 .name(skill.name())
+                                .resolvedDescription(resolvedDescription(bySkillKey.get(skill.skillKey())))
                                 .score(skill.score())
                                 .perStat(toStatScores(skill.perStat()))
                                 .breakdown(skill.breakdown().stream()
@@ -360,6 +370,7 @@ public class ScoreService {
                     .skillId(skill.getSkillKey())
                     .name(skill.getName())
                     .description(skill.getDescription())
+                    .resolvedDescription(SkillDescriptions.resolve(skill, level))
                     .score(result.total())
                     .appliedGrade(SkillRules.gradeLabels(skill.getCardType(), maxLevel(skill)).get(level - 1))
                     .build());
@@ -381,6 +392,10 @@ public class ScoreService {
                     .build());
         }
         return ScoreTableResponse.builder().tiers(tiers).build();
+    }
+
+    private String resolvedDescription(ScoreCalculator.Selection selection) {
+        return selection == null ? null : SkillDescriptions.resolve(selection.skill(), selection.level());
     }
 
     /** S레벨. 사다리에서 S 위치가 스킬의 최대 단계를 넘으면 최대 단계로 내린다. */

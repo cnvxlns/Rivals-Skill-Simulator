@@ -5,7 +5,7 @@ export const strings = {
   tab_calculator: '계산기',
   btn_roll: '스킬 변경',
   btn_reset: '초기화',
-  hdr_title: 'MLB 라이벌 스킬 도구',
+  hdr_title: '라이벌 전력분석실',
   hdr_subtitle: '모먼트 잠금 규칙 적용',
   ticket_skill_change: '스킬 변경권',
   ticket_premium: '고급 스킬 변경권',
@@ -24,7 +24,6 @@ export const strings = {
   hint_sub_position: 'SP/RP/수비 포지션 필터',
   option_all_sub_positions: '모든 포지션',
   label_batting_order: '타순',
-  option_average_batting_order: '평균 타순',
   label_theme: '테마 선택',
   hint_theme: '모먼트 전용 스킬 대상 지정',
   no_theme: '해당 포지션에 모먼트 스킬 없음',
@@ -61,6 +60,7 @@ export const strings = {
   score_search_skill: '스킬 검색',
   score_select_skill: '스킬 선택',
   score_level: '레벨',
+  score_level_empty: '스킬 먼저 선택',
   score_clear_slot: '슬롯 비우기',
   score_no_skills: '스킬 없음',
   score_total: '총점',
@@ -103,7 +103,9 @@ export const strings = {
   score_table_search_placeholder: '스킬명 또는 ID로 검색',
   score_table_no_match: '일치하는 스킬이 없습니다.',
   score_table_error: '점수표를 불러오지 못했습니다.',
-  score_table_inactive: '이 포지션에서 미발동',
+  // 0점 경로는 셋이다: 포지션 게이트, 가중치 0인 스탯, 확률 0인 조건(랭킹대전 외 모드 등).
+  // "이 포지션에서 미발동"은 그중 하나만 지목해 나머지 두 경우에 거짓이 된다.
+  score_table_inactive: '현재 기준에서 0점',
   score_table_pick_sub_position: '세부 포지션을 고르면 포지션 전용 스킬이 정확히 채점됩니다. 지금은 일부 스킬이 0점으로 표시됩니다.',
   score_table_more_prefix: '외 ',
   score_table_more_suffix: '개',
@@ -240,5 +242,46 @@ export const strings = {
   hand_right_bat: '우타',
   hand_switch: '스위치',
   apk_install: '안드로이드 앱 설치 (APK)',
-  apk_install_hint: '설치 시 "출처를 알 수 없는 앱" 허용이 필요할 수 있습니다.',
+  apk_install_hint: '안드로이드 브라우저에서만 표시됩니다. 설치 시 "출처를 알 수 없는 앱" 허용이 필요합니다.',
+
+  // ─ 리디자인에서 추가된 문구 ─
+  hdr_title_short: '전력분석실',
+
+  // 셸 하단 면책조항. 핸드오프에 명시된 전문을 그대로 쓴다.
+  disclaimer_full:
+    'This is an unofficial fan-made project and is not affiliated with, endorsed by, or sponsored by Com2uS, Major League Baseball, or the MLB Players Association. All team names, logos, player names, and trademarks are the property of their respective owners. Skill values shown here are community estimates derived from in-game observation and may differ from actual game behaviour. No game assets, images, or fonts are used in this application.',
+  disclaimer_short:
+    'This is an unofficial fan-made project and is not affiliated with, endorsed by, or sponsored by Com2uS, Major League Baseball, or the MLB Players Association. All trademarks are the property of their respective owners.',
+
+  action_collapse: '접기',
+  action_expand: '펼치기',
+  action_expand_all: '모두 펼치기',
+  action_collapse_all: '모두 접기',
+
+  score_table_condition_hint: '조건을 바꾸면 아래 순위가 즉시 다시 매겨집니다',
+  score_table_top_n: 'TOP 10',
+  score_table_count_prefix: '전체 ',
+  score_table_count_middle: '개 · 표시 ',
+  score_table_count_suffix: '티어',
+  score_table_group_total_prefix: '전체 ',
+  score_table_group_total_suffix: '개',
+  score_table_more_view_prefix: '외 ',
+  score_table_more_view_suffix: '개 보기',
+  score_table_banner: '세부 포지션을 선택하지 않아 일부 스킬이 0점으로 표시됩니다.',
+  score_table_search_empty_hint: '스킬명 또는 ID를 입력하면 티어와 상관없이 찾아줍니다.',
+
+  methodology_weights_count_prefix: '',
+  methodology_weights_count_suffix: '개 항목',
+  methodology_sections_hint: '탭 중첩을 없애고 한 축으로 펼침',
+  methodology_summary_static: '모든 스킬에 공통 적용되는 발동 기준',
+  methodology_summary_role: '선발·불펜·마무리별 이닝 노출 분포',
+  methodology_summary_batting: '1~9번 타순의 타석 기대치 차이',
+  methodology_summary_reach: '타순 그룹별 타석 도달 확률',
+  methodology_summary_gates: '통과하지 못하면 0점이 되는 조건',
+  methodology_section_count_suffix: '개 절',
+  methodology_inning_suffix: '회',
+  methodology_pa_prefix: 'PA',
+
+  calculator_result_hint: '슬롯과 조건을 바꾸면 다시 계산해야 합니다',
+  calculator_empty: '슬롯의 스킬을 모두 고른 뒤 점수를 계산하세요.',
 } as const;

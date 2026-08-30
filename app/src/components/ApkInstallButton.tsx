@@ -1,8 +1,9 @@
 import React from 'react';
-import { Linking, Platform, Text, View } from 'react-native';
-import { PrimaryActionButton } from './ui';
+import { Linking, Platform, Pressable, Text, View } from 'react-native';
 import { useAppTheme } from '../theme/useTheme';
 import { useTranslation } from '../lib/i18n';
+import { useResponsive } from '../lib/useResponsive';
+import { DownloadIcon } from './icons';
 
 // EAS internal distribution 설치 URL. 빌드마다 UUID가 바뀌므로 Vercel 환경변수로 주입한다.
 const APK_URL = process.env.EXPO_PUBLIC_APK_URL?.trim();
@@ -16,8 +17,9 @@ function shouldShow(): boolean {
 }
 
 export default function ApkInstallButton() {
-  const { colors, typography, spacing } = useAppTheme();
+  const { apkButton, colors, radius, spacing } = useAppTheme();
   const { t } = useTranslation();
+  const { isWide } = useResponsive();
 
   if (!shouldShow()) {
     return null;
@@ -25,8 +27,33 @@ export default function ApkInstallButton() {
 
   return (
     <View style={{ gap: spacing.xs }}>
-      <PrimaryActionButton text={t('apk_install')} onPress={() => Linking.openURL(APK_URL!)} />
-      <Text style={[typography.bodySmall, { color: colors.secondaryText, textAlign: 'center' }]}>
+      <Pressable
+        onPress={() => Linking.openURL(APK_URL!)}
+        style={({ pressed }) => ({
+          width: '100%',
+          height: isWide ? 64 : 66,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 13,
+          backgroundColor: apkButton.background,
+          borderWidth: 1,
+          borderColor: apkButton.border,
+          borderRadius: radius.input,
+          opacity: pressed ? 0.72 : 1,
+        })}
+      >
+        <DownloadIcon size={20} color={apkButton.text} />
+        <Text style={{ color: apkButton.text, fontSize: 18, fontWeight: '700' }}>{t('apk_install')}</Text>
+      </Pressable>
+      <Text
+        style={{
+          color: colors.mutedFaint,
+          fontSize: 15,
+          lineHeight: 17.6,
+          textAlign: isWide ? 'left' : 'center',
+        }}
+      >
         {t('apk_install_hint')}
       </Text>
     </View>

@@ -9,8 +9,26 @@ export const BREAKPOINTS = {
   split: 1000,
 } as const;
 
-/** 본문 최대 폭. 넘어가면 한 줄이 너무 길어 읽기 어렵고 좌우 여백만 늘어난다. */
-export const CONTENT_MAX_WIDTH = 1180;
+/** 넓은 화면에서 본문 좌우에 두는 고정 여백. 폭 상한 대신 이것만 두고 화면을 채운다. */
+export const GUTTER = 48;
+
+/**
+ * 최소 열 폭을 기준으로 지금 화면에 들어갈 열 수를 구한다.
+ *
+ * 브레이크포인트마다 열 수를 박아두면 2560, 3440 같은 폭이 나올 때마다 분기를 늘려야
+ * 한다. 열 폭의 하한만 정해 두면 화면이 넓어지는 만큼 열이 따라 늘어난다.
+ *
+ * 첫 렌더의 width는 0이다(아래 useResponsive 주석 참고). 그때는 min을 돌려준다.
+ */
+export function columnsFor(
+  width: number,
+  minColumnWidth: number,
+  { min = 1, max = 6 }: { min?: number; max?: number } = {},
+): number {
+  if (width <= 0) return min;
+  const fits = Math.floor((width - GUTTER * 2) / minColumnWidth);
+  return Math.max(min, Math.min(max, fits));
+}
 
 export type Responsive = {
   width: number;

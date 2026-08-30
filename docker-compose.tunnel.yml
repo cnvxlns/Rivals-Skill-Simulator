@@ -1,0 +1,22 @@
+# Cloudflare 터널 오버레이. 개인 서버 운영 전용.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
+#
+# cloudflared가 app(nginx)을 Cloudflare 터널로 노출한다. 서버에서 바깥으로 나가는
+# 연결만 사용하므로 공인 IP나 포트포워딩이 필요 없고, TLS는 Cloudflare가 종단한다.
+# 터널 대상은 백엔드가 아니라 app이다. /api 프록시가 app 안에 있기 때문이다.
+#
+# cloudflared를 기본 스택이 아니라 별도 파일로 분리한 이유: compose는 프로필과
+# 무관하게 파일 전체를 즉시 보간하므로, TUNNEL_TOKEN의 `:?` 가드를 기본 스택에
+# 두면 토큰이 없는 개발 환경에서 up이 통째로 실패한다.
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      # Cloudflare Zero Trust 대시보드에서 발급한 터널 토큰.
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?TUNNEL_TOKEN 환경변수가 필요합니다}
+    depends_on:
+      app:
+        condition: service_healthy

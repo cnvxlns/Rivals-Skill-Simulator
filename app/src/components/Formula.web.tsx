@@ -20,12 +20,12 @@ export default function Formula({ tex, fallback }: { tex: string; fallback: stri
   }, [tex]);
 
   if (!html) {
-    return <div style={{ color: colors.onSurface, fontFamily: 'monospace', fontSize: 13 }}>{fallback}</div>;
+    return <div style={{ color: colors.onSurface, fontFamily: 'monospace', fontSize: 17 }}>{fallback}</div>;
   }
 
   return (
     <div
-      style={{ color: colors.onSurface, overflowX: 'auto', padding: '2px 0' }}
+      style={{ color: colors.onSurface, padding: '2px 0' }}
       // KaTeX가 생성한 마크업이며 사용자 입력이 아니다.
       dangerouslySetInnerHTML={{ __html: html }}
     />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, Text } from 'react-native';
+import { Text } from 'react-native';
 import { useAppTheme } from '../theme/useTheme';
 
 /**
@@ -7,12 +7,12 @@ import { useAppTheme } from '../theme/useTheme';
  *
  * RN에는 DOM이 없어 KaTeX를 쓸 수 없고, WebView 기반 래퍼는 네이티브 의존성이라
  * OTA로 문구를 못 고친다. 산정 방식 설명은 계속 다듬을 화면이라 그 제약이 크다.
+ *
+ * 가로 넘침 처리는 호출부가 감싼 ScrollView가 맡는다.
  */
 export default function Formula({ tex, fallback }: { tex: string; fallback: string }) {
-  const { colors, typography } = useAppTheme();
+  const { colors } = useAppTheme();
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      <Text style={[typography.bodySmall, { color: colors.onSurface, fontFamily: 'monospace' }]}>{fallback}</Text>
-    </ScrollView>
+    <Text style={{ color: colors.onSurface, fontSize: 17, lineHeight: 20, fontFamily: 'monospace' }}>{fallback}</Text>
   );
 }

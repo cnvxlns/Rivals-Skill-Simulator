@@ -144,6 +144,8 @@ export type ScoreTableEntry = {
   skillId: string;
   name: string;
   description?: string | null;
+  /** description의 x·y·z를 appliedGrade 기준 수치로 바꾼 것. 치환 불가 시 원문과 같다. */
+  resolvedDescription?: string | null;
   score: number;
   appliedGrade: string;
 };
@@ -166,6 +168,8 @@ export type ScoreStatBreakdown = {
 export type ScoreSkillBreakdown = {
   skillId: string;
   name: string;
+  /** 설명의 x·y·z를 선택한 레벨 기준 수치로 바꾼 것. 치환 불가 시 원문과 같다. */
+  resolvedDescription?: string | null;
   score: number;
   perStat: ScoreStatBreakdown[];
   breakdown?: ScoreEffectBreakdown[];

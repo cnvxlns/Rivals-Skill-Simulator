@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { calculateScore, fetchScoreSkills } from './api';
+import { defaultSubPosition } from './useScoreContext';
 import {
   CardType,
   Handedness,
@@ -14,6 +15,21 @@ import {
 } from '../types';
 
 const BASE_SLOT_COUNT = 3;
+
+/** 평균 타순 개념을 두지 않으므로 지정이 없으면 1번타자로 본다. 백엔드와 같은 전제다. */
+const DEFAULT_BATTING_ORDER = 1;
+
+/**
+ * 빈 슬롯에 스킬을 처음 넣었을 때의 레벨.
+ *
+ * 점수표가 S 기준으로 채점하므로 계산기도 같은 지점에서 시작해야 두 화면의 숫자를
+ * 바로 비교할 수 있다. levelLabels는 그 스킬이 실제로 갈 수 있는 등급만 담고 있어서,
+ * S가 없으면(사다리가 D 하나뿐인 스킬 등) 백엔드와 같게 그 스킬의 최대 등급으로 내린다.
+ */
+const defaultLevelFor = (skill: ScoreSkillOption) => {
+  const index = skill.levelLabels?.indexOf('S') ?? -1;
+  return index >= 0 ? index + 1 : Math.max(1, skill.maxLevel);
+};
 const DEFAULT_USER_STAT = 120;
 const DEFAULT_DECK_SCORE = 500;
 const BATTER_STATS = ['파워', '정확', '선구', '인내', '주루', '수비'];
@@ -39,7 +55,7 @@ export type ScoreSlotSelection = {
 export function useScoreCalculator() {
   const [cardType, setCardType] = useState<CardType>(CardType.SIGNATURE);
   const [position, setPosition] = useState<Position>(Position.BATTER);
-  const [subPosition, setSubPosition] = useState<SubPosition | ''>('');
+  const [subPosition, setSubPosition] = useState<SubPosition | ''>(defaultSubPosition(Position.BATTER));
   const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
   const [selections, setSelections] = useState<ScoreSlotSelection[]>(Array(BASE_SLOT_COUNT).fill(null).map(() => ({ skillId: '', level: 1 })));
   const [result, setResult] = useState<ScoreResponse | null>(null);
@@ -47,7 +63,7 @@ export function useScoreCalculator() {
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userStats, setUserStats] = useState<Record<string, number>>(defaultUserStats);
-  const [battingOrder, setBattingOrder] = useState<number | null>(null);
+  const [battingOrder, setBattingOrder] = useState<number | null>(DEFAULT_BATTING_ORDER);
   const [pitcherSlot, setPitcherSlot] = useState<number | null>(null);
   const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
   const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);
@@ -91,8 +107,8 @@ export function useScoreCalculator() {
   }, [slotCount]);
 
   useEffect(() => {
-    setSubPosition('');
-    setBattingOrder(null);
+    setSubPosition(defaultSubPosition(position));
+    setBattingOrder(DEFAULT_BATTING_ORDER);
     setPitcherSlot(null);
     setResult(null);
   }, [position]);
@@ -137,9 +153,14 @@ export function useScoreCalculator() {
       prev.map((selection, idx) => {
         if (idx !== slotIndex) return selection;
         const nextSkill = skills.find((skill) => skill.skillId === skillId);
+        if (!nextSkill) return { skillId, level: 1 };
+        // 빈 슬롯에 처음 넣을 때만 기본값을 준다. 이미 고른 슬롯에서 스킬만 바꾸는 경우는
+        // 사용자가 정한 레벨이므로 유지한다(넘치면 새 스킬의 최대 등급으로 내린다).
         return {
           skillId,
-          level: nextSkill ? Math.min(selection.level, nextSkill.maxLevel) || 1 : 1,
+          level: selection.skillId
+            ? Math.min(selection.level, nextSkill.maxLevel) || 1
+            : defaultLevelFor(nextSkill),
         };
       }),
     );

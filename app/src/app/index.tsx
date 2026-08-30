@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
+import Head from 'expo-router/head';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from '@/lib/i18n';
 import { useBackendWarmup } from '@/lib/useBackendWarmup';
 import { useAppTheme } from '@/theme/useTheme';
-import { CONTENT_MAX_WIDTH } from '@/lib/useResponsive';
-import { SegmentedTabs } from '@/components/ui';
+import { GUTTER, useResponsive } from '@/lib/useResponsive';
+import { SegmentedTabs, TooltipProvider } from '@/components/ui';
+import { AppMark } from '@/components/icons';
 import ApkInstallButton from '@/components/ApkInstallButton';
 import WakeUpOverlay from '@/components/WakeUpOverlay';
 import ScoreTableView from '@/views/ScoreTableView';
@@ -14,18 +16,16 @@ import MethodologyView from '@/views/MethodologyView';
 
 type TabKey = 'table' | 'calculator' | 'methodology';
 
-const DISCLAIMER =
-  'This project is an unofficial fan-made application and is not affiliated with, endorsed, sponsored, or specifically approved by Com2uS Corp., MLB, or MLB Players Inc. All game data, skill names, and intellectual property are the sole property of their respective owners. This tool is intended for educational and portfolio purposes only.';
-
 export default function HomeScreen() {
   const [tab, setTab] = useState<TabKey>('table');
   const { t } = useTranslation();
   const { status, elapsedSeconds, retry } = useBackendWarmup();
   const { colors, typography, spacing } = useAppTheme();
+  const { isWide } = useResponsive();
 
-  // 넓은 화면에서 콘텐츠가 화면 끝까지 늘어나면 한 줄이 너무 길어 읽기 어렵고
-  // 두 단어짜리 드롭다운이 1400px를 가로지른다. 본문 폭을 제한하고 가운데 정렬한다.
-  const container = { width: '100%' as const, maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' as const };
+  // 폭 상한을 두지 않는다. 넓어진 폭은 한 줄을 늘리는 데 쓰지 않고 그리드 열 수를
+  // 늘려 흡수한다(columnsFor). 좌우에는 GUTTER만 둔다.
+  const container = { width: '100%' as const };
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'table', label: t('tab_score_table') },
@@ -33,33 +33,114 @@ export default function HomeScreen() {
     { key: 'methodology', label: t('tab_methodology') },
   ];
 
+  const horizontalPadding = isWide ? GUTTER : spacing.lg;
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {/*
+        제목은 여기서만 넣는다. +html.tsx에 <title>을 직접 쓰면 expo-router가 helmet으로
+        먼저 심는 빈 <title data-rh>와 중복되고, 브라우저는 앞선 빈 것을 쓴다.
+        Head는 웹에서만 의미가 있고 네이티브에서는 무시된다.
+      */}
+      <Head>
+        <title>라이벌 전력분석실 — MLB 라이벌 스킬 점수</title>
+      </Head>
       <WakeUpOverlay status={status} elapsedSeconds={elapsedSeconds} onRetry={retry} />
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <View
-          style={[container, { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm }]}
-        >
-          <Text style={[typography.headlineSmall, { color: colors.onBackground }]}>{t('hdr_title')}</Text>
-        </View>
+      {/* 툴팁 오버레이는 카드의 overflow:'hidden' 밖, 화면 최상단에 떠야 한다. */}
+      <TooltipProvider>
+        <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+          <View
+            style={[
+              container,
+              {
+                paddingHorizontal: horizontalPadding,
+                paddingTop: isWide ? spacing.xxlx : spacing.lg,
+                paddingBottom: spacing.xl,
+                gap: spacing.xl,
+              },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: spacing.md,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 1 }}>
+                <AppMark size={isWide ? 30 : 26} />
+                <Text style={[typography.section, { color: colors.onSurface }]} numberOfLines={1}>
+                  {t(isWide ? 'hdr_title' : 'hdr_title_short')}
+                </Text>
+              </View>
+            </View>
 
-        <View style={[container, { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, gap: spacing.sm }]}>
-          <ApkInstallButton />
-          <SegmentedTabs tabs={tabs} selected={tab} onSelect={setTab} />
-        </View>
+            <SegmentedTabs tabs={tabs} selected={tab} onSelect={setTab} stretch={!isWide} />
+          </View>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxxl * 2, gap: spacing.md, ...container }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {tab === 'table' ? <ScoreTableView /> : null}
-          {tab === 'calculator' ? <CalculatorView onViewMethodology={() => setTab('methodology')} /> : null}
-          {tab === 'methodology' ? <MethodologyView /> : null}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              paddingHorizontal: horizontalPadding,
+              paddingTop: spacing.md,
+              paddingBottom: spacing.huge,
+              gap: spacing.md,
+              ...container,
+            }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {tab === 'table' ? <ScoreTableView /> : null}
+            {tab === 'calculator' ? <CalculatorView onViewMethodology={() => setTab('methodology')} /> : null}
+            {tab === 'methodology' ? <MethodologyView /> : null}
 
-          <Text style={[typography.bodySmall, { color: colors.muted, marginTop: spacing.xl }]}>{DISCLAIMER}</Text>
-        </ScrollView>
-      </SafeAreaView>
+            <View
+              style={{
+                borderTopWidth: 1,
+                borderTopColor: colors.divider,
+                paddingTop: spacing.xxlx,
+                marginTop: spacing.xxxl,
+                flexDirection: isWide ? 'row' : 'column',
+                gap: isWide ? spacing.huge : spacing.xl,
+                alignItems: 'flex-start',
+              }}
+            >
+              {isWide ? (
+                <>
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: colors.mutedFaint,
+                      fontSize: 15.5,
+                      lineHeight: 20.125,
+                    }}
+                  >
+                    {t('disclaimer_full')}
+                  </Text>
+                  <View style={{ width: 320 }}>
+                    <ApkInstallButton />
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={{ width: '100%' }}>
+                    <ApkInstallButton />
+                  </View>
+                  <Text
+                    style={{
+                      color: colors.mutedFaint,
+                      fontSize: 15.5,
+                      lineHeight: 20.125,
+                    }}
+                  >
+                    {t('disclaimer_short')}
+                  </Text>
+                </>
+              )}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </TooltipProvider>
     </View>
   );
 }

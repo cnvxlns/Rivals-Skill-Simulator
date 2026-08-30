@@ -1,0 +1,15 @@
+node_modules
+dist
+.expo
+web-build
+
+# 배포 주소가 적혀 있다. 컨테이너에서는 nginx가 /api를 프록시하므로
+# 이 파일이 빌드 컨텍스트에 들어가면 죽은 주소가 번들에 구워진다.
+.env
+.env.*
+!.env.example
+
+.git
+.vscode
+.idea
+*.log

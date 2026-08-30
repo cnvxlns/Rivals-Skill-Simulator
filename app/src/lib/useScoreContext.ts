@@ -24,10 +24,21 @@ export const defaultValueForStat = (stat: string) =>
  *
  * 탭마다 별도 인스턴스를 갖는다. 한쪽에서 바꾼 값이 다른 탭에 튀면 혼란스럽기 때문이다.
  */
+/**
+ * 세부 포지션 기본값.
+ *
+ * 비워두면 포지션 게이트가 걸린 스킬이 0점으로 빠져 표가 절반만 의미를 갖는다.
+ * 목록의 첫 구체 포지션을 쓴다. 투수 옵션에는 C가 없으므로 SP다.
+ */
+export const defaultSubPosition = (position: Position): SubPosition =>
+  position === Position.PITCHER ? 'SP' : 'C';
+
 export function useScoreContext() {
   const [position, setPosition] = useState<Position>(Position.BATTER);
-  const [subPosition, setSubPosition] = useState<SubPosition | ''>('');
-  const [battingOrder, setBattingOrder] = useState<number | null>(null);
+  const [subPosition, setSubPosition] = useState<SubPosition | ''>(defaultSubPosition(Position.BATTER));
+  // 평균 타순 개념을 두지 않는다. 지정하지 않으면 어떤 타순 조건도 온전히 발동하지
+  // 않아 타순 조건 스킬이 일률적으로 눌렸다. 1번타자를 전제로 시작한다.
+  const [battingOrder, setBattingOrder] = useState<number | null>(1);
   const [pitcherSlot, setPitcherSlot] = useState<number | null>(null);
   const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
   const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);
@@ -44,12 +55,19 @@ export function useScoreContext() {
 
   const resetUserStats = useCallback(() => setUserStats(defaultUserStats()), []);
 
+  // 포지션이 바뀌면 세부 포지션도 따라가야 한다. 그대로 두면 타자용 C가 남은 채
+  // 투수 옵션 목록(SP·RP·CP)에 없는 값이 선택돼 있는 상태가 된다.
+  const changePosition = useCallback((next: Position) => {
+    setPosition(next);
+    setSubPosition(defaultSubPosition(next));
+  }, []);
+
   /** 세부 포지션이 지정돼야 포지션 게이트 조건이 제대로 평가된다. */
   const hasSpecificPosition = Boolean(subPosition) && subPosition !== 'ALL';
 
   return {
     position,
-    setPosition,
+    setPosition: changePosition,
     subPosition,
     setSubPosition,
     battingOrder,

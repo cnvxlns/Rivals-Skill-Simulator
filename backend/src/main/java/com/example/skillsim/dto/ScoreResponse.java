@@ -23,6 +23,8 @@ public class ScoreResponse {
     public static class SkillScore {
         private String skillId;
         private String name;
+        /** 설명의 x·y·z를 선택한 레벨 기준 실제 수치로 바꾼 것. 치환할 수 없으면 원문과 같다. */
+        private String resolvedDescription;
         private double score;
         private List<StatScore> perStat;
         private List<EffectBreakdown> breakdown;

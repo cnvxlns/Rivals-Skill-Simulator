@@ -31,7 +31,7 @@ Rivals-Skill-Simulator/
 ├── backend    # Spring Boot API 서버 (포트 8080, CSV 시드)
 ├── app        # Expo(React Native) 앱 — 웹/안드로이드 공용 UI, axios로 /api/skills/roll 및 /api/score 호출
 ├── docs       # 데이터 원천(rivals_skills.xlsx)과 변환기(convert_xlsx.py)
-├── .github    # EAS 빌드/OTA 배포, Render keep-alive 워크플로
+├── .github    # EAS 빌드/OTA 배포 워크플로
 ├── docker-compose.yml         # 백엔드 실행 스택 (+ .dev / .tunnel 오버라이드)
 ├── Makefile   # docker compose / gradlew / npm 을 감싼 단축 명령 (make up)
 └── README.md  # 본 문서
@@ -41,7 +41,7 @@ Rivals-Skill-Simulator/
 
 | 브랜치 | 역할 |
 |---|---|
-| `deploy` | 배포 브랜치. Vercel(웹)과 Render(백엔드)가 이 브랜치를 바라보며, push 시 EAS OTA 업데이트도 나갑니다. |
+| `deploy` | 배포 브랜치. Vercel(웹)이 이 브랜치를 바라보며, push 시 EAS OTA 업데이트도 나갑니다. 백엔드는 개인 서버에서 compose로 직접 띄웁니다. |
 | `develop` | 기본 브랜치. 일상 개발은 여기서 분기하고 여기로 머지합니다. |
 | `feat/*`, `fix/*`, `chore/*` | `develop`에서 분기해 작업 후 `develop`으로 PR. |
 

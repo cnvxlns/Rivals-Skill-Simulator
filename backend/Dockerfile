@@ -1,5 +1,7 @@
 # 1. Build Stage
-FROM eclipse-temurin:17-jdk-alpine AS build
+# Temurin의 alpine 태그는 linux/amd64만 발행한다. Apple Silicon에서 platform 불일치로
+# 빌드가 깨져, musl+arm64를 함께 내는 Liberica로 옮겼다. amd64도 같은 태그로 덮인다.
+FROM bellsoft/liberica-openjdk-alpine:17 AS build
 WORKDIR /app
 
 # 의존성 매니페스트를 먼저 복사해 캐시 레이어를 만든다.
@@ -18,7 +20,7 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon clean test bootJar
 
 # 2. Run Stage
-FROM eclipse-temurin:17-jre-alpine
+FROM bellsoft/liberica-openjre-alpine:17
 WORKDIR /app
 
 # 비루트 실행.

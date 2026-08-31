@@ -1,5 +1,4 @@
 plugins {
-    id 'java'
     id 'org.springframework.boot' version '3.2.4'
     id 'io.spring.dependency-management' version '1.1.4'
     id 'org.jetbrains.kotlin.jvm' version '1.9.22'
@@ -10,10 +9,6 @@ plugins {
 
 group = 'com.example'
 version = '0.0.1-SNAPSHOT'
-
-java {
-    sourceCompatibility = '17'
-}
 
 kotlin {
     jvmToolchain(17)
@@ -28,7 +23,6 @@ repositories {
 }
 
 dependencies {
-    // Spring Boot Starters (버전은 플러그인이 자동 관리)
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
@@ -38,10 +32,6 @@ dependencies {
 
     // CSV 파싱
     implementation 'com.opencsv:opencsv:5.7.1'
-
-    // Lombok (컴파일 시에만 필요). 자바 코드가 남아 있는 동안만 유지한다.
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
 
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

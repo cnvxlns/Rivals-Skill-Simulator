@@ -1,14 +1,21 @@
 plugins {
-    id 'java'
     id 'org.springframework.boot' version '3.2.4'
     id 'io.spring.dependency-management' version '1.1.4'
+    id 'org.jetbrains.kotlin.jvm' version '1.9.22'
+    // 스프링 빈은 상속 가능해야 프록시가 만들어진다. 이 플러그인이 @Component 계열
+    // 클래스와 메서드에 open을 붙여 준다. 코틀린 클래스는 기본이 final이다.
+    id 'org.jetbrains.kotlin.plugin.spring' version '1.9.22'
 }
 
 group = 'com.example'
 version = '0.0.1-SNAPSHOT'
 
-java {
-    sourceCompatibility = '17'
+kotlin {
+    jvmToolchain(17)
+    compilerOptions {
+        // JSR-305 어노테이션(@Nullable 등)을 코틀린 널 타입으로 엄격히 해석한다.
+        freeCompilerArgs.add('-Xjsr305=strict')
+    }
 }
 
 repositories {
@@ -16,16 +23,15 @@ repositories {
 }
 
 dependencies {
-    // Spring Boot Starters (버전은 플러그인이 자동 관리)
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+    // 코틀린 data class를 기본 생성자로 역직렬화한다. 없으면 파라미터 이름을 못 읽는다.
+    implementation 'com.fasterxml.jackson.module:jackson-module-kotlin'
+    implementation 'org.jetbrains.kotlin:kotlin-reflect'
+
     // CSV 파싱
     implementation 'com.opencsv:opencsv:5.7.1'
-
-    // Lombok (컴파일 시에만 필요)
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
 
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

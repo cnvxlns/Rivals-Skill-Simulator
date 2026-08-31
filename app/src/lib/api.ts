@@ -1,6 +1,6 @@
-// 백엔드 스킬 롤 API와 통신하기 위한 Axios 인스턴스 및 헬퍼 함수 (RN/Expo)
+// 백엔드 점수 API와 통신하기 위한 Axios 인스턴스 및 헬퍼 함수 (RN/Expo)
 import axios from 'axios';
-import { RollRequest, RollResponse, ScoreRequest, ScoreResponse, ScoreSkillOption, MethodologyResponse, ScoreTableRequest, ScoreTableResponse } from '../types';
+import { ScoreRequest, ScoreResponse, ScoreSkillOption, MethodologyResponse, ScoreTableRequest, ScoreTableResponse } from '../types';
 
 // Expo는 EXPO_PUBLIC_ 접두사 환경변수를 클라이언트 번들에 주입한다.
 // 값이 없으면 상대경로(/api)를 사용한다. 네이티브에서는 반드시 절대 URL을 설정해야 한다.
@@ -15,18 +15,6 @@ const api = axios.create({
     'ngrok-skip-browser-warning': 'true',
   },
 });
-
-export async function rollSkills(payload: RollRequest): Promise<RollResponse> {
-  const res = await api.post<RollResponse>('/api/skills/roll', payload);
-  return res.data;
-}
-
-export async function fetchInitialSkills(cardType: string, position: string, subPosition?: string | null): Promise<RollResponse> {
-  const res = await api.get<RollResponse>('/api/skills/initial', {
-    params: { cardType, position, subPosition: subPosition || undefined },
-  });
-  return res.data;
-}
 
 export async function fetchScoreSkills(cardType: string, position: string): Promise<ScoreSkillOption[]> {
   const res = await api.get<ScoreSkillOption[]>('/api/score/skills', {

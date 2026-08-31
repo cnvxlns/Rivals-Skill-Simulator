@@ -8,7 +8,7 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 - 스킬 레벨 보호: 슬롯별 `useLevelProtectionSlots` 플래그로 등급 하락을 방지하며, 기존 등급보다 낮아지지 않도록 처리합니다.
 - 포지션 필터: Pitcher/Batter 전용 스킬 풀을 분리하며, 요청에 포지션 누락 시 400 오류를 반환합니다.
 - 스킬 점수 계산기: 카드 타입과 포지션을 기준으로 스킬 3개(시그니처 블랙은 4개)와 레벨을 선택하면 총점, 스킬별 기여도, 스탯별 내역을 계산합니다.
-- 정적 데이터 시드: `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 애플리케이션 시작 시 읽어 메모리에 적재하며, 스킬 변경 롤과 점수 계산이 동일한 스킬 데이터를 공유합니다.
+- 정적 데이터 시드: `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 애플리케이션 시작 시 읽어 메모리에 적재합니다.
 
 ## 기술 스택
 **App (Web / Android)**  
@@ -18,18 +18,18 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 
 **Backend**  
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=flat&logo=springboot&logoColor=white)
-![Java](https://img.shields.io/badge/Java-007396?style=flat&logo=java&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white)
 ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=flat&logo=gradle&logoColor=white)
 
 - App: Expo SDK 57, React Native, expo-router, TypeScript, axios. 웹과 안드로이드를 한 코드베이스로 빌드합니다.
-- Backend: Spring Boot 3.2.4, Java 17, Gradle(Wrapper), OpenCSV.
+- Backend: Spring Boot 3.2.4, Kotlin 1.9.22(JVM 17), Gradle(Wrapper), OpenCSV.
 - 데이터: 별도 DB 없이 클래스패스 CSV를 부팅 시 읽어 메모리에 적재합니다(`InMemoryScoreSkillRepository`). 서버는 상태를 갖지 않습니다.
 
 ## 폴더 구조
 ```
 Rivals-Skill-Simulator/
 ├── backend    # Spring Boot API 서버 (포트 8080, CSV 시드)
-├── app        # Expo(React Native) 앱 — 웹/안드로이드 공용 UI, axios로 /api/skills/roll 및 /api/score 호출
+├── app        # Expo(React Native) 앱 — 웹/안드로이드 공용 UI, axios로 /api/score 호출
 ├── docs       # 데이터 원천(rivals_skills.xlsx)과 변환기(convert_xlsx.py)
 ├── .github    # EAS 빌드/OTA 배포 워크플로
 ├── docker-compose.yml         # 백엔드 실행 스택 (+ .dev / .tunnel 오버라이드)
@@ -128,42 +128,6 @@ make tunnel-up              # 또는 docker compose -f docker-compose.yml -f doc
 윈도우에서는 `make`를 따로 설치해야 합니다(`winget install ezwinports.make`). Makefile이 셸을 `sh`로 고정하므로 PowerShell에서 실행해도 Git Bash에서 실행해도 동작이 같습니다. Git과 함께 설치되는 `sh.exe`가 PATH에 있어야 합니다.
 
 ## API 개요
-### 스킬 변경
-- 엔드포인트: `POST /api/skills/roll`
-- 요청 예시:
-```json
-{
-  "cardType": "PRIME",
-  "ticketType": "SUPREME_SKILL_CHANGE",
-  "useLevelProtectionSlots": [true, false, false],
-  "lockedSlots": [0],
-  "currentSkillIds": [101, null, null],
-  "currentLevels": ["A", "B", "D"],
-  "position": "PITCHER"
-}
-```
-  - `lockedSlots`는 0부터 시작하는 인덱스.
-  - `currentLevels`는 JSON alias로 `currentGrades`도 허용됩니다.
-  - `position`은 필수이며 누락 시 400 반환.
-- 응답 예시:
-```json
-{
-  "slots": [
-    {
-      "skill": {
-        "id": 1,
-        "name": "Skill name",
-        "tier": "GOLD",
-        "position": "PITCHER",
-        "description": "Skill description",
-        "weight": 1
-      },
-      "grade": "A"
-    }
-  ]
-}
-```
-
 ### 스킬 점수 계산
 - 목록 조회: `GET /api/score/skills?cardType=NORMAL&position=BATTER`
 - 점수 계산: `POST /api/score`

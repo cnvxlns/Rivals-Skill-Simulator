@@ -8,7 +8,7 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 - 스킬 레벨 보호: 슬롯별 `useLevelProtectionSlots` 플래그로 등급 하락을 방지하며, 기존 등급보다 낮아지지 않도록 처리합니다.
 - 포지션 필터: Pitcher/Batter 전용 스킬 풀을 분리하며, 요청에 포지션 누락 시 400 오류를 반환합니다.
 - 스킬 점수 계산기: 카드 타입과 포지션을 기준으로 스킬 3개(시그니처 블랙은 4개)와 레벨을 선택하면 총점, 스킬별 기여도, 스탯별 내역을 계산합니다.
-- 정적 데이터 시드: `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 애플리케이션 시작 시 읽어 메모리에 적재하며, 스킬 변경 롤과 점수 계산이 동일한 스킬 데이터를 공유합니다.
+- 정적 데이터 시드: `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 애플리케이션 시작 시 읽어 메모리에 적재합니다.
 
 ## 기술 스택
 **App (Web / Android)**  
@@ -18,11 +18,11 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 
 **Backend**  
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=flat&logo=springboot&logoColor=white)
-![Java](https://img.shields.io/badge/Java-007396?style=flat&logo=java&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white)
 ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=flat&logo=gradle&logoColor=white)
 
 - App: Expo SDK 57, React Native, expo-router, TypeScript, axios. 웹과 안드로이드를 한 코드베이스로 빌드합니다.
-- Backend: Spring Boot 3.2.4, Java 17, Gradle(Wrapper), OpenCSV.
+- Backend: Spring Boot 3.2.4, Kotlin 1.9.22(JVM 17), Gradle(Wrapper), OpenCSV.
 - 데이터: 별도 DB 없이 클래스패스 CSV를 부팅 시 읽어 메모리에 적재합니다(`InMemoryScoreSkillRepository`). 서버는 상태를 갖지 않습니다.
 
 ## 폴더 구조

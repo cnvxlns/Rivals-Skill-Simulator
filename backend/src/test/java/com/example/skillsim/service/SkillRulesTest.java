@@ -1,8 +1,6 @@
 package com.example.skillsim.service;
 
-import com.example.skillsim.enums.CardType;
 import com.example.skillsim.enums.Level;
-import com.example.skillsim.enums.Tier;
 import com.example.skillsim.model.ScoreSkill;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -14,12 +12,12 @@ class SkillRulesTest {
 
     @Test
     void slotCountsMatchCardTypeRules() {
-        assertThat(SkillRules.slotCount(CardType.SIGNATURE)).isEqualTo(3);
-        assertThat(SkillRules.slotCount(CardType.HOF)).isEqualTo(3);
-        assertThat(SkillRules.slotCount(CardType.WBC)).isEqualTo(3);
-        assertThat(SkillRules.slotCount(CardType.MOMENT)).isEqualTo(3);
-        assertThat(SkillRules.slotCount(CardType.SUPREME_MOMENT)).isEqualTo(3);
-        assertThat(SkillRules.slotCount(CardType.SIGNATURE_BLACK)).isEqualTo(4);
+        assertThat(SkillRules.slotCount("SIGNATURE")).isEqualTo(3);
+        assertThat(SkillRules.slotCount("HOF")).isEqualTo(3);
+        assertThat(SkillRules.slotCount("WBC")).isEqualTo(3);
+        assertThat(SkillRules.slotCount("MOMENT")).isEqualTo(3);
+        assertThat(SkillRules.slotCount("SUPREME_MOMENT")).isEqualTo(3);
+        assertThat(SkillRules.slotCount("SIGNATURE_BLACK")).isEqualTo(4);
         assertThat(SkillRules.slotCount("WBC_SIGNATURE_BLACK")).isEqualTo(4);
         assertThat(SkillRules.slotCount("BLACK")).isEqualTo(4);
     }
@@ -59,19 +57,6 @@ class SkillRulesTest {
         assertThatThrownBy(() -> SkillRules.normalizeCardType("PRIME"))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(SkillRules.normalizeCardType("WBC_SIGNATURE_BLACK")).isEqualTo("WBC_BLACK");
-    }
-
-    @Test
-    void rollTierUsesCardTypeAndSkillKeyRules() {
-        assertThat(SkillRules.rollTier(skill("I_001", "NORMAL"))).isEqualTo(Tier.IRON);
-        assertThat(SkillRules.rollTier(skill("B_001", "NORMAL"))).isEqualTo(Tier.BRONZE);
-        assertThat(SkillRules.rollTier(skill("S_001", "NORMAL"))).isEqualTo(Tier.SILVER);
-        assertThat(SkillRules.rollTier(skill("G_001", "NORMAL"))).isEqualTo(Tier.GOLD);
-        assertThat(SkillRules.rollTier(skill("BLACK_001", "BLACK"))).isEqualTo(Tier.BLACK);
-        assertThat(SkillRules.rollTier(skill("MOMENT_001", "MOMENT"))).isEqualTo(Tier.MOMENT);
-        assertThat(SkillRules.rollTier(skill("WBC_001", "WBC"))).isEqualTo(Tier.WBC);
-        assertThat(SkillRules.rollTier(skill("HOF_001", "HOF"))).isEqualTo(Tier.HOF);
-        assertThat(SkillRules.rollTier(skill("G_001", "HOF"))).isEqualTo(Tier.GOLD);
     }
 
     @Test

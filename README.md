@@ -29,7 +29,7 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 ```
 Rivals-Skill-Simulator/
 ├── backend    # Spring Boot API 서버 (포트 8080, CSV 시드)
-├── app        # Expo(React Native) 앱 — 웹/안드로이드 공용 UI, axios로 /api/skills/roll 및 /api/score 호출
+├── app        # Expo(React Native) 앱 — 웹/안드로이드 공용 UI, axios로 /api/score 호출
 ├── docs       # 데이터 원천(rivals_skills.xlsx)과 변환기(convert_xlsx.py)
 ├── .github    # EAS 빌드/OTA 배포, Render keep-alive 워크플로
 ├── docker-compose.yml         # 백엔드 실행 스택 (+ .dev / .tunnel 오버라이드)
@@ -128,42 +128,6 @@ make tunnel-up              # 또는 docker compose -f docker-compose.yml -f doc
 윈도우에서는 `make`를 따로 설치해야 합니다(`winget install ezwinports.make`). Makefile이 셸을 `sh`로 고정하므로 PowerShell에서 실행해도 Git Bash에서 실행해도 동작이 같습니다. Git과 함께 설치되는 `sh.exe`가 PATH에 있어야 합니다.
 
 ## API 개요
-### 스킬 변경
-- 엔드포인트: `POST /api/skills/roll`
-- 요청 예시:
-```json
-{
-  "cardType": "PRIME",
-  "ticketType": "SUPREME_SKILL_CHANGE",
-  "useLevelProtectionSlots": [true, false, false],
-  "lockedSlots": [0],
-  "currentSkillIds": [101, null, null],
-  "currentLevels": ["A", "B", "D"],
-  "position": "PITCHER"
-}
-```
-  - `lockedSlots`는 0부터 시작하는 인덱스.
-  - `currentLevels`는 JSON alias로 `currentGrades`도 허용됩니다.
-  - `position`은 필수이며 누락 시 400 반환.
-- 응답 예시:
-```json
-{
-  "slots": [
-    {
-      "skill": {
-        "id": 1,
-        "name": "Skill name",
-        "tier": "GOLD",
-        "position": "PITCHER",
-        "description": "Skill description",
-        "weight": 1
-      },
-      "grade": "A"
-    }
-  ]
-}
-```
-
 ### 스킬 점수 계산
 - 목록 조회: `GET /api/score/skills?cardType=NORMAL&position=BATTER`
 - 점수 계산: `POST /api/score`

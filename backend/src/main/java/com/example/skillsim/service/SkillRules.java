@@ -1,11 +1,8 @@
 package com.example.skillsim.service;
 
-import com.example.skillsim.enums.CardType;
 import com.example.skillsim.enums.Level;
-import com.example.skillsim.enums.Tier;
 import com.example.skillsim.model.ScoreEffect;
 import com.example.skillsim.model.ScoreSkill;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -22,10 +19,6 @@ final class SkillRules {
     private SkillRules() {
     }
 
-    static String normalizeCardType(CardType cardType) {
-        return normalizeCardType(cardType == null ? null : cardType.name());
-    }
-
     static String normalizeCardType(String cardType) {
         String normalized = normalizeRequired(cardType, "Card type is required.");
         return switch (normalized) {
@@ -40,10 +33,6 @@ final class SkillRules {
     static int slotCount(String cardType) {
         String normalized = normalizeCardType(cardType);
         return Set.of("BLACK", "WBC_BLACK").contains(normalized) ? 4 : DEFAULT_SLOT_COUNT;
-    }
-
-    static int slotCount(CardType cardType) {
-        return slotCount(normalizeCardType(cardType));
     }
 
     static List<Level> gradeLadder(String cardType) {
@@ -69,10 +58,6 @@ final class SkillRules {
             return idx + 1;
         }
         return Math.max(1, Math.min(level == null ? 1 : level.ordinal() + 1, ladder.size()));
-    }
-
-    static Level defaultLevel(String cardType) {
-        return gradeLadder(cardType).get(0);
     }
 
     static int maxLevel(ScoreSkill skill) {
@@ -121,11 +106,6 @@ final class SkillRules {
         return skillTokens.contains(requested);
     }
 
-    static boolean matchesSubPosition(ScoreSkill skill, String requestedSubPosition) {
-        String requested = normalize(requestedSubPosition);
-        return requested.isEmpty() || "ALL".equals(requested) || matchesPosition(skill.getPosition(), requested);
-    }
-
     static String normalizePosition(String position) {
         return normalize(position);
     }
@@ -136,27 +116,6 @@ final class SkillRules {
             throw new IllegalArgumentException(message);
         }
         return normalized;
-    }
-
-    static Tier rollTier(ScoreSkill skill) {
-        String cardType = normalizeCardType(skill.getCardType());
-        if ("BLACK".equals(cardType)) {
-            return Tier.BLACK;
-        }
-        if ("MOMENT".equals(cardType)) {
-            return Tier.MOMENT;
-        }
-        if ("HOF".equals(cardType)) {
-            return skill.getSkillKey() != null && skill.getSkillKey().startsWith("HOF_") ? Tier.HOF : inferNormalTier(skill.getSkillKey());
-        }
-        if ("WBC".equals(cardType)) {
-            return Tier.WBC;
-        }
-        return inferNormalTier(skill.getSkillKey());
-    }
-
-    static int rollWeight(ScoreSkill skill) {
-        return 1;
     }
 
     static String roleForPosition(String position) {
@@ -173,26 +132,9 @@ final class SkillRules {
         return "BATTER";
     }
 
-    private static Tier inferNormalTier(String skillKey) {
-        String key = normalize(skillKey);
-        if (key.startsWith("G_")) {
-            return Tier.GOLD;
-        }
-        if (key.startsWith("S_")) {
-            return Tier.SILVER;
-        }
-        if (key.startsWith("B_")) {
-            return Tier.BRONZE;
-        }
-        if (key.startsWith("I_")) {
-            return Tier.IRON;
-        }
-        return Tier.GOLD;
-    }
-
     private static Set<String> splitPositionTokens(String position) {
         String normalized = position.replace("CR", "CF").replace(".", ",");
-        String[] tokens = normalized.split("[,/|\\s]+");
+        String[] tokens = normalized.split("[,/|\s]+");
         Set<String> result = new HashSet<>();
         for (String token : tokens) {
             if (!token.isBlank()) {

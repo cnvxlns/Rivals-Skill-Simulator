@@ -20,14 +20,19 @@ data class DeckSaveRequest(
     /** 덱 이름. 저장할 때만 쓰이고 채점 미리보기에서는 비어 있어도 된다. */
     @field:Size(max = 50)
     val name: String? = null,
-    @field:NotNull
     @field:Min(4)
     @field:Max(6)
     val starterCount: Int? = null,
-    @field:NotNull
     @field:Min(1)
     @field:Max(2)
     val closerCount: Int? = null,
+    /**
+     * 중계 인원. 셋 중 둘만 보내면 나머지는 서버가 계산한다.
+     * 셋을 다 보내면 합이 12인지 확인한다.
+     */
+    @field:Min(4)
+    @field:Max(7)
+    val relieverCount: Int? = null,
     @field:Valid
     @field:NotEmpty
     val players: List<DeckPlayerRequest>? = null,
@@ -36,6 +41,9 @@ data class DeckSaveRequest(
 data class DeckPlayerRequest(
     @field:NotBlank
     val slot: String? = null,
+    /** 선수 이름. 표시용이며 점수에는 영향이 없다. */
+    @field:Size(max = 30)
+    val playerName: String? = null,
     /** 카드 등급. 예전 단일 cardType으로 보내도 등급과 변형으로 풀린다. */
     val cardGrade: String? = null,
     /** 카드 변형. NONE(기본) / FA / WBC. */

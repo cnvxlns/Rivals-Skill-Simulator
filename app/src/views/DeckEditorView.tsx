@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   InfoBanner,
   LabeledDropdown,
@@ -13,14 +13,16 @@ import {
 } from '../components/ui';
 import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
-import {
-  CLOSER_CHOICES,
-  STARTER_CHOICES,
-  isPlayerComplete,
-  useDeckEditor,
-} from '../lib/useDeckEditor';
+import { PitcherField, isPlayerComplete, useDeckEditor } from '../lib/useDeckEditor';
 import { useAppTheme } from '../theme/useTheme';
-import { BENCH_SLOTS, CardVariant, DeckDetail, DeckPlayer, LINEUP_SLOTS } from '../types';
+import {
+  BENCH_SLOTS,
+  CardVariant,
+  DeckDetail,
+  DeckPlayer,
+  LINEUP_FIELD_POSITIONS,
+} from '../types';
+import BaseballField from '../components/BaseballField';
 import DeckPlayerEditor from './DeckPlayerEditor';
 
 /** 변형이 있으면 등급 뒤에 붙여 보여 준다. 예: Signature Black · WBC */
@@ -29,6 +31,17 @@ const cardLabel = (player: DeckPlayer) => {
   const variant = player.cardVariant;
   return !variant || variant === CardVariant.NONE ? grade : `${grade} · ${variant}`;
 };
+
+/** 다이아몬드 한 칸의 폭. 좁은 화면에서도 3열이 들어가야 해서 고정값으로 둔다. */
+const FIELD_SLOT_WIDTH = 108;
+/** 칩을 좌표의 정중앙에 놓기 위한 대략적인 높이. */
+const FIELD_SLOT_HEIGHT = 52;
+
+const PITCHER_FIELDS: { field: PitcherField; labelKey: 'deck_label_starters' | 'deck_label_relievers' | 'deck_label_closers' }[] = [
+  { field: 'starters', labelKey: 'deck_label_starters' },
+  { field: 'relievers', labelKey: 'deck_label_relievers' },
+  { field: 'closers', labelKey: 'deck_label_closers' },
+];
 
 const PART_LABEL_KEYS = {
   LINEUP: 'deck_section_lineup',
@@ -62,7 +75,7 @@ export default function DeckEditorView({
     if (saved) onDone();
   };
 
-  const slotChip = (slot: string) => {
+  const slotChip = (slot: string, compact = false) => {
     const player = editor.players[slot];
     const done = isPlayerComplete(player);
     return (
@@ -70,9 +83,9 @@ export default function DeckEditorView({
         key={slot}
         onPress={() => setEditing(slot)}
         style={({ pressed }) => ({
-          flexGrow: 1,
-          flexBasis: 150,
-          padding: spacing.smd,
+          flexGrow: compact ? 0 : 1,
+          flexBasis: compact ? 'auto' : 150,
+          padding: compact ? spacing.xs : spacing.smd,
           borderRadius: radius.control,
           backgroundColor: colors.surfaceVariant,
           borderWidth: 1,
@@ -81,10 +94,18 @@ export default function DeckEditorView({
           gap: 4,
         })}
       >
-        <Text style={{ ...typography.label, color: colors.secondaryText }}>{slot}</Text>
-        <Text style={{ ...typography.card, color: done ? colors.onSurface : colors.muted }} numberOfLines={1}>
-          {done ? cardLabel(player) : t('deck_slot_empty')}
+        <Text style={{ ...typography.label, color: colors.secondaryText }}>
+          {slot}
+          {player?.battingOrder ? `  ${player.battingOrder}번` : ''}
         </Text>
+        <Text style={{ ...typography.card, color: done ? colors.onSurface : colors.muted }} numberOfLines={1}>
+          {player?.playerName?.trim() || (done ? cardLabel(player) : t('deck_slot_empty'))}
+        </Text>
+        {player?.playerName?.trim() && done ? (
+          <Text style={{ ...typography.label, color: colors.secondaryText }} numberOfLines={1}>
+            {cardLabel(player)}
+          </Text>
+        ) : null}
       </Pressable>
     );
   };
@@ -92,7 +113,7 @@ export default function DeckEditorView({
   const section = (titleKey: keyof typeof PART_LABEL_KEYS, slots: readonly string[]) => (
     <SectionCard title={t(PART_LABEL_KEYS[titleKey])}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-        {slots.map(slotChip)}
+        {slots.map((slot) => slotChip(slot))}
       </View>
     </SectionCard>
   );
@@ -123,38 +144,58 @@ export default function DeckEditorView({
             {t('deck_strategy_hint')}
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
-            <View style={{ flexGrow: 1, flexBasis: 160 }}>
-              <LabeledDropdown
-                label={t('deck_label_starters')}
-                selected={editor.starterCount}
-                options={[...STARTER_CHOICES]}
-                optionLabel={(v) => String(v)}
-                onSelect={editor.setStarterCount}
-              />
-            </View>
-            <View style={{ flexGrow: 1, flexBasis: 160 }}>
-              <LabeledDropdown
-                label={t('deck_label_closers')}
-                selected={editor.closerCount}
-                options={[...CLOSER_CHOICES]}
-                optionLabel={(v) => String(v)}
-                onSelect={editor.setCloserCount}
-              />
-            </View>
-            <View style={{ flexGrow: 1, flexBasis: 160, gap: 11, justifyContent: 'flex-end' }}>
-              <Text style={{ color: colors.secondaryText, fontSize: 16, fontWeight: '600' }}>
-                {t('deck_label_relievers')}
-              </Text>
-              {/* 파생값이라 고를 수 없다. 총원이 12로 고정이기 때문이다. */}
-              <Text style={{ ...typography.title, color: colors.accentValue }}>
-                {editor.relieverCount}
-              </Text>
-            </View>
+            {PITCHER_FIELDS.map(({ field, labelKey }) => (
+              <View key={field} style={{ flexGrow: 1, flexBasis: 160 }}>
+                <LabeledDropdown
+                  label={t(labelKey)}
+                  selected={editor.pitcherCounts[field]}
+                  options={editor.pitcherChoices(field)}
+                  optionLabel={(v) => String(v)}
+                  onSelect={(v) => editor.setPitcherCount(field, v)}
+                />
+                {/* 지금 자동으로 정해진 자리를 표시해 준다. 둘을 고르면 셋째는 따라온다. */}
+                <Text
+                  style={{
+                    ...typography.label,
+                    color: editor.derivedField === field ? colors.accentValue : 'transparent',
+                    marginTop: 6,
+                  }}
+                >
+                  {t('deck_pitcher_derived')}
+                </Text>
+              </View>
+            ))}
           </View>
         </View>
       </SectionCard>
 
-      {section('LINEUP', LINEUP_SLOTS)}
+      <SectionCard title={t(PART_LABEL_KEYS.LINEUP)}>
+        {/*
+          야구장을 그리고 그 위 실제 수비 위치에 선수를 얹는다. 필드와 칩이 같은 비율
+          좌표를 쓰기 때문에 화면 폭이 바뀌어도 어긋나지 않는다.
+        */}
+        <View style={{ width: '100%', aspectRatio: 1.15, minHeight: 380 }}>
+          <View style={StyleSheet.absoluteFill}>
+            <BaseballField />
+          </View>
+          {Object.entries(LINEUP_FIELD_POSITIONS).map(([slot, pos]) => (
+            <View
+              key={slot}
+              style={{
+                position: 'absolute',
+                left: `${pos.x * 100}%`,
+                top: `${pos.y * 100}%`,
+                width: FIELD_SLOT_WIDTH,
+                marginLeft: -FIELD_SLOT_WIDTH / 2,
+                marginTop: -FIELD_SLOT_HEIGHT / 2,
+              }}
+            >
+              {slotChip(slot, true)}
+            </View>
+          ))}
+        </View>
+      </SectionCard>
+
       {section('BENCH', BENCH_SLOTS)}
       {section('ROTATION', starterSlots)}
       {section('BULLPEN', bullpenSlots)}

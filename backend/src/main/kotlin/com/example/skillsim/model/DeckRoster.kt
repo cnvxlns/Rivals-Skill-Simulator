@@ -55,6 +55,8 @@ data class DeckRoster(
 data class DeckPlayer(
     val slot: String,
     val position: String,
+    /** 선수 이름. 비어 있을 수 있고 점수에는 영향이 없다. */
+    val playerName: String? = null,
     /** 카드 등급. 상대등급우세 조건이 이 값을 본다. */
     val cardGrade: String,
     /** 카드 변형. 서열에는 영향이 없고 WBC만 스킬 풀을 넓힌다. */

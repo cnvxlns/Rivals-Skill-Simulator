@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { LabeledDropdown, LoadingState, SectionCard } from '../components/ui';
+import { LabeledDropdown, LoadingState, SectionCard, TextField } from '../components/ui';
 import { fetchScoreSkills } from '../lib/api';
 import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
@@ -115,6 +115,13 @@ export default function DeckPlayerEditor({
     <View style={{ gap: spacing.lg }}>
       <SectionCard title={`${slot} · ${t('deck_player_title')}`}>
         <View style={{ gap: spacing.lg }}>
+          <TextField
+            label={t('deck_label_player_name')}
+            value={player.playerName ?? ''}
+            onChangeText={(v) => onChange({ playerName: v })}
+            placeholder={t('deck_placeholder_player_name')}
+          />
+
           <LabeledDropdown
             label={t('label_card_grade')}
             selected={player.cardGrade as CardGrade}

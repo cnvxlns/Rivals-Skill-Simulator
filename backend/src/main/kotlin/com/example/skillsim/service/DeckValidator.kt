@@ -25,18 +25,7 @@ internal class DeckValidator(
 ) {
 
     fun validate(request: DeckSaveRequest): DeckRoster {
-        val starterCount = request.starterCount
-            ?: throw IllegalArgumentException("Starter count is required.")
-        val closerCount = request.closerCount
-            ?: throw IllegalArgumentException("Closer count is required.")
-        require(starterCount in DeckRules.STARTER_COUNT_RANGE) {
-            "Starter count must be between ${DeckRules.STARTER_COUNT_RANGE.first} and " +
-                "${DeckRules.STARTER_COUNT_RANGE.last}."
-        }
-        require(closerCount in DeckRules.CLOSER_COUNT_RANGE) {
-            "Closer count must be between ${DeckRules.CLOSER_COUNT_RANGE.first} and " +
-                "${DeckRules.CLOSER_COUNT_RANGE.last}."
-        }
+        val (starterCount, closerCount) = resolvePitcherCounts(request)
 
         val requested = request.players.orEmpty()
         require(requested.size == DeckRoster.ROSTER_SIZE) {
@@ -67,6 +56,50 @@ internal class DeckValidator(
         validateBattingOrders(players)
 
         return DeckRoster(starterCount = starterCount, closerCount = closerCount, players = players)
+    }
+
+    /**
+     * 선발·중계·마무리 중 둘만 받아 나머지를 계산한다.
+     *
+     * 총원이 12로 고정이라 둘이 정해지면 셋째는 산술적으로 유일하다. 다만 그 값이 범위를
+     * 벗어날 수 있어(예: 선발4 + 중계4 → 마무리4) 최종 조합을 [DeckRules.VALID_PITCHER_COMBOS]와
+     * 대조한다. 셋을 다 보내면 서로 맞는지도 확인한다.
+     *
+     * @return (선발, 마무리). 중계는 이 둘에서 파생되므로 따로 돌려주지 않는다.
+     */
+    private fun resolvePitcherCounts(request: DeckSaveRequest): Pair<Int, Int> {
+        val starters = request.starterCount
+        val relievers = request.relieverCount
+        val closers = request.closerCount
+        val given = listOfNotNull(starters, relievers, closers).size
+        require(given >= 2) {
+            "At least two of starter, reliever and closer counts are required."
+        }
+
+        val total = DeckRoster.PITCHER_COUNT
+        val resolvedStarters = starters ?: (total - relievers!! - closers!!)
+        val resolvedClosers = closers ?: (total - starters!! - relievers!!)
+        val resolvedRelievers = total - resolvedStarters - resolvedClosers
+
+        if (relievers != null && relievers != resolvedRelievers) {
+            throw IllegalArgumentException(
+                "Pitcher counts must add up to $total, but " +
+                    "$resolvedStarters + $relievers + $resolvedClosers = " +
+                    "${resolvedStarters + relievers + resolvedClosers}.",
+            )
+        }
+        require(
+            Triple(resolvedStarters, resolvedRelievers, resolvedClosers) in
+                DeckRules.VALID_PITCHER_COMBOS,
+        ) {
+            "Unsupported pitcher staff: $resolvedStarters starters, $resolvedRelievers relievers, " +
+                "$resolvedClosers closers. Starters must be " +
+                "${DeckRules.STARTER_COUNT_RANGE.first}-${DeckRules.STARTER_COUNT_RANGE.last}, " +
+                "relievers ${DeckRules.RELIEVER_COUNT_RANGE.first}-${DeckRules.RELIEVER_COUNT_RANGE.last}, " +
+                "closers ${DeckRules.CLOSER_COUNT_RANGE.first}-${DeckRules.CLOSER_COUNT_RANGE.last}, " +
+                "adding up to $total."
+        }
+        return resolvedStarters to resolvedClosers
     }
 
     private fun validateBattingOrders(players: List<DeckPlayer>) {
@@ -103,6 +136,7 @@ internal class DeckValidator(
         return DeckPlayer(
             slot = slot,
             position = position,
+            playerName = request.playerName?.trim()?.ifEmpty { null },
             cardGrade = cardGrade,
             cardVariant = cardVariant,
             skills = skills,

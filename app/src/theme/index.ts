@@ -25,6 +25,11 @@ export type ThemeColors = {
   statOpponent: string;
   error: string;
   disabled: string;
+
+  // 야구장 그림 전용. 값이나 상태를 뜻하지 않으므로 강조색과 섞지 않는다.
+  fieldGrass: string;
+  fieldDirt: string;
+  fieldLine: string;
 };
 
 export const colors: ThemeColors = {
@@ -51,6 +56,11 @@ export const colors: ThemeColors = {
   statOpponent: '#FFB43D',
   error: '#FF4D5E', // 배너와 입력 검증에만. 숫자에는 쓰지 않는다
   disabled: '#5A606C', // 미발동 0점 행. 사유 텍스트가 항상 함께 붙으므로 대비 예외
+
+  // 야구장 그림. 배경이므로 어둡게 깔고 그 위의 칩이 읽히게 한다.
+  fieldGrass: '#13211A',
+  fieldDirt: '#241C15',
+  fieldLine: '#3A4048',
 };
 
 // 게임의 색상 배정 관습만 계승하고 값은 전부 새로 산출했다(원본 색 복제 아님).

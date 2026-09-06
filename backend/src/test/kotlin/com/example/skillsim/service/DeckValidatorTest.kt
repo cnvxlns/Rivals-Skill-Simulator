@@ -38,13 +38,82 @@ class DeckValidatorTest {
     }
 
     @Test
-    fun `선발이나 마무리가 허용 범위를 벗어나면 거부한다`() {
-        assertThatThrownBy { validator.validate(DeckFixtures.deckRequest(starterCount = 3)) }
-            .hasMessageContaining("Starter count must be between 4 and 6")
-        assertThatThrownBy { validator.validate(DeckFixtures.deckRequest(starterCount = 7)) }
-            .hasMessageContaining("Starter count must be between 4 and 6")
+    fun `허용 범위를 벗어난 투수 구성은 거부한다`() {
+        for (starters in listOf(3, 7)) {
+            assertThatThrownBy { validator.validate(DeckFixtures.deckRequest(starterCount = starters)) }
+                .`as`("선발 %d", starters)
+                .hasMessageContaining("Unsupported pitcher staff")
+        }
         assertThatThrownBy { validator.validate(DeckFixtures.deckRequest(closerCount = 3)) }
-            .hasMessageContaining("Closer count must be between 1 and 2")
+            .hasMessageContaining("Unsupported pitcher staff")
+    }
+
+    @Test
+    fun `셋 중 둘만 주면 나머지를 계산한다`() {
+        // 총원이 12로 고정이라 둘이 정해지면 셋째는 유일하다.
+        val base = DeckFixtures.deckRequest(starterCount = 5, closerCount = 2)
+
+        // 선발 + 마무리 → 중계
+        val byCloser = validator.validate(base.copy(relieverCount = null))
+        assertThat(byCloser.relieverCount).isEqualTo(5)
+
+        // 선발 + 중계 → 마무리
+        val byReliever = validator.validate(base.copy(closerCount = null, relieverCount = 5))
+        assertThat(byReliever.closerCount).isEqualTo(2)
+
+        // 중계 + 마무리 → 선발
+        val byStarter = validator.validate(base.copy(starterCount = null, relieverCount = 5))
+        assertThat(byStarter.starterCount).isEqualTo(5)
+    }
+
+    @Test
+    fun `셋을 다 주면 합이 맞는지 확인한다`() {
+        val base = DeckFixtures.deckRequest(starterCount = 5, closerCount = 2)
+
+        // 5 + 5 + 2 = 12 이므로 통과한다.
+        assertThat(validator.validate(base.copy(relieverCount = 5)).relieverCount).isEqualTo(5)
+
+        // 합이 12가 아니면 거부한다.
+        assertThatThrownBy { validator.validate(base.copy(relieverCount = 6)) }
+            .hasMessageContaining("must add up to 12")
+    }
+
+    @Test
+    fun `하나만 주면 거부한다`() {
+        val base = DeckFixtures.deckRequest()
+
+        assertThatThrownBy {
+            validator.validate(base.copy(closerCount = null, relieverCount = null))
+        }.hasMessageContaining("At least two of starter, reliever and closer counts")
+    }
+
+    @Test
+    fun `유효한 투수 조합은 여섯 가지다`() {
+        // 선발 4~6 x 마무리 1~2. 중계는 4~7로 파생된다.
+        assertThat(DeckRules.VALID_PITCHER_COMBOS).hasSize(6)
+        assertThat(DeckRules.VALID_PITCHER_COMBOS).allSatisfy {
+            assertThat(it.first + it.second + it.third).isEqualTo(DeckRoster.PITCHER_COUNT)
+            assertThat(it.second).isIn(DeckRules.RELIEVER_COUNT_RANGE.toList())
+        }
+    }
+
+    @Test
+    fun `선수 이름을 받아 그대로 보관한다`() {
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            when (it.slot) {
+                "SS" -> it.copy(playerName = "  김하성  ")
+                "CF" -> it.copy(playerName = "   ")
+                else -> it
+            }
+        }
+
+        val roster = validator.validate(request.copy(players = players))
+
+        // 앞뒤 공백은 떼고, 비어 있으면 null로 둔다.
+        assertThat(roster.players.single { it.slot == "SS" }.playerName).isEqualTo("김하성")
+        assertThat(roster.players.single { it.slot == "CF" }.playerName).isNull()
+        assertThat(roster.players.single { it.slot == "1B" }.playerName).isNull()
     }
 
     @Test

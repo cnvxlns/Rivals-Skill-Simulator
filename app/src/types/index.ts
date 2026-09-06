@@ -247,8 +247,38 @@ export enum RelieverRole {
   LONG = 'LONG',
 }
 
-/** 주전 타자 9자리. 순서가 곧 화면 표시 순서다. */
+/** 주전 타자 9자리. */
 export const LINEUP_SLOTS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
+
+/**
+ * 야구장 위의 수비 위치. 0~1 비율 좌표이며 x는 오른쪽, y는 아래쪽이 양수다.
+ *
+ * BaseballField의 100x100 좌표계와 같은 기준이라 화면 크기가 바뀌어도 어긋나지 않는다.
+ * 지명타자는 수비 위치가 없어 포수 오른쪽 · 1루수 아래에 따로 세운다.
+ */
+export const LINEUP_FIELD_POSITIONS: Record<string, { x: number; y: number }> = {
+  LF: { x: 0.18, y: 0.34 },
+  CF: { x: 0.5, y: 0.2 },
+  RF: { x: 0.82, y: 0.34 },
+  SS: { x: 0.36, y: 0.52 },
+  '2B': { x: 0.64, y: 0.52 },
+  '3B': { x: 0.2, y: 0.68 },
+  '1B': { x: 0.8, y: 0.68 },
+  C: { x: 0.5, y: 0.9 },
+  DH: { x: 0.82, y: 0.9 },
+};
+
+export const DH_SLOT = 'DH';
+
+/** 유효한 (선발, 중계, 마무리) 조합. 총원 12명이며 6가지뿐이다. */
+export const VALID_PITCHER_COMBOS: readonly (readonly [number, number, number])[] = [
+  [4, 6, 2],
+  [4, 7, 1],
+  [5, 5, 2],
+  [5, 6, 1],
+  [6, 4, 2],
+  [6, 5, 1],
+];
 
 /** 후보 5자리. */
 export const BENCH_SLOTS = ['BENCH1', 'BENCH2', 'BENCH3', 'BENCH4', 'BENCH5'] as const;
@@ -265,6 +295,8 @@ export type DeckSkillSelection = {
 
 export type DeckPlayer = {
   slot: string;
+  /** 선수 이름. 표시용이며 점수에는 영향이 없다. */
+  playerName?: string | null;
   /** 후보만 직접 정한다. 주전과 투수는 백엔드가 자리에서 유도한다. */
   position?: string;
   cardGrade: CardGrade | string;
@@ -280,8 +312,10 @@ export type DeckPlayer = {
 
 export type DeckSaveRequest = {
   name?: string;
-  starterCount: number;
-  closerCount: number;
+  /** 셋 중 둘만 보내면 나머지는 서버가 계산한다. */
+  starterCount?: number;
+  relieverCount?: number;
+  closerCount?: number;
   players: DeckPlayer[];
 };
 
@@ -301,6 +335,7 @@ export type DeckPartScore = {
 export type DeckPlayerScore = {
   slot: string;
   position: string;
+  playerName?: string | null;
   cardType: string;
   score: number;
   battingOrder?: number | null;

@@ -18,6 +18,30 @@ internal object DeckRules {
     val STARTER_COUNT_RANGE = 4..6
     val CLOSER_COUNT_RANGE = 1..2
 
+    /**
+     * 중계 인원의 범위. 총원이 12로 고정이라 선발·마무리 범위에서 파생된다.
+     *
+     * 선발 4~6, 마무리 1~2이므로 중계는 12−6−2=4에서 12−4−1=7 사이다.
+     */
+    val RELIEVER_COUNT_RANGE = 4..7
+
+    /**
+     * 유효한 (선발, 중계, 마무리) 조합 전체. 6가지뿐이다.
+     *
+     * 셋 중 둘을 정하면 합이 12로 고정이라 나머지는 산술적으로 유일하게 정해진다.
+     * 다만 그 값이 범위를 벗어날 수 있어(예: 선발4 + 중계4 → 마무리4) 조합 자체를 검사한다.
+     */
+    val VALID_PITCHER_COMBOS: List<Triple<Int, Int, Int>> =
+        STARTER_COUNT_RANGE.flatMap { starters ->
+            CLOSER_COUNT_RANGE.map { closers ->
+                Triple(starters, DeckRoster.PITCHER_COUNT - starters - closers, closers)
+            }
+        }
+
+    /** 선발과 마무리로 정해지는 중계 인원. */
+    fun relieverCountFor(starterCount: Int, closerCount: Int): Int =
+        DeckRoster.PITCHER_COUNT - starterCount - closerCount
+
     /** 타순에 쓸 수 있는 값. 주전 9명이 이 집합을 정확히 한 번씩 채운다. */
     val BATTING_ORDERS = 1..9
 

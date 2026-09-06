@@ -78,6 +78,7 @@ class DeckScoreService(
     ) = DeckScoreResponse.PlayerScore(
         slot = player.slot,
         position = player.position,
+        playerName = player.playerName,
         cardType = player.cardGrade,
         score = result.total,
         battingOrder = player.battingOrder,

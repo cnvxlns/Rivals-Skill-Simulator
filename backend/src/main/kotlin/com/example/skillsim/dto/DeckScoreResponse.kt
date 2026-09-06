@@ -25,6 +25,7 @@ data class DeckScoreResponse(
     data class PlayerScore(
         val slot: String,
         val position: String,
+        val playerName: String?,
         val cardType: String,
         val score: Double,
         val battingOrder: Int?,

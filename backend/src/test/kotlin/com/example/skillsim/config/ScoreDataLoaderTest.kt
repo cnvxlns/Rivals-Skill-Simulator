@@ -289,6 +289,46 @@ class ScoreDataLoaderTest {
         }
     }
 
+    /**
+     * 같은 풀·포지션 안에서 스킬 이름이 겹치지 않는지 확인한다.
+     *
+     * 목록에 같은 이름이 둘 뜨면 사용자가 둘 다 골라 실제로는 한 번뿐인 효과를 이중으로
+     * 계산하게 된다. 워크북을 다시 들여올 때 같은 스킬이 새 행으로 붙는 경우를 잡는다.
+     * 이름이 같아도 타자용/투수용은 별개라 포지션까지 묶어 본다.
+     */
+    @Test
+    fun `skill names are unique within a pool and position`() {
+        val duplicates = readBundledScoreSkills()
+            .groupBy { Triple(it.cardType, it.position, it.name) }
+            .filterValues { it.size > 1 }
+            .mapValues { (_, skills) -> skills.map { it.skillKey } }
+
+        assertThat(duplicates).isEmpty()
+    }
+
+    /**
+     * 게시판 공지와 어긋나 있던 값들. 되돌아가지 않게 못을 박는다.
+     */
+    @Test
+    fun `renamed and mis-transcribed skills match the official announcements`() {
+        val skills = readBundledScoreSkills()
+
+        // 파워 히터는 2025 시즌 6차 Live 업데이트에서 슬러거로 이름이 바뀌었다.
+        // 옛 이름 행이 남아 있으면 모먼트 타자 카드에 슬러거 계열이 둘 뜬다.
+        assertThat(skills).noneMatch { it.name == "파워 히터" }
+        assertThat(valuesFor(skills, "M_003", "파워", "ALWAYS")).containsExactly("5")
+        assertThat(valuesFor(skills, "M_003", "파워", "스윗스팟")).containsExactly("2")
+
+        // 홈 히어로 -> 프랜차이즈. 타자/투수 표기가 갈려 있었다.
+        assertThat(skills.filter { it.skillKey in setOf("M_001", "M_015") })
+            .allMatch { it.name == "프랜차이즈" }
+
+        // 빅 유닛의 좌타자 상대 절은 5차 HOF 공지 기준 D레벨부터 3이다.
+        for (stat in listOf("파워", "정확", "선구", "인내")) {
+            assertThat(valuesFor(skills, "HOF_040", stat, "좌타상대")).containsExactly("3/3/3/3/3/4")
+        }
+    }
+
     private fun readBundledScoreSkills(): List<ScoreSkill> =
         resourceReader("score_skills.csv").use { skillsReader ->
             resourceReader("score_effects.csv").use { effectsReader ->

@@ -92,14 +92,14 @@ class ScoreServiceTest {
         val gold = scoreSkill(
             "G_001", "NORMAL", "BATTER", "배팅머신", effect("파워", "ALWAYS", "1/2/3/4/5/6/7/8/9"),
         )
-        val moment = scoreSkill("M_009", "MOMENT", "BATTER", "파워 히터", effect("파워", "ALWAYS", "6"))
+        val moment = scoreSkill("M_003", "MOMENT", "BATTER", "슬러거", effect("파워", "ALWAYS", "5"))
         `when`(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(listOf(gold))
         `when`(repository.findByCardTypeIgnoreCase("MOMENT")).thenReturn(listOf(moment))
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
         val options = service.listSkills("SUPREME_MOMENT", null, "BATTER")
 
-        assertThat(options).extracting("skillId").containsExactly("G_001", "M_009")
+        assertThat(options).extracting("skillId").containsExactly("G_001", "M_003")
     }
 
     @Test

@@ -505,6 +505,75 @@ export function NumberField({
   );
 }
 
+/**
+ * 일반 텍스트 입력. NumberField와 같은 모양을 쓰되 숫자 전용이 아니다.
+ *
+ * secure를 켜면 비밀번호 입력이 된다.
+ */
+export function TextField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  secure = false,
+  autoComplete,
+  keyboardType,
+  onSubmitEditing,
+  editable = true,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+  secure?: boolean;
+  autoComplete?: 'email' | 'password' | 'new-password' | 'off';
+  keyboardType?: 'default' | 'email-address';
+  onSubmitEditing?: () => void;
+  editable?: boolean;
+}) {
+  const { colors, radius, controlHeight } = useAppTheme();
+  const [focused, setFocused] = useState(false);
+  return (
+    <View style={{ gap: 11 }}>
+      <Text style={{ color: colors.secondaryText, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
+        {label}
+      </Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onSubmitEditing={onSubmitEditing}
+        placeholder={placeholder}
+        placeholderTextColor={colors.muted}
+        secureTextEntry={secure}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete={autoComplete}
+        keyboardType={keyboardType}
+        editable={editable}
+        style={
+          [
+            {
+              height: controlHeight.dropdown,
+              paddingHorizontal: 22,
+              borderRadius: radius.control,
+              backgroundColor: colors.surfaceVariant,
+              borderWidth: 1,
+              borderColor: focused ? colors.accentAction : colors.outline,
+              color: colors.onSurface,
+              fontSize: 18,
+              fontWeight: '600',
+              opacity: editable ? 1 : 0.6,
+            },
+            NO_OUTLINE,
+          ] as never
+        }
+      />
+    </View>
+  );
+}
+
 /** 웹 전용 속성이라 네이티브에서는 무시된다. 포커스 링을 우리가 직접 그리기 위해 끈다. */
 const NO_OUTLINE = { outlineStyle: 'none' } as unknown as ViewStyle;
 

@@ -13,8 +13,9 @@ import WakeUpOverlay from '@/components/WakeUpOverlay';
 import ScoreTableView from '@/views/ScoreTableView';
 import CalculatorView from '@/views/CalculatorView';
 import MethodologyView from '@/views/MethodologyView';
+import DeckView from '@/views/DeckView';
 
-type TabKey = 'table' | 'calculator' | 'methodology';
+type TabKey = 'table' | 'calculator' | 'deck' | 'methodology';
 
 export default function HomeScreen() {
   const [tab, setTab] = useState<TabKey>('table');
@@ -30,6 +31,7 @@ export default function HomeScreen() {
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'table', label: t('tab_score_table') },
     { key: 'calculator', label: t('tab_calculator') },
+    { key: 'deck', label: t('tab_deck') },
     { key: 'methodology', label: t('tab_methodology') },
   ];
 
@@ -92,6 +94,7 @@ export default function HomeScreen() {
           >
             {tab === 'table' ? <ScoreTableView /> : null}
             {tab === 'calculator' ? <CalculatorView onViewMethodology={() => setTab('methodology')} /> : null}
+            {tab === 'deck' ? <DeckView /> : null}
             {tab === 'methodology' ? <MethodologyView /> : null}
 
             <View

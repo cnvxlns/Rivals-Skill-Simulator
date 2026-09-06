@@ -40,6 +40,58 @@ class DeckScoreServiceTest {
     }
 
     @Test
+    fun `컬렉션 버프가 로스터의 카드 등급에서 계산돼 응답에 담긴다`() {
+        // 기본 로스터는 시그니처 26장이라 2·5·8·11·14·17을 모두 넘겨 +6이다.
+        val buff = deckScoreService.score(roster()).collectionBuff
+
+        assertThat(buff.batterBonus).isEqualTo(6)
+        assertThat(buff.pitcherBonus).isEqualTo(6)
+        assertThat(buff.families.first { it.family == "SIGNATURE" }.count)
+            .isEqualTo(DeckRoster.ROSTER_SIZE)
+    }
+
+    @Test
+    fun `계열이 없는 등급만 모으면 버프가 걸리지 않는다`() {
+        val impact = validator.validate(
+            DeckFixtures.deckRequest { it.copy(cardGrade = "IMPACT") },
+        )
+
+        val buff = deckScoreService.score(impact).collectionBuff
+
+        assertThat(buff.batterBonus).isEqualTo(0)
+        assertThat(buff.pitcherBonus).isEqualTo(0)
+    }
+
+    @Test
+    fun `시즌 덱은 타자와 투수의 버프가 다르다`() {
+        // 시즌 26장 → 타자는 6·16을, 투수는 10·20을 넘겨 둘 다 +2다.
+        val season = validator.validate(
+            DeckFixtures.deckRequest { it.copy(cardGrade = "SEASON") },
+        )
+
+        val buff = deckScoreService.score(season).collectionBuff
+
+        assertThat(buff.batterBonus).isEqualTo(2)
+        assertThat(buff.pitcherBonus).isEqualTo(2)
+
+        // 장수는 덱 전체로 세고 역할은 버프를 받을 대상만 가른다. 타자 14명만 시즌 카드여도
+        // 컬렉션은 14장이라 투수 임계값 10도 함께 넘어간다. 시즌 카드를 누가 들고 있는지는
+        // 집계에 영향을 주지 않는다.
+        val batterOnly = validator.validate(
+            DeckFixtures.deckRequest { player ->
+                if (DeckRules.isPitcher(player.slot.orEmpty())) player.copy(cardGrade = "IMPACT")
+                else player.copy(cardGrade = "SEASON")
+            },
+        )
+        val partial = deckScoreService.score(batterOnly).collectionBuff
+
+        assertThat(partial.families.first { it.family == "SEASON" }.count).isEqualTo(14)
+        // 타자 6은 넘고 16은 못 넘어 +1, 투수 10은 넘고 20은 못 넘어 +1.
+        assertThat(partial.batterBonus).isEqualTo(1)
+        assertThat(partial.pitcherBonus).isEqualTo(1)
+    }
+
+    @Test
     fun `중계 하위 역할은 점수를 바꾸지 않는다`() {
         // 요구사항의 실행 가능한 증명이다. 조건 게이트가 슬롯 번호만 보므로
         // 승리조/추격조/롱릴리프를 어떻게 배분해도 점수가 같아야 한다.

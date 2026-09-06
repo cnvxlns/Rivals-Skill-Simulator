@@ -50,6 +50,14 @@ const PART_LABEL_KEYS = {
   BULLPEN: 'deck_section_bullpen',
 } as const;
 
+const BUFF_FAMILY_LABEL_KEYS = {
+  HOF: 'deck_buff_family_hof',
+  SIGNATURE: 'deck_buff_family_signature',
+  MOMENT: 'deck_buff_family_moment',
+  LIVE: 'deck_buff_family_live',
+  SEASON: 'deck_buff_family_season',
+} as const;
+
 /**
  * 26칸 로스터 편집기.
  *
@@ -233,6 +241,44 @@ export default function DeckEditorView({
                     </Text>
                   </View>
                 ))}
+              </View>
+
+              {/*
+                컬렉션 버프. 점수에는 이미 반영돼 있지만 대개 총점을 움직이지 않는다.
+                스탯 비례 스킬이 16종뿐이고 그마저 floor에 걸려서다. 그래서 얼마가
+                걸렸는지 따로 보여 준다.
+              */}
+              <View style={{ gap: spacing.xs }}>
+                <Text style={{ ...typography.label, color: colors.secondaryText }}>
+                  {t('deck_buff_title')}
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ ...typography.body, color: colors.secondaryText }}>
+                    {t('deck_buff_summary')}
+                  </Text>
+                  <Text style={{ ...typography.body, color: colors.accentValue }}>
+                    {t('deck_buff_batter')} +{editor.score.collectionBuff.batterBonus}
+                    {'  '}
+                    {t('deck_buff_pitcher')} +{editor.score.collectionBuff.pitcherBonus}
+                  </Text>
+                </View>
+                {editor.score.collectionBuff.families
+                  .filter((family) => family.count > 0)
+                  .map((family) => (
+                    <View
+                      key={family.family}
+                      style={{ flexDirection: 'row', justifyContent: 'space-between' }}
+                    >
+                      <Text style={{ ...typography.caption, color: colors.secondaryText }}>
+                        {t(BUFF_FAMILY_LABEL_KEYS[family.family])} {family.count}
+                        {t('deck_buff_count_suffix')}
+                      </Text>
+                      <Text style={{ ...typography.caption, color: colors.secondaryText }}>
+                        {t('deck_buff_batter')} +{family.batterBonus} · {t('deck_buff_pitcher')} +
+                        {family.pitcherBonus}
+                      </Text>
+                    </View>
+                  ))}
               </View>
             </>
           ) : (

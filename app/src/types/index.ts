@@ -341,11 +341,29 @@ export type DeckPlayerScore = {
   warnings: string[];
 };
 
+/** 카드 계열을 모아서 받는 능력치 보정. 채점에 이미 반영돼 있다. */
+export type CollectionBuffFamily = 'HOF' | 'SIGNATURE' | 'MOMENT' | 'LIVE' | 'SEASON';
+
+export type CollectionBuffFamilyCount = {
+  family: CollectionBuffFamily;
+  /** 가중치 합. 슈프림 모먼트를 두 장으로 세므로 실제 장수보다 클 수 있다. */
+  count: number;
+  batterBonus: number;
+  pitcherBonus: number;
+};
+
+export type CollectionBuffInfo = {
+  families: CollectionBuffFamilyCount[];
+  batterBonus: number;
+  pitcherBonus: number;
+};
+
 export type DeckScoreResponse = {
   total: number;
   parts: DeckPartScore[];
   players: DeckPlayerScore[];
   warnings: string[];
+  collectionBuff: CollectionBuffInfo;
 };
 
 export type DeckSummary = {

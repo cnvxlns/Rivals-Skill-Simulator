@@ -25,7 +25,8 @@ class DeckScoreService(
 ) {
 
     fun score(roster: DeckRoster, includeBreakdown: Boolean = false): DeckScoreResponse {
-        val scored = roster.players.map { player -> player to scorePlayer(player) }
+        val buff = CollectionBuff.of(roster.players.map { it.cardGrade })
+        val scored = roster.players.map { player -> player to scorePlayer(player, buff) }
 
         val parts = DeckPart.entries.map { part ->
             val inPart = scored.filter { (player, _) -> DeckRules.partOf(player.slot) == part }
@@ -45,10 +46,25 @@ class DeckScoreService(
             parts = parts,
             players = players,
             warnings = scored.flatMap { (_, result) -> result.warnings }.distinct(),
+            collectionBuff = toBuffInfo(buff),
         )
     }
 
-    private fun scorePlayer(player: DeckPlayer): ScoreResponse {
+    private fun toBuffInfo(buff: CollectionBuff.Result) =
+        DeckScoreResponse.CollectionBuffInfo(
+            families = buff.families.map {
+                DeckScoreResponse.CollectionBuffInfo.FamilyCount(
+                    family = it.family.name,
+                    count = it.count,
+                    batterBonus = it.batterBonus,
+                    pitcherBonus = it.pitcherBonus,
+                )
+            },
+            batterBonus = buff.batterBonus,
+            pitcherBonus = buff.pitcherBonus,
+        )
+
+    private fun scorePlayer(player: DeckPlayer, buff: CollectionBuff.Result): ScoreResponse {
         val selections = player.skills.map { selection ->
             val skill = scoreSkillRepository.findBySkillKey(selection.skillId)
                 ?: throw ResponseStatusException(
@@ -68,6 +84,9 @@ class DeckScoreService(
             throwHand = player.throwHand,
             batHand = player.batHand,
             userStats = player.stats,
+            // 컬렉션 버프는 개인 스탯이 아니라 덱 전체에 걸리므로 따로 넘긴다. 여기서 더하지
+            // 않고 넘기는 이유는, 스탯 맵에 없는 능력치도 기본값(120) 위에서 올라야 하기 때문이다.
+            statBonus = buff.bonusFor(DeckRules.isPitcher(player.slot)).toDouble(),
         )
     }
 

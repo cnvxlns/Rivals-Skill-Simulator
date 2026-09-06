@@ -445,11 +445,17 @@ private val DEFAULT_CONDITION_PROBABILITIES: Map<String, Double> =
 @Component
 class ScoreCalculator {
 
+    /**
+     * @param statBonus 기준 스탯에 더할 값. 덱의 컬렉션 버프처럼 선수 개인이 아니라 덱 전체에
+     *   걸리는 보정을 넘긴다. 합산형 기준 스탯(`주루+수비`)은 구성 스탯마다 더해지는데,
+     *   실제로 두 능력치가 각각 오르므로 그게 맞다. 덱 스코어 스탯은 능력치가 아니라 제외된다.
+     */
     fun calculate(
         selections: List<Selection>,
         statWeights: Map<String, Double>,
         conditionProbabilities: Map<String, Double> = DEFAULT_CONDITION_PROBABILITIES,
         userStats: Map<String, Double>? = emptyMap(),
+        statBonus: Double = 0.0,
     ): Result {
         val totalPerStat = LinkedHashMap<String, Double>()
         val perSkill = mutableListOf<SkillScore>()
@@ -470,7 +476,7 @@ class ScoreCalculator {
                 var value = rawValue
                 if (!effect.baseStat.isNullOrBlank()) {
                     baseStat = effect.baseStat
-                    baseValue = userStatValue(safeUserStats, effect.baseStat)
+                    baseValue = userStatValue(safeUserStats, effect.baseStat, statBonus)
                     value = baseValue * rawValue
                 }
                 value = floor(value)
@@ -547,13 +553,20 @@ class ScoreCalculator {
             ?: DEFAULT_CONDITION_PROBABILITIES[part]
             ?: throw IllegalArgumentException("Unknown condition token: $part")
 
-    private fun userStatValue(userStats: Map<String, Double>, stat: String?): Double {
+    private fun userStatValue(
+        userStats: Map<String, Double>,
+        stat: String?,
+        statBonus: Double = 0.0,
+    ): Double {
         // 합산형 기준 스탯(예: "변화+제구")은 각 구성 스탯 값을 더해 기준값으로 사용한다.
         if (stat != null && stat.contains("+")) {
-            return stat.split("+").sumOf { userStatValue(userStats, it.trim()) }
+            return stat.split("+").sumOf { userStatValue(userStats, it.trim(), statBonus) }
         }
-        userStats[stat]?.let { return it }
-        return if (isDeckScoreStat(stat)) DEFAULT_DECK_SCORE else DEFAULT_USER_STAT
+        // 덱 스코어는 선수 능력치가 아니라 덱의 누적 지표다. 능력치 보정을 받지 않는다.
+        if (isDeckScoreStat(stat)) {
+            return userStats[stat] ?: DEFAULT_DECK_SCORE
+        }
+        return (userStats[stat] ?: DEFAULT_USER_STAT) + statBonus
     }
 
     private fun isDeckScoreStat(stat: String?): Boolean = stat != null && stat.contains("덱")

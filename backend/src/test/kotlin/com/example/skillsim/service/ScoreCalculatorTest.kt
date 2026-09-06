@@ -485,6 +485,69 @@ class ScoreCalculatorTest {
         assertThat(left).containsEntry("좌타", 1.0)
     }
 
+    /**
+     * 컬렉션 버프는 기준 스탯을 올린다. 다만 floor 때문에 정수 경계를 넘겨야 점수가 움직인다.
+     */
+    @Test
+    fun `stat bonus raises the base stat of proportional effects`() {
+        val skill = scoreSkill("G_057", "하드 트레이닝", proportionalEffect("변화", "ALWAYS", "0.06", "지구력"))
+        val totalWith = { bonus: Double ->
+            ScoreCalculator().calculate(
+                listOf(ScoreCalculator.Selection(skill, 1)),
+                mapOf("변화" to 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("SP"),
+                emptyMap(),
+                bonus,
+            ).perStat.getValue("변화")
+        }
+
+        // 기본 지구력 120 x 0.06 = 7.2 -> 7. +12로는 7.92라 아직 7이다.
+        assertThat(totalWith(0.0)).isEqualTo(7.00)
+        assertThat(totalWith(12.0)).isEqualTo(7.00)
+        // +14면 8.04가 되어 비로소 한 칸 오른다.
+        assertThat(totalWith(14.0)).isEqualTo(8.00)
+    }
+
+    @Test
+    fun `stat bonus applies to each part of a composite base stat`() {
+        val skill = scoreSkill("G_001", "호타준족", proportionalEffect("파워", "ALWAYS", "0.03", "주루+수비"))
+        val value = { bonus: Double ->
+            ScoreCalculator().calculate(
+                listOf(ScoreCalculator.Selection(skill, 1)),
+                mapOf("파워" to 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("BATTER"),
+                emptyMap(),
+                bonus,
+            ).perStat.getValue("파워")
+        }
+
+        // 주루 120 + 수비 120 = 240 -> floor(7.2) = 7.
+        assertThat(value(0.0)).isEqualTo(7.00)
+        // 두 능력치가 각각 오르므로 기준값은 +10이 아니라 +20이 된다. floor(7.8) = 7.
+        assertThat(value(5.0)).isEqualTo(7.00)
+        assertThat(value(10.0)).isEqualTo(7.00)
+        // 260 x 0.03 = 7.8, 280 x 0.03 = 8.4.
+        assertThat(value(20.0)).isEqualTo(8.00)
+    }
+
+    @Test
+    fun `stat bonus does not touch deck score base stats`() {
+        val skill = scoreSkill("G_038", "결속력", proportionalEffect("파워", "ALWAYS", "0.015", "스페셜덱"))
+        val value = { bonus: Double ->
+            ScoreCalculator().calculate(
+                listOf(ScoreCalculator.Selection(skill, 1)),
+                mapOf("파워" to 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("BATTER"),
+                emptyMap(),
+                bonus,
+            ).perStat.getValue("파워")
+        }
+
+        // 덱 스코어는 선수 능력치가 아니다. 버프를 아무리 올려도 기준값 500이 그대로다.
+        assertThat(value(0.0)).isEqualTo(7.00)
+        assertThat(value(50.0)).isEqualTo(7.00)
+    }
+
     @Test
     fun `floors stat increase before applying stat weight`() {
         val skill = scoreSkill("G_038", "결속력", proportionalEffect("파워", "ALWAYS", "0.015", "스페셜덱"))

@@ -125,6 +125,7 @@ class ScoreService private constructor(
         throwHand: Handedness? = null,
         batHand: Handedness? = null,
         userStats: Map<String, Double>? = null,
+        statBonus: Double = 0.0,
     ): ScoreResponse {
         val conditionProbabilities = ScoreCalculator.conditionProbabilitiesForPosition(
             position = position,
@@ -142,6 +143,7 @@ class ScoreService private constructor(
             statWeightsSupplier(),
             conditionProbabilities,
             userStats,
+            statBonus,
         )
         return toResponse(result, undefinedConditionWarnings, selections)
     }

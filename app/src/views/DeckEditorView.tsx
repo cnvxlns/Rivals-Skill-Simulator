@@ -139,6 +139,36 @@ export default function DeckEditorView({
     </SectionCard>
   );
 
+  /**
+   * 두 명씩 세로로 묶어 열을 만든다. RP1 RP3 RP5 / RP2 RP4 RP6 처럼 읽힌다.
+   *
+   * 중계와 마무리를 각각 따로 묶는 이유는 인원이 홀수일 때다. 통째로 묶으면
+   * 중계 5명 + 마무리 2명에서 RP5와 CP1이 한 열에 들어가 구분이 사라진다.
+   */
+  const pairColumns = (slots: readonly string[]) =>
+    Array.from({ length: Math.ceil(slots.length / 2) }, (_, index) =>
+      slots.slice(index * 2, index * 2 + 2),
+    );
+
+  /**
+   * 한 무리를 열로 세운다.
+   *
+   * 칩은 compact로 그린다. 기본 칩은 flexBasis가 150이라 세로로 쌓으면 그게 폭이 아니라
+   * 높이로 먹는다. 대신 열에 flex를 줘서 다른 섹션과 비슷한 폭이 되게 한다.
+   */
+  const bullpenGroup = (slots: readonly string[]) => {
+    const columns = pairColumns(slots);
+    return (
+      <View style={{ flexDirection: 'row', gap: spacing.sm, flex: columns.length, minWidth: 0 }}>
+        {columns.map((column) => (
+          <View key={column[0]} style={{ gap: spacing.sm, flex: 1, minWidth: 0 }}>
+            {column.map((slot) => slotChip(slot, true))}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   const starterSlots = editor.pitcherSlots.filter((s) => s.startsWith('SP'));
   const bullpenSlots = editor.pitcherSlots.filter((s) => !s.startsWith('SP'));
 
@@ -253,7 +283,14 @@ export default function DeckEditorView({
 
       {section('BENCH', BENCH_SLOTS)}
       {section('ROTATION', starterSlots)}
-      {section('BULLPEN', bullpenSlots)}
+
+      {/* 중계와 마무리를 두 행에 걸쳐 세로로 짝지어 놓는다. 둘 사이는 간격을 넓게 준다. */}
+      <SectionCard title={t(PART_LABEL_KEYS.BULLPEN)}>
+        <View style={{ flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' }}>
+          {bullpenGroup(bullpenSlots.filter((slot) => slot.startsWith('RP')))}
+          {bullpenGroup(bullpenSlots.filter((slot) => slot.startsWith('CP')))}
+        </View>
+      </SectionCard>
 
       <SectionCard title={t('deck_score_title')}>
         <View style={{ gap: spacing.md }}>

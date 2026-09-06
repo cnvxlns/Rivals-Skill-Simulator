@@ -191,6 +191,32 @@ export function useDeckEditor(initial?: DeckDetail) {
     setPlayers((prev) => ({ ...prev, [slot]: { ...prev[slot], ...patch, slot } }));
   }, []);
 
+  /**
+   * 타순을 바꾼다. 이미 그 번호를 쓰던 자리와 맞바꾼다.
+   *
+   * 주전 9명이 1~9를 한 번씩 써야 하므로, 그냥 덮어쓰면 중복이 생겨 저장이 거부된다.
+   * 맞바꾸면 중간에 잘못된 상태가 생기지 않는다.
+   */
+  const setBattingOrder = useCallback((slot: string, order: number) => {
+    setPlayers((prev) => {
+      const current = prev[slot]?.battingOrder;
+      if (!current || current === order) return prev;
+      const holder = Object.keys(prev).find(
+        (other) => other !== slot && isLineup(other) && prev[other]?.battingOrder === order,
+      );
+      const next = { ...prev, [slot]: { ...prev[slot], battingOrder: order } };
+      if (holder) next[holder] = { ...prev[holder], battingOrder: current };
+      return next;
+    });
+  }, []);
+
+  /** 그 타순을 지금 쓰고 있는 자리. 맞바꿀 상대를 화면에 보여 주는 데 쓴다. */
+  const slotForBattingOrder = useCallback(
+    (order: number) =>
+      Object.keys(players).find((slot) => isLineup(slot) && players[slot]?.battingOrder === order),
+    [players],
+  );
+
   const toRequest = useCallback(
     (): DeckSaveRequest => ({
       name: name.trim(),
@@ -277,6 +303,8 @@ export function useDeckEditor(initial?: DeckDetail) {
     derivedField,
     players,
     updatePlayer,
+    setBattingOrder,
+    slotForBattingOrder,
     allSlots,
     pitcherSlots,
     completedCount,

@@ -289,6 +289,7 @@ export const strings = {
   deck_strategy_title: '투수 운용',
   deck_strategy_hint: '셋 중 둘을 고르면 나머지 하나가 자동으로 정해집니다. 투수는 항상 12명입니다.',
   deck_pitcher_derived: '자동 계산됨',
+  deck_batting_order_suffix: '번',
   deck_label_player_name: '선수 이름',
   deck_placeholder_player_name: '예: 김하성',
   deck_section_lineup: '주전',

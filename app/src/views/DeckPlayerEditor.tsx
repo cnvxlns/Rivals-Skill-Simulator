@@ -6,7 +6,7 @@ import { LabeledDropdown, LoadingState, SectionCard, TextField } from '../compon
 import { fetchScoreSkills } from '../lib/api';
 import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
-import { isBench, isReliever, positionForSlot, slotCountFor } from '../lib/useDeckEditor';
+import { isBench, isLineup, isReliever, positionForSlot, slotCountFor } from '../lib/useDeckEditor';
 import { useAppTheme } from '../theme/useTheme';
 import {
   CARD_GRADES_LOW_TO_HIGH,
@@ -18,6 +18,8 @@ import {
   ScoreSkillOption,
   variantsFor,
 } from '../types';
+
+const BATTING_ORDERS = Array.from({ length: 9 }, (_, i) => i + 1);
 
 const BENCH_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
 
@@ -37,10 +39,15 @@ export default function DeckPlayerEditor({
   slot,
   player,
   onChange,
+  onChangeBattingOrder,
+  slotForBattingOrder,
 }: {
   slot: string;
   player: DeckPlayer;
   onChange: (patch: Partial<DeckPlayer>) => void;
+  /** 타순은 다른 자리와 맞바꿔야 해서 별도로 받는다. 주전에만 쓰인다. */
+  onChangeBattingOrder: (order: number) => void;
+  slotForBattingOrder: (order: number) => string | undefined;
 }) {
   const { t } = useTranslation();
   const { spacing } = useAppTheme();
@@ -142,6 +149,21 @@ export default function DeckPlayerEditor({
               options={availableVariants}
               optionLabel={(v) => (v === CardVariant.NONE ? t('option_variant_none') : v)}
               onSelect={(value) => onChange({ cardVariant: value, skills: [] })}
+            />
+          ) : null}
+
+          {isLineup(slot) ? (
+            <LabeledDropdown
+              label={t('label_batting_order')}
+              selected={player.battingOrder ?? 1}
+              options={BATTING_ORDERS}
+              // 이미 그 번호를 쓰는 자리를 함께 보여 준다. 고르면 서로 맞바뀐다.
+              optionLabel={(order) => {
+                const holder = slotForBattingOrder(order);
+                const suffix = holder && holder !== slot ? ` · ${holder}` : '';
+                return `${order}${t('deck_batting_order_suffix')}${suffix}`;
+              }}
+              onSelect={onChangeBattingOrder}
             />
           ) : null}
 

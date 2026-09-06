@@ -272,6 +272,8 @@ export default function DeckEditorView({
                   slot={editing}
                   player={editor.players[editing]}
                   onChange={(patch) => editor.updatePlayer(editing, patch)}
+                  onChangeBattingOrder={(order) => editor.setBattingOrder(editing, order)}
+                  slotForBattingOrder={editor.slotForBattingOrder}
                 />
               ) : null}
             </ScrollView>

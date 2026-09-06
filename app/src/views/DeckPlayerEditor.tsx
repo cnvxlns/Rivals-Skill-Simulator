@@ -40,14 +40,12 @@ export default function DeckPlayerEditor({
   player,
   onChange,
   onChangeBattingOrder,
-  slotForBattingOrder,
 }: {
   slot: string;
   player: DeckPlayer;
   onChange: (patch: Partial<DeckPlayer>) => void;
-  /** 타순은 다른 자리와 맞바꿔야 해서 별도로 받는다. 주전에만 쓰인다. */
+  /** 타순은 다른 자리까지 밀어야 해서 별도로 받는다. 주전에만 쓰인다. */
   onChangeBattingOrder: (order: number) => void;
-  slotForBattingOrder: (order: number) => string | undefined;
 }) {
   const { t } = useTranslation();
   const { spacing } = useAppTheme();
@@ -157,12 +155,9 @@ export default function DeckPlayerEditor({
               label={t('label_batting_order')}
               selected={player.battingOrder ?? 1}
               options={BATTING_ORDERS}
-              // 이미 그 번호를 쓰는 자리를 함께 보여 준다. 고르면 서로 맞바뀐다.
-              optionLabel={(order) => {
-                const holder = slotForBattingOrder(order);
-                const suffix = holder && holder !== slot ? ` · ${holder}` : '';
-                return `${order}${t('deck_batting_order_suffix')}${suffix}`;
-              }}
+              // 고른 번호로 끼워 넣고 나머지가 밀린다. 예전에는 그 번호를 쓰던 자리를
+              // 접미사로 보여 줬는데, 맞바꾸기가 아니게 되면서 그 표기가 거짓말이 됐다.
+              optionLabel={(order) => `${order}${t('deck_batting_order_suffix')}`}
               onSelect={onChangeBattingOrder}
             />
           ) : null}

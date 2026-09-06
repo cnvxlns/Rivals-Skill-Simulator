@@ -156,28 +156,44 @@ export function useDeckEditor(initial?: DeckDetail) {
   }, []);
 
   /**
-   * 타순을 바꾼다. 이미 그 번호를 쓰던 자리와 맞바꾼다.
+   * 타순을 바꾼다. 그 자리를 뽑아 목표 번호에 끼워 넣고 나머지를 한 칸씩 민다.
    *
-   * 주전 9명이 1~9를 한 번씩 써야 하므로, 그냥 덮어쓰면 중복이 생겨 저장이 거부된다.
-   * 맞바꾸면 중간에 잘못된 상태가 생기지 않는다.
+   * 맞바꾸기가 아니다. 3번을 1번으로 옮기면 기존 1·2번이 2·3번으로 밀린다. 실제 라인업을
+   * 짜는 감각에 가깝고, 여러 명을 연달아 옮길 때도 의도대로 움직인다.
+   *
+   * 주전 9명이 1~9를 한 번씩 써야 저장이 통과하는데, 순열을 통째로 다시 매기므로
+   * 중간에 중복이나 구멍이 생기지 않는다.
    */
-  const setBattingOrder = useCallback((slot: string, order: number) => {
+  const moveBattingOrder = useCallback((slot: string, order: number) => {
     setPlayers((prev) => {
-      const current = prev[slot]?.battingOrder;
-      if (!current || current === order) return prev;
-      const holder = Object.keys(prev).find(
-        (other) => other !== slot && isLineup(other) && prev[other]?.battingOrder === order,
+      if (!isLineup(slot) || !prev[slot]?.battingOrder) return prev;
+      const target = Math.min(Math.max(order, 1), LINEUP_SLOTS.length);
+      // 타순이 없는 자리는 뒤로 민다. 저장된 덱이 깨져 있어도 9행이 유지된다.
+      const ordered: string[] = [...LINEUP_SLOTS].sort(
+        (a, b) => (prev[a]?.battingOrder ?? 99) - (prev[b]?.battingOrder ?? 99),
       );
-      const next = { ...prev, [slot]: { ...prev[slot], battingOrder: order } };
-      if (holder) next[holder] = { ...prev[holder], battingOrder: current };
+      const from = ordered.indexOf(slot);
+      if (from < 0 || from === target - 1) return prev;
+      ordered.splice(target - 1, 0, ...ordered.splice(from, 1));
+
+      // 번호가 실제로 바뀐 자리만 새 객체로 만든다. 손대지 않은 선수의 신원이 유지돼야
+      // toRequest가 덜 흔들리고, 완성된 덱에서 프리뷰 채점이 덜 나간다.
+      const next = { ...prev };
+      ordered.forEach((each, index) => {
+        if (prev[each]?.battingOrder !== index + 1) {
+          next[each] = { ...prev[each], battingOrder: index + 1 };
+        }
+      });
       return next;
     });
   }, []);
 
-  /** 그 타순을 지금 쓰고 있는 자리. 맞바꿀 상대를 화면에 보여 주는 데 쓴다. */
-  const slotForBattingOrder = useCallback(
-    (order: number) =>
-      Object.keys(players).find((slot) => isLineup(slot) && players[slot]?.battingOrder === order),
+  /** 타순 1~9 순서로 편 주전 자리. 타순 레인이 이 순서로 행을 그린다. */
+  const lineupByBattingOrder = useMemo(
+    (): string[] =>
+      [...LINEUP_SLOTS].sort(
+        (a, b) => (players[a]?.battingOrder ?? 99) - (players[b]?.battingOrder ?? 99),
+      ),
     [players],
   );
 
@@ -267,8 +283,8 @@ export function useDeckEditor(initial?: DeckDetail) {
     isPitcherStaffValid,
     players,
     updatePlayer,
-    setBattingOrder,
-    slotForBattingOrder,
+    moveBattingOrder,
+    lineupByBattingOrder,
     allSlots,
     pitcherSlots,
     completedCount,

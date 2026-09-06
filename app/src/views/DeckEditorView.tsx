@@ -23,6 +23,7 @@ import {
   LINEUP_FIELD_POSITIONS,
 } from '../types';
 import BaseballField from '../components/BaseballField';
+import BattingOrderLane from '../components/BattingOrderLane';
 import DeckPlayerEditor from './DeckPlayerEditor';
 
 /** 변형이 있으면 등급 뒤에 붙여 보여 준다. 예: Signature Black · WBC */
@@ -212,6 +213,26 @@ export default function DeckEditorView({
         </View>
       </SectionCard>
 
+      {/*
+        타순은 야구장과 따로 둔다. 칩 위치는 수비 포지션이라 끌어 옮겨도 타순이 되지 않는다.
+      */}
+      <SectionCard title={t('deck_batting_order_title')}>
+        <BattingOrderLane
+          rows={editor.lineupByBattingOrder.map((slot) => {
+            const player = editor.players[slot];
+            const done = isPlayerComplete(player);
+            return {
+              slot,
+              title: player?.playerName?.trim() || (done ? cardLabel(player) : t('deck_slot_empty')),
+              subtitle: player?.playerName?.trim() && done ? cardLabel(player) : undefined,
+              done,
+            };
+          })}
+          onMove={editor.moveBattingOrder}
+          onPress={setEditing}
+        />
+      </SectionCard>
+
       {section('BENCH', BENCH_SLOTS)}
       {section('ROTATION', starterSlots)}
       {section('BULLPEN', bullpenSlots)}
@@ -317,8 +338,7 @@ export default function DeckEditorView({
                   slot={editing}
                   player={editor.players[editing]}
                   onChange={(patch) => editor.updatePlayer(editing, patch)}
-                  onChangeBattingOrder={(order) => editor.setBattingOrder(editing, order)}
-                  slotForBattingOrder={editor.slotForBattingOrder}
+                  onChangeBattingOrder={(order) => editor.moveBattingOrder(editing, order)}
                 />
               ) : null}
             </ScrollView>

@@ -215,7 +215,24 @@ export function useScoreCalculator() {
     } finally {
       setCalculating(false);
     }
-  }, [battingOrder, pitcherSlot, canCalculate, cardGrade, cardVariant, position, scorePosition, selections]);
+    // throwHand·batHand가 payload에 들어가므로 deps에도 있어야 한다. 빠져 있던 동안에는
+    // 방향을 바꾸고 계산을 누르면 이전 방향으로 요청이 나갔다.
+  }, [
+    battingOrder, pitcherSlot, canCalculate, cardGrade, cardVariant,
+    position, scorePosition, selections, throwHand, batHand,
+  ]);
+
+  // 조건이 바뀌면 화면에 남은 결과는 더 이상 그 조건의 결과가 아니다. updatePitcherSlot과
+  // 같은 규칙을 투/타 방향에도 적용한다. 예전에는 raw setter라 낡은 결과가 남았다.
+  const updateThrowHand = useCallback((value: Handedness) => {
+    setThrowHand(value);
+    setResult(null);
+  }, []);
+
+  const updateBatHand = useCallback((value: Handedness) => {
+    setBatHand(value);
+    setResult(null);
+  }, []);
 
   const updatePitcherSlot = useCallback((value: number | null) => {
     const nextValue = value != null && value >= 1 && value <= 6 ? value : null;
@@ -266,9 +283,9 @@ export function useScoreCalculator() {
     scorePosition,
     slotCount,
     throwHand,
-    setThrowHand,
+    setThrowHand: updateThrowHand,
     batHand,
-    setBatHand,
+    setBatHand: updateBatHand,
     skills,
     selections,
     selectedSkillIds,

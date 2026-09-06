@@ -7,6 +7,7 @@ import com.example.skillsim.dto.ScoreSelection
 import com.example.skillsim.dto.ScoreSkillOption
 import com.example.skillsim.dto.ScoreTableRequest
 import com.example.skillsim.dto.ScoreTableResponse
+import com.example.skillsim.enums.Handedness
 import com.example.skillsim.enums.Level
 import com.example.skillsim.model.ScoreSkill
 import com.example.skillsim.repository.ScoreSkillRepository
@@ -95,24 +96,53 @@ class ScoreService private constructor(
             calculatorSelections += ScoreCalculator.Selection(skill, level)
         }
 
-        val conditionProbabilities = ScoreCalculator.conditionProbabilitiesForPosition(
+        return scoreSelections(
+            selections = calculatorSelections,
             position = normalizedPosition,
+            cardType = normalizedCardType,
             battingOrder = battingOrder,
             pitcherSlot = pitcherSlot,
-            cardType = normalizedCardType,
             throwHand = request.throwHand,
             batHand = request.batHand,
+            userStats = request.userStats,
+        )
+    }
+
+    /**
+     * 검증이 끝난 스킬 선택을 채점한다. [calculate]의 뒷부분이며 덱 채점이 같은 경로를 타도록 뽑아냈다.
+     *
+     * 검증을 하지 않으므로 호출자가 카드 타입·포지션·레벨을 이미 확인했어야 한다.
+     * [battingOrder]가 null이면 [ScoreCalculator]의 기본 타순이 쓰인다 — 타순이 없는
+     * 후보 선수를 채점할 때 필요하다.
+     */
+    internal fun scoreSelections(
+        selections: List<ScoreCalculator.Selection>,
+        position: String,
+        cardType: String,
+        battingOrder: Int? = null,
+        pitcherSlot: Int? = null,
+        throwHand: Handedness? = null,
+        batHand: Handedness? = null,
+        userStats: Map<String, Double>? = null,
+    ): ScoreResponse {
+        val conditionProbabilities = ScoreCalculator.conditionProbabilitiesForPosition(
+            position = position,
+            battingOrder = battingOrder,
+            pitcherSlot = pitcherSlot,
+            cardType = cardType,
+            throwHand = throwHand,
+            batHand = batHand,
         )
         val undefinedConditionWarnings =
-            applyUndefinedConditionWarnings(calculatorSelections, conditionProbabilities)
+            applyUndefinedConditionWarnings(selections, conditionProbabilities)
 
         val result = scoreCalculator.calculate(
-            calculatorSelections,
+            selections,
             statWeightsSupplier(),
             conditionProbabilities,
-            request.userStats,
+            userStats,
         )
-        return toResponse(result, undefinedConditionWarnings, calculatorSelections)
+        return toResponse(result, undefinedConditionWarnings, selections)
     }
 
     private fun validateBattingOrder(battingOrder: Int?): Int {

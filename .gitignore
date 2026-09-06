@@ -79,3 +79,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# make db-dump 산출물. DB 덤프는 저장소에 올리지 않는다.
+backups/

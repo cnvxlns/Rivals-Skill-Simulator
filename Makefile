@@ -24,7 +24,7 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up up-d down restart logs ps build rebuild clean tunnel-up tunnel-down backend app
+.PHONY: help up up-d down restart logs ps build rebuild clean nuke db-dump tunnel-up tunnel-down backend app
 
 # --- 도커 전체 스택 ---------------------------------------------------------
 
@@ -59,10 +59,24 @@ build:
 rebuild:
 	$(COMPOSE) build --no-cache
 
-# 컨테이너/네트워크/로컬 이미지까지 정리. 백엔드는 클래스패스 CSV만 읽고 상태가
-# 없으므로 지웠다 다시 만들어도 잃을 데이터가 없다.
+# 컨테이너/네트워크/로컬 이미지를 정리한다. 볼륨은 건드리지 않는다.
+# 예전에는 --volumes가 붙어 있었다. 상태가 없던 시절에는 안전했지만 이제 계정과 덱이
+# pgdata에 살기 때문에 그대로 두면 데이터가 지워진다. 볼륨까지 지우려면 make nuke.
 clean:
+	$(COMPOSE) down --remove-orphans --rmi local
+
+# 볼륨까지 전부 삭제한다. 계정과 덱이 함께 사라지며 되돌릴 수 없다.
+nuke:
+	@printf 'pgdata 볼륨을 삭제한다. 계정과 덱이 모두 사라진다. 계속하려면 yes 입력: '
+	@read answer && [ "$$answer" = "yes" ] || (echo "취소했다."; exit 1)
 	$(COMPOSE) down --remove-orphans --volumes --rmi local
+
+# DB를 파일로 받아 둔다. 개인 서버에는 백업이 이것뿐이다.
+db-dump:
+	@mkdir -p backups
+	$(COMPOSE) exec -T db pg_dump -U $${POSTGRES_USER:-skillsim} $${POSTGRES_DB:-skillsim} \
+		> backups/skillsim-$$(date +%Y%m%d-%H%M%S).sql
+	@ls -lh backups | tail -1
 
 # --- 개인 서버 (Cloudflare 터널) --------------------------------------------
 
@@ -96,7 +110,9 @@ help:
 	@echo "  make ps            container status"
 	@echo "  make build         build images"
 	@echo "  make rebuild       build images without cache"
-	@echo "  make clean         down + remove volumes and local images"
+	@echo "  make clean         down + remove local images (keeps the database)"
+	@echo "  make nuke          clean + DELETE the database volume (destroys accounts/decks)"
+	@echo "  make db-dump       pg_dump the database into backups/"
 	@echo ""
 	@echo "  make tunnel-up     cloudflare tunnel stack, needs TUNNEL_TOKEN in .env"
 	@echo "  make tunnel-down   stop tunnel stack"

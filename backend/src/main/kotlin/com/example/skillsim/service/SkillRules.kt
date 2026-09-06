@@ -8,6 +8,20 @@ internal object SkillRules {
 
     const val DEFAULT_SLOT_COUNT = 3
 
+    /**
+     * 지원하는 정규화 카드 타입 전체. 새 타입을 더할 때 이 목록이 기준점이다.
+     *
+     * 카드 타입은 세 곳에 흩어져 있고 한 곳만 고치면 조용히 깨진다.
+     * - [normalizeCardType] 누락 시 400
+     * - `ScoreService.allowedSkillCardTypes` 누락 시 스킬 0개
+     * - `ScoreCalculator`의 상대등급우세 표 누락 시 채점 중 500
+     *
+     * SkillRulesTest가 이 목록을 훑어 세 곳을 모두 검사한다.
+     */
+    val CARD_TYPES = listOf(
+        "NORMAL", "BLACK", "WBC", "WBC_BLACK", "MOMENT", "SUPREME_MOMENT", "HOF", "LIVE", "SEASON",
+    )
+
     private val BATTER_POSITIONS =
         setOf("BATTER", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH", "IF", "OF")
     private val INFIELD_POSITIONS = setOf("1B", "2B", "3B", "SS")
@@ -19,13 +33,25 @@ internal object SkillRules {
             "SIGNATURE", "NORMAL" -> "NORMAL"
             "SIGNATURE_BLACK", "BLACK" -> "BLACK"
             "WBC_SIGNATURE_BLACK", "WBC_BLACK" -> "WBC_BLACK"
-            "WBC", "MOMENT", "HOF", "SUPREME_MOMENT" -> normalized
+            "WBC", "MOMENT", "HOF", "SUPREME_MOMENT", "LIVE", "SEASON" -> normalized
             else -> throw IllegalArgumentException("Unsupported card type: $cardType")
         }
 
+    /**
+     * 스킬 슬롯 수. 블랙 계열만 4개이고 나머지는 3개다.
+     *
+     * 라이브/시즌은 전용 스킬이 없고 아이언·브론즈·실버·골드만 가지므로 기본값 3을 그대로 쓴다.
+     * 게임 규칙이 다르면 아래 조건 한 줄만 고치면 된다.
+     */
     fun slotCount(cardType: String?): Int =
         if (normalizeCardType(cardType) in setOf("BLACK", "WBC_BLACK")) 4 else DEFAULT_SLOT_COUNT
 
+    /**
+     * 카드 타입별 등급 사다리.
+     *
+     * NORMAL과 라이브/시즌이 else로 떨어져 D~S4 전체를 쓴다. 셋 다 스킬 풀이 같으므로
+     * (아이언·브론즈·실버·골드) 사다리도 같은 것이 맞다. 라이브/시즌만 달라지면 분기를 하나 더한다.
+     */
     fun gradeLadder(cardType: String?): List<Level> =
         when (normalizeCardType(cardType)) {
             "MOMENT", "SUPREME_MOMENT" -> listOf(Level.S)

@@ -392,6 +392,54 @@ class ScoreServiceTest {
         assertThat(response.total).isEqualTo(1.00)
     }
 
+    @Test
+    fun `라이브와 시즌은 노멀 풀에서만 스킬을 고른다`() {
+        // 전용 스킬이 없고 아이언·브론즈·실버·골드만 가진다. 그 티어 집합이 곧 card_type=NORMAL이다.
+        val service = ScoreService(
+            mock(ScoreSkillRepository::class.java), ScoreCalculator(), mapOf("파워" to 1.0),
+        )
+        for (cardType in listOf("LIVE", "SEASON")) {
+            assertThat(service.allowedSkillCardTypes(cardType))
+                .`as`("%s의 스킬 풀", cardType)
+                .containsExactly("NORMAL")
+        }
+    }
+
+    @Test
+    fun `라이브 카드는 노멀 스킬은 받고 상위 티어 스킬은 거부한다`() {
+        val repository = mock(ScoreSkillRepository::class.java)
+        val basic = scoreSkill("G_001", "NORMAL", "BATTER", "골드 스킬", effect("파워", "ALWAYS", "1/2/3"))
+        val hof = scoreSkill("HOF_001", "HOF", "BATTER", "HOF 스킬", effect("파워", "ALWAYS", "1/2/3"))
+        `when`(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(listOf(basic))
+        `when`(repository.findBySkillKey("G_001")).thenReturn(basic)
+        `when`(repository.findBySkillKey("HOF_001")).thenReturn(hof)
+        val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
+
+        // 목록 조회는 NORMAL 풀만 돌려준다.
+        assertThat(service.listSkills("LIVE", "BATTER")).hasSize(1)
+
+        // 채점도 통과해야 한다. 상대등급우세 표에 LIVE가 없으면 여기서 500이 났다.
+        val ok = service.calculate(
+            ScoreRequest(
+                cardType = "LIVE", position = "BATTER", battingOrder = 3,
+                selections = listOf(ScoreSelection(skillId = "G_001", level = 1)),
+            ),
+        )
+        assertThat(ok.total).isGreaterThan(0.0)
+
+        // HOF 스킬은 라이브 카드가 가질 수 없다.
+        assertThatThrownBy {
+            service.calculate(
+                ScoreRequest(
+                    cardType = "LIVE", position = "BATTER", battingOrder = 3,
+                    selections = listOf(ScoreSelection(skillId = "HOF_001", level = 1)),
+                ),
+            )
+        }
+            .isInstanceOf(ResponseStatusException::class.java)
+            .hasMessageContaining("does not match requested card type")
+    }
+
     private fun scoreSkill(
         skillKey: String,
         cardType: String,

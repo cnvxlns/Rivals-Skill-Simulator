@@ -108,6 +108,41 @@ class SkillRulesTest {
         assertThat(SkillRules.levelIndex(Level.S, "BLACK")).isEqualTo(5)
     }
 
+    @Test
+    fun `라이브와 시즌은 노멀과 같은 슬롯 수와 등급 사다리를 가진다`() {
+        // 전용 스킬이 없고 아이언·브론즈·실버·골드만 가지므로 NORMAL과 같은 규칙을 따른다.
+        for (cardType in listOf("LIVE", "SEASON")) {
+            assertThat(SkillRules.normalizeCardType(cardType)).isEqualTo(cardType)
+            assertThat(SkillRules.slotCount(cardType)).isEqualTo(3)
+            assertThat(SkillRules.gradeLadder(cardType))
+                .isEqualTo(SkillRules.gradeLadder("NORMAL"))
+        }
+    }
+
+    @Test
+    fun `모든 카드 타입이 세 곳의 표에 빠짐없이 등록되어 있다`() {
+        // 카드 타입은 정규화·스킬풀·상대등급우세 세 곳에 흩어져 있고, 한 곳만 고치면
+        // 400이나 스킬 0개, 심하면 채점 중 500으로 조용히 깨진다. 10번째 타입을 더할 때
+        // 운영에서 터지는 대신 이 테스트가 먼저 깨지게 한다.
+        assertThat(SkillRules.CARD_TYPES).doesNotHaveDuplicates()
+
+        for (cardType in SkillRules.CARD_TYPES) {
+            // 1) 정규화가 자기 자신으로 떨어져야 한다(정규화 결과가 곧 표의 키다).
+            assertThat(SkillRules.normalizeCardType(cardType))
+                .`as`("normalizeCardType(%s)", cardType)
+                .isEqualTo(cardType)
+
+            // 2) 슬롯 수와 등급 사다리가 성립해야 한다.
+            assertThat(SkillRules.slotCount(cardType)).`as`("slotCount(%s)", cardType).isIn(3, 4)
+            assertThat(SkillRules.gradeLadder(cardType)).`as`("gradeLadder(%s)", cardType).isNotEmpty()
+
+            // 3) 상대등급우세 표에 키가 있어야 한다. 없으면 getValue가 채점 중 500을 낸다.
+            assertThat(ScoreCalculator.opponentGradeAdvantageProbabilitiesByCardType)
+                .`as`("상대등급우세 표에 %s 누락", cardType)
+                .containsKey(cardType)
+        }
+    }
+
     private fun skill(skillKey: String, cardType: String) = ScoreSkill(
         skillKey = skillKey,
         cardType = cardType,

@@ -7,6 +7,10 @@ export enum CardType {
   HOF = 'HOF',
   MOMENT = 'MOMENT',
   SUPREME_MOMENT = 'SUPREME_MOMENT',
+  // 라이브/시즌은 전용 스킬이 없고 아이언·브론즈·실버·골드만 가진다.
+  // 백엔드가 시그니처와 같은 스킬 풀·슬롯 3개·D~S4 사다리로 다룬다.
+  LIVE = 'LIVE',
+  SEASON = 'SEASON',
 }
 
 export enum Position {

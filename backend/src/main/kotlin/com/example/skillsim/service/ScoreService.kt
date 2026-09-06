@@ -161,7 +161,17 @@ class ScoreService private constructor(
     private fun scoreSkillsForCardType(cardType: String): List<ScoreSkill> =
         allowedSkillCardTypes(cardType).flatMap { scoreSkillRepository.findByCardTypeIgnoreCase(it) }
 
-    private fun allowedSkillCardTypes(cardType: String): List<String> =
+    /**
+     * 카드 타입이 고를 수 있는 스킬 풀(= CSV의 card_type 목록).
+     *
+     * 라이브/시즌은 전용 스킬이 없고 아이언·브론즈·실버·골드 티어만 가진다. 그 티어 집합은
+     * CSV의 card_type=NORMAL 105건과 정확히 같으므로(skill_id의 I_/B_/S_/G_ 접두사가 곧 NORMAL,
+     * [SkillTier.of] 참고) 별도 티어 필터를 두지 않고 NORMAL 풀을 그대로 쓴다.
+     *
+     * else 분기는 자기 자신만 반환한다. 새 카드 타입을 [SkillRules.normalizeCardType]에만 추가하고
+     * 여기를 빠뜨리면 CSV에 없는 card_type을 조회하게 되어 스킬이 0개가 된다.
+     */
+    internal fun allowedSkillCardTypes(cardType: String): List<String> =
         when (cardType) {
             "BLACK" -> listOf("NORMAL", "BLACK")
             "WBC" -> listOf("NORMAL", "WBC")
@@ -169,6 +179,7 @@ class ScoreService private constructor(
             "MOMENT" -> listOf("NORMAL", "MOMENT")
             "SUPREME_MOMENT" -> listOf("NORMAL", "MOMENT")
             "HOF" -> listOf("NORMAL", "HOF")
+            "LIVE", "SEASON" -> listOf("NORMAL")
             else -> listOf(cardType)
         }
 

@@ -174,7 +174,16 @@ export default function DeckEditorView({
           야구장을 그리고 그 위 실제 수비 위치에 선수를 얹는다. 필드와 칩이 같은 비율
           좌표를 쓰기 때문에 화면 폭이 바뀌어도 어긋나지 않는다.
         */}
-        <View style={{ width: '100%', aspectRatio: 1.15, minHeight: 380 }}>
+        <View
+          style={{
+            width: '100%',
+            // 그림이 가로세로 비슷하다. 카드가 넓어도 필드만 지나치게 커지지 않게 상한을 둔다.
+            maxWidth: 620,
+            alignSelf: 'center',
+            aspectRatio: 1.05,
+            minHeight: 360,
+          }}
+        >
           <View style={StyleSheet.absoluteFill}>
             <BaseballField />
           </View>

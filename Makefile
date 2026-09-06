@@ -24,7 +24,39 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up up-d down restart logs ps build rebuild clean nuke db-dump tunnel-up tunnel-down backend app
+.PHONY: help ensure-env up up-d down restart logs ps build rebuild clean nuke db-dump tunnel-up tunnel-down backend app
+
+# --- 환경 파일 --------------------------------------------------------------
+
+# APP_JWT_SECRET을 비워 두면 백엔드가 부팅마다 임의 서명 키를 만든다. 개발은
+# 되지만 컨테이너를 다시 띄울 때마다 발급된 토큰이 전부 죽어 로그인이 풀린다.
+# 그래서 스택을 올리기 전에 한 번 만들어 .env에 박아 둔다. .env는 gitignore
+# 대상이라 커밋되지 않는다.
+#
+# 이미 값이 있으면 건드리지 않는다. 개인 서버에 쓰던 키를 덮어쓰면 그쪽 로그인이
+# 전부 풀리기 때문이다.
+#
+# openssl은 맥·리눅스에 기본으로 있고 Git for Windows에도 딸려 오지만 확실하지
+# 않다. 없으면 docker로 떨어진다. 어차피 docker 없이는 이 타깃을 부를 일이 없다.
+ensure-env:
+	@if [ ! -f .env ]; then \
+		[ -f .env.example ] && cp .env.example .env || : > .env; \
+		echo "made .env"; \
+	fi
+	@if grep -q '^APP_JWT_SECRET=.\+' .env; then \
+		:; \
+	else \
+		secret=$$(openssl rand -base64 48 2>/dev/null \
+			|| docker run --rm alpine sh -c 'head -c 48 /dev/urandom | base64 | tr -d "\n"'); \
+		if [ -z "$$secret" ]; then \
+			echo "could not generate APP_JWT_SECRET. install openssl or start docker."; \
+			exit 1; \
+		fi; \
+		grep -v '^APP_JWT_SECRET=' .env > .env.tmp || :; \
+		echo "APP_JWT_SECRET=$$secret" >> .env.tmp; \
+		mv .env.tmp .env; \
+		echo "set APP_JWT_SECRET in .env"; \
+	fi
 
 # --- 도커 전체 스택 ---------------------------------------------------------
 
@@ -32,11 +64,11 @@ endif
 # 8080(API)이 호스트에 열린다. 포그라운드라 로그가 그대로 보이고 Ctrl+C로 내려간다.
 # 첫 빌드는 오래 걸린다. 컨테이너 안에서 Gradle/npm 의존성을 처음부터 받고
 # 백엔드 이미지는 빌드 중에 전체 테스트까지 돌린다.
-up:
+up: ensure-env
 	$(COMPOSE) up --build
 
 # 같은 스택을 백그라운드로. 로그는 make logs.
-up-d:
+up-d: ensure-env
 	$(COMPOSE) up --build -d
 
 down:

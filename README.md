@@ -109,6 +109,10 @@ make up                  # 또는 docker compose up --build
 
 `http://localhost:8081` 하나로 끝입니다. `docker-compose.override.yml`이 자동으로 얹혀 포트를 열어 줍니다.
 
+`make up`은 스택을 올리기 전에 `.env`의 `APP_JWT_SECRET`이 비어 있으면 한 번 채웁니다. 이 값이 없으면
+백엔드가 부팅마다 임의 서명 키를 만들어 **컨테이너를 다시 띄울 때마다 로그인이 풀립니다.**
+`docker compose`를 직접 쓴다면 `.env`에 직접 넣어 주세요(`openssl rand -base64 48`).
+
 구조는 nginx가 앱의 정적 빌드를 서빙하면서 `/api`만 백엔드로 프록시하는 형태입니다. 같은 오리진이라 CORS 설정이 필요 없고, 앱 번들에 백엔드 주소를 박아 넣지도 않습니다(`app/src/lib/api.ts`가 환경변수가 없으면 상대경로 `/api`로 떨어집니다).
 
 ```

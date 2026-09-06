@@ -54,11 +54,23 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+/**
+ * 자격 증명을 확인하는 요청인가.
+ *
+ * 가입·로그인의 401은 "토큰이 죽었다"가 아니라 "비밀번호가 틀렸다"는 뜻이라 로그아웃
+ * 대상이 아니다. 구분하지 않으면 로그인 화면에서 오타 한 번에 전역 로그아웃이 돌아
+ * 다른 탭에 열어 둔 상태까지 같이 날아간다.
+ *
+ * `/api/auth/me`는 여기 넣지 않는다. 그쪽 401은 진짜로 토큰이 죽은 것이다.
+ */
+const isCredentialRequest = (url: string | undefined) =>
+  (url ?? '').includes('/api/auth/login') || (url ?? '').includes('/api/auth/signup');
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     // 만료됐거나 서버가 재시작해 서명 키가 바뀐 경우다. 조용히 로그아웃시킨다.
-    if (error?.response?.status === 401) {
+    if (error?.response?.status === 401 && !isCredentialRequest(error?.config?.url)) {
       onUnauthorized?.();
     }
     return Promise.reject(error);

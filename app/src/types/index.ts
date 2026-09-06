@@ -275,20 +275,10 @@ export const LINEUP_FIELD_POSITIONS: Record<string, { x: number; y: number }> = 
 
 export const DH_SLOT = 'DH';
 
-/** 유효한 (선발, 중계, 마무리) 조합. 총원 12명이며 6가지뿐이다. */
-export const VALID_PITCHER_COMBOS: readonly (readonly [number, number, number])[] = [
-  [4, 6, 2],
-  [4, 7, 1],
-  [5, 5, 2],
-  [5, 6, 1],
-  [6, 4, 2],
-  [6, 5, 1],
-];
-
 /** 후보 5자리. */
 export const BENCH_SLOTS = ['BENCH1', 'BENCH2', 'BENCH3', 'BENCH4', 'BENCH5'] as const;
 
-/** 투수 정원. 선발과 마무리를 고르면 중계 정원이 여기서 파생된다. */
+/** 투수 정원. 선발·중계·마무리의 합이 이 값이어야 저장할 수 있다. */
 export const PITCHER_COUNT = 12;
 
 export const ROSTER_SIZE = 26;

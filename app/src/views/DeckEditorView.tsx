@@ -13,7 +13,7 @@ import {
 } from '../components/ui';
 import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
-import { PitcherField, isPlayerComplete, useDeckEditor } from '../lib/useDeckEditor';
+import { PITCHER_RANGES, PitcherField, isPlayerComplete, useDeckEditor } from '../lib/useDeckEditor';
 import { useAppTheme } from '../theme/useTheme';
 import {
   BENCH_SLOTS,
@@ -149,23 +149,22 @@ export default function DeckEditorView({
                 <LabeledDropdown
                   label={t(labelKey)}
                   selected={editor.pitcherCounts[field]}
-                  options={editor.pitcherChoices(field)}
+                  // 서로 묶지 않는다. 각 자리는 자기 범위 안에서 자유롭게 고른다.
+                  options={PITCHER_RANGES[field]}
                   optionLabel={(v) => String(v)}
                   onSelect={(v) => editor.setPitcherCount(field, v)}
                 />
-                {/* 지금 자동으로 정해진 자리를 표시해 준다. 둘을 고르면 셋째는 따라온다. */}
-                <Text
-                  style={{
-                    ...typography.label,
-                    color: editor.derivedField === field ? colors.accentValue : 'transparent',
-                    marginTop: 6,
-                  }}
-                >
-                  {t('deck_pitcher_derived')}
-                </Text>
               </View>
             ))}
           </View>
+
+          {/* 합이 12가 아니면 저장할 수 없다. 어긋난 값을 보여 주고 막는다. */}
+          {!editor.isPitcherStaffValid ? (
+            <InfoBanner
+              text={`${t('deck_pitcher_sum_prefix')}${editor.pitcherTotal}${t('deck_pitcher_sum_suffix')}`}
+              tone="error"
+            />
+          ) : null}
         </View>
       </SectionCard>
 

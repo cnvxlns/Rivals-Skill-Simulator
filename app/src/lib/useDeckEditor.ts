@@ -6,7 +6,6 @@ import {
   BENCH_SLOTS,
   CardGrade,
   CardVariant,
-  VALID_PITCHER_COMBOS,
   DeckDetail,
   DeckPlayer,
   DeckSaveRequest,
@@ -19,32 +18,21 @@ import {
 /** 투수 세 자리 중 어느 것을 고르는가. */
 export type PitcherField = 'starters' | 'relievers' | 'closers';
 
-const comboValue = (combo: readonly [number, number, number], field: PitcherField) =>
-  field === 'starters' ? combo[0] : field === 'relievers' ? combo[1] : combo[2];
-
 /**
- * 어떤 자리를 고칠 때 고를 수 있는 값.
+ * 각 자리에서 고를 수 있는 값의 범위.
  *
- * 총원이 12로 고정이라 둘이 정해지면 셋째는 유일하다. 그래서 "이 자리를 바꿀 때"의
- * 선택지는 함께 고정된 다른 한 자리의 값이 정한다.
+ * 셋을 서로 묶지 않고 각자 자유롭게 고르게 한다. 합이 12가 아니면 화면이 경고를 띄우고
+ * 저장을 막는다. 중계 4~7은 선발 4~6과 마무리 1~2에서 나오는 폭이다.
  */
-export const pitcherChoicesFor = (
-  field: PitcherField,
-  heldField: PitcherField,
-  heldValue: number,
-): number[] => {
-  const values = VALID_PITCHER_COMBOS.filter((c) => comboValue(c, heldField) === heldValue).map(
-    (c) => comboValue(c, field),
-  );
-  return Array.from(new Set(values)).sort((a, b) => a - b);
+export const PITCHER_RANGES: Record<PitcherField, number[]> = {
+  starters: [4, 5, 6],
+  relievers: [4, 5, 6, 7],
+  closers: [1, 2],
 };
 
-/** 중계 정원은 총원 12에서 선발과 마무리를 뺀 값이다. 게임 화면의 "중간 계투(n/n)"가 이 값이다. */
-export const relieverCountFor = (starters: number, closers: number) => PITCHER_COUNT - starters - closers;
-
-export const pitcherSlotsFor = (starters: number, closers: number): string[] => [
+export const pitcherSlotsFor = (starters: number, relievers: number, closers: number): string[] => [
   ...Array.from({ length: starters }, (_, i) => `SP${i + 1}`),
-  ...Array.from({ length: relieverCountFor(starters, closers) }, (_, i) => `RP${i + 1}`),
+  ...Array.from({ length: relievers }, (_, i) => `RP${i + 1}`),
   ...Array.from({ length: closers }, (_, i) => `CP${i + 1}`),
 ];
 
@@ -90,16 +78,12 @@ const emptyPlayer = (slot: string, battingOrder?: number): DeckPlayer => ({
  */
 export function useDeckEditor(initial?: DeckDetail) {
   const [name, setName] = useState(initial?.name ?? '');
+  // 셋을 각자 독립된 상태로 둔다. 서로 강제하지 않고 합이 맞는지만 화면이 알려 준다.
   const [starterCount, setStarters] = useState(initial?.roster.starterCount ?? 5);
   const [closerCount, setClosers] = useState(initial?.roster.closerCount ?? 2);
-  /**
-   * 사용자가 최근에 고른 두 자리. 앞쪽이 더 최근이며, 목록에 없는 나머지 하나가 파생값이다.
-   * 파생값 자리를 고치면 그 자리가 고정으로 들어오고 가장 오래된 것이 파생값이 된다.
-   */
-  const [heldFields, setHeldFields] = useState<[PitcherField, PitcherField]>([
-    'starters',
-    'closers',
-  ]);
+  const [relieverCount, setRelievers] = useState(
+    initial ? PITCHER_COUNT - initial.roster.starterCount - initial.roster.closerCount : 5,
+  );
   const [players, setPlayers] = useState<Record<string, DeckPlayer>>(() => {
     const seed: Record<string, DeckPlayer> = {};
     if (initial) {
@@ -114,7 +98,7 @@ export function useDeckEditor(initial?: DeckDetail) {
     BENCH_SLOTS.forEach((slot) => {
       seed[slot] = emptyPlayer(slot);
     });
-    pitcherSlotsFor(5, 2).forEach((slot) => {
+    pitcherSlotsFor(5, 5, 2).forEach((slot) => {
       seed[slot] = emptyPlayer(slot);
     });
     return seed;
@@ -125,45 +109,24 @@ export function useDeckEditor(initial?: DeckDetail) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const relieverCount = relieverCountFor(starterCount, closerCount);
-  const derivedField: PitcherField =
-    (['starters', 'relievers', 'closers'] as PitcherField[]).find((f) => !heldFields.includes(f)) ??
-    'relievers';
-
   const pitcherCounts: Record<PitcherField, number> = {
     starters: starterCount,
     relievers: relieverCount,
     closers: closerCount,
   };
 
-  /** 세 자리 중 하나를 고른다. 나머지 하나는 자동으로 정해진다. */
-  const setPitcherCount = useCallback(
-    (field: PitcherField, value: number) => {
-      // 고정된 두 자리 중 하나를 고쳤다면 짝은 그대로, 파생값 자리를 고쳤다면
-      // 그 자리가 고정이 되고 가장 오래 전에 고른 것이 파생값으로 밀린다.
-      const partner = heldFields[0] === field ? heldFields[1] : heldFields[0];
-      const combo = VALID_PITCHER_COMBOS.find(
-        (c) => comboValue(c, field) === value && comboValue(c, partner) === pitcherCounts[partner],
-      );
-      if (!combo) return;
-      setStarters(combo[0]);
-      setClosers(combo[2]);
-      setHeldFields([field, partner]);
-    },
-    [heldFields, pitcherCounts],
-  );
+  const pitcherTotal = starterCount + relieverCount + closerCount;
+  const isPitcherStaffValid = pitcherTotal === PITCHER_COUNT;
 
-  /** 지금 이 자리에서 고를 수 있는 값. 함께 고정된 자리가 선택지를 정한다. */
-  const pitcherChoices = useCallback(
-    (field: PitcherField) => {
-      const partner = heldFields[0] === field ? heldFields[1] : heldFields[0];
-      return pitcherChoicesFor(field, partner, pitcherCounts[partner]);
-    },
-    [heldFields, pitcherCounts],
-  );
+  /** 세 자리를 각자 고른다. 서로 건드리지 않는다. */
+  const setPitcherCount = useCallback((field: PitcherField, value: number) => {
+    if (field === 'starters') setStarters(value);
+    else if (field === 'relievers') setRelievers(value);
+    else setClosers(value);
+  }, []);
   const pitcherSlots = useMemo(
-    () => pitcherSlotsFor(starterCount, closerCount),
-    [starterCount, closerCount],
+    () => pitcherSlotsFor(starterCount, relieverCount, closerCount),
+    [starterCount, relieverCount, closerCount],
   );
   const allSlots = useMemo(
     () => [...LINEUP_SLOTS, ...BENCH_SLOTS, ...pitcherSlots],
@@ -185,7 +148,8 @@ export function useDeckEditor(initial?: DeckDetail) {
   }, [pitcherSlots]);
 
   const completedCount = allSlots.filter((slot) => isPlayerComplete(players[slot])).length;
-  const isComplete = completedCount === allSlots.length;
+  // 합이 12가 아니면 자리 수 자체가 26이 아니므로 저장도 채점도 할 수 없다.
+  const isComplete = completedCount === allSlots.length && isPitcherStaffValid;
 
   const updatePlayer = useCallback((slot: string, patch: Partial<DeckPlayer>) => {
     setPlayers((prev) => ({ ...prev, [slot]: { ...prev[slot], ...patch, slot } }));
@@ -240,7 +204,7 @@ export function useDeckEditor(initial?: DeckDetail) {
         };
       }),
     }),
-    [allSlots, players, name, starterCount, closerCount],
+    [allSlots, players, name, starterCount, relieverCount, closerCount],
   );
 
   // 완성된 덱이면 편집하는 동안 점수를 미리 보여 준다. 저장하지 않는다.
@@ -299,8 +263,8 @@ export function useDeckEditor(initial?: DeckDetail) {
     relieverCount,
     pitcherCounts,
     setPitcherCount,
-    pitcherChoices,
-    derivedField,
+    pitcherTotal,
+    isPitcherStaffValid,
     players,
     updatePlayer,
     setBattingOrder,

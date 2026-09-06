@@ -1,5 +1,6 @@
 package com.example.skillsim.config
 
+import com.example.skillsim.auth.TokenInvalidException
 import jakarta.servlet.http.HttpServletRequest
 import java.time.Instant
 import org.springframework.http.HttpStatus
@@ -37,6 +38,22 @@ class ApiExceptionHandler {
                 status = ex.statusCode.value(),
                 error = ex.statusCode.toString().substringAfter(' ').ifBlank { "Error" },
                 message = ex.reason.orEmpty(),
+                path = request.requestURI,
+            ),
+        )
+
+    /** 토큰이 없거나 유효하지 않은 경우. 이유를 세분화하지 않는다. */
+    @ExceptionHandler(TokenInvalidException::class)
+    fun handleTokenInvalid(
+        ex: TokenInvalidException,
+        request: HttpServletRequest,
+    ): ResponseEntity<Map<String, Any?>> = ResponseEntity
+        .status(HttpStatus.UNAUTHORIZED)
+        .body(
+            body(
+                status = HttpStatus.UNAUTHORIZED.value(),
+                error = HttpStatus.UNAUTHORIZED.reasonPhrase,
+                message = ex.message ?: "Authentication is required.",
                 path = request.requestURI,
             ),
         )

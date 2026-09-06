@@ -6,8 +6,11 @@ import com.example.skillsim.dto.ScoreResponse
 import com.example.skillsim.dto.ScoreSkillOption
 import com.example.skillsim.dto.ScoreTableRequest
 import com.example.skillsim.dto.ScoreTableResponse
+import com.example.skillsim.dto.TicketExpectationRequest
+import com.example.skillsim.dto.TicketExpectationResponse
 import com.example.skillsim.service.MethodologyService
 import com.example.skillsim.service.ScoreService
+import com.example.skillsim.service.TicketExpectationService
 import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController
 class ScoreController(
     private val scoreService: ScoreService,
     private val methodologyService: MethodologyService,
+    private val ticketExpectationService: TicketExpectationService,
 ) {
 
     /**
@@ -49,6 +53,17 @@ class ScoreController(
         @Valid @RequestBody request: ScoreTableRequest,
         @RequestParam(name = "topN", defaultValue = "10") topN: Int,
     ): ScoreTableResponse = scoreService.buildScoreTable(request, topN)
+
+    /**
+     * 스킬 변경권을 몇 장쯤 쓰면 지금보다 나아지는가.
+     *
+     * 채점과 같은 조건을 받아 티켓 세 종류를 각각 많이 뽑아 보고 기댓값을 돌려준다.
+     * 저장하지 않으므로 인증도 필요 없다.
+     */
+    @PostMapping("/tickets")
+    fun expectedImprovement(
+        @Valid @RequestBody request: TicketExpectationRequest,
+    ): TicketExpectationResponse = ticketExpectationService.evaluate(request)
 
     @GetMapping("/methodology")
     fun getMethodology(): MethodologyResponse = methodologyService.getMethodology()

@@ -2,6 +2,7 @@ package com.example.skillsim.model
 
 import com.example.skillsim.enums.Handedness
 import com.example.skillsim.enums.RelieverRole
+import com.fasterxml.jackson.annotation.JsonIgnore
 
 /**
  * 덱 한 벌의 완성된 로스터. 검증을 통과한 값만 담기며 그대로 저장·채점된다.
@@ -18,7 +19,13 @@ data class DeckRoster(
     /** 26명 전원. 순서는 의미가 없고 [DeckPlayer.slot]이 자리를 정한다. */
     val players: List<DeckPlayer>,
 ) {
-    /** 중계 인원. 총원이 고정이라 선발·마무리에서 자동으로 정해진다. */
+    /**
+     * 중계 인원. 총원이 고정이라 선발·마무리에서 자동으로 정해진다.
+     *
+     * jsonb에 넣지 않는다. 저장하면 선발 수와 어긋날 여지가 생기고, 무엇보다 읽을 때
+     * 생성자에 없는 필드라 역직렬화가 깨진다.
+     */
+    @get:JsonIgnore
     val relieverCount: Int get() = PITCHER_COUNT - starterCount - closerCount
 
     companion object {

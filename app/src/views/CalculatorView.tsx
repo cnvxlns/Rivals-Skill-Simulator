@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Text, View, ViewStyle } from 'react-native';
+import { Pressable, Text, View, ViewStyle } from 'react-native';
 import { CARD_GRADES_LOW_TO_HIGH, CardVariant, Handedness, Position, SubPosition, variantsFor } from '../types';
 import { useScoreCalculator } from '../lib/useScoreCalculator';
 import { useTranslation } from '../lib/i18n';
@@ -377,6 +377,56 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                 {t('ticket_lock_unavailable')}
               </Text>
             ) : null}
+          </View>
+
+          {/*
+            레벨 보호는 슬롯마다 따로 켠다. 빈 칸은 지킬 값이 없어 켤 수 없다.
+            잠근 첫 칸도 어차피 다시 뽑지 않으므로 뺀다.
+          */}
+          <View style={{ gap: spacing.xs }}>
+            <Text style={[typography.label, { color: colors.secondaryText }]}>
+              {t('ticket_protect_levels')}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+              {Array.from({ length: calc.slotCount }, (_, index) => index).map((index) => {
+                const empty = !calc.sets[0].selections[index]?.skillId;
+                const locked = index === 0 && calc.lockSlotOne && (calc.tickets?.slotOneLockable ?? true);
+                const disabled = empty || locked;
+                const on = !disabled && (calc.protectLevels[index] ?? false);
+                return (
+                  <Pressable
+                    key={`protect-${index}`}
+                    onPress={
+                      disabled
+                        ? undefined
+                        : () =>
+                            calc.setProtectLevels(
+                              Array.from({ length: calc.slotCount }, (_, slot) =>
+                                slot === index ? !on : (calc.protectLevels[slot] ?? false),
+                              ),
+                            )
+                    }
+                    style={{
+                      minHeight: 44,
+                      paddingHorizontal: spacing.md,
+                      justifyContent: 'center',
+                      borderRadius: radius.control,
+                      borderWidth: 1,
+                      borderColor: on ? colors.accentAction : colors.outline,
+                      backgroundColor: on ? 'rgba(76,201,240,0.12)' : colors.surfaceVariant,
+                      opacity: disabled ? 0.4 : 1,
+                    }}
+                  >
+                    <Text style={[typography.label, { color: on ? colors.accentAction : colors.secondaryText }]}>
+                      {index + 1}
+                      {t('ticket_slot_suffix')}
+                      {on ? ' ✓' : ''}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={[typography.label, { color: colors.muted }]}>{t('ticket_protect_hint')}</Text>
           </View>
 
           <PrimaryActionButton

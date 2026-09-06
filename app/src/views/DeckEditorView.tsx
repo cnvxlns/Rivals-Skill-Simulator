@@ -15,6 +15,7 @@ import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
 import { PITCHER_RANGES, PitcherField, isPlayerComplete, useDeckEditor } from '../lib/useDeckEditor';
 import { useAppTheme } from '../theme/useTheme';
+import { useResponsive } from '../lib/useResponsive';
 import {
   BENCH_SLOTS,
   CardVariant,
@@ -37,6 +38,15 @@ const cardLabel = (player: DeckPlayer) => {
 const FIELD_SLOT_WIDTH = 108;
 /** 칩을 좌표의 정중앙에 놓기 위한 대략적인 높이. */
 const FIELD_SLOT_HEIGHT = 52;
+
+/**
+ * 야구장과 타순을 한 행에 두기 시작하는 폭.
+ *
+ * 야구장은 620px에서 칩이 겹치지 않는다. 좌우 여백 48x2와 가운데 간격을 빼고도 한 칸이
+ * 620을 넘겨야 하므로 표를 좌우로 나누는 기준(1000)보다 높게 잡는다.
+ * 그 아래에서는 세로로 떨어진다.
+ */
+const LINEUP_SPLIT = 1360;
 
 const PITCHER_FIELDS: { field: PitcherField; labelKey: 'deck_label_starters' | 'deck_label_relievers' | 'deck_label_closers' }[] = [
   { field: 'starters', labelKey: 'deck_label_starters' },
@@ -76,6 +86,8 @@ export default function DeckEditorView({
 }) {
   const { t } = useTranslation();
   const { colors, typography, spacing, radius } = useAppTheme();
+  const { width } = useResponsive();
+  const sideBySide = width >= LINEUP_SPLIT;
   const editor = useDeckEditor(initial);
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -177,7 +189,12 @@ export default function DeckEditorView({
         </View>
       </SectionCard>
 
-      <SectionCard title={t(PART_LABEL_KEYS.LINEUP)}>
+      {/*
+        넓은 화면에서는 야구장과 타순을 한 행에 둔다. 같은 상태를 두 방식으로 보는 것이라
+        나란히 놓여야 서로 맞물리는 게 보인다. 좁으면 세로로 떨어진다.
+      */}
+      <View style={sideBySide ? { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' } : { gap: spacing.md }}>
+      <SectionCard title={t(PART_LABEL_KEYS.LINEUP)} style={sideBySide ? { flex: 1, minWidth: 0 } : undefined}>
         {/*
           야구장을 그리고 그 위 실제 수비 위치에 선수를 얹는다. 필드와 칩이 같은 비율
           좌표를 쓰기 때문에 화면 폭이 바뀌어도 어긋나지 않는다.
@@ -216,7 +233,7 @@ export default function DeckEditorView({
       {/*
         타순은 야구장과 따로 둔다. 칩 위치는 수비 포지션이라 끌어 옮겨도 타순이 되지 않는다.
       */}
-      <SectionCard title={t('deck_batting_order_title')}>
+      <SectionCard title={t('deck_batting_order_title')} style={sideBySide ? { flex: 1, minWidth: 0 } : undefined}>
         <BattingOrderLane
           rows={editor.lineupByBattingOrder.map((slot) => {
             const player = editor.players[slot];
@@ -232,6 +249,7 @@ export default function DeckEditorView({
           onPress={setEditing}
         />
       </SectionCard>
+      </View>
 
       {section('BENCH', BENCH_SLOTS)}
       {section('ROTATION', starterSlots)}

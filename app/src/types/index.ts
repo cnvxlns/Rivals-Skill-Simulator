@@ -366,6 +366,44 @@ export type DeckScoreResponse = {
   collectionBuff: CollectionBuffInfo;
 };
 
+/** 스킬 변경권 세 종류. 백엔드 TicketType과 같은 이름을 쓴다. */
+export type TicketKind = 'SKILL_CHANGE' | 'PREMIUM_SKILL_CHANGE' | 'SUPREME_SKILL_CHANGE';
+
+export type TicketOutcome = {
+  ticket: TicketKind;
+  /** 결과를 무를 수 있는가. 일반 변경권만 false다. */
+  revocable: boolean;
+  /** 한 장으로 지금보다 나아질 확률. */
+  improveChance: number;
+  /** 나아질 때까지 기대되는 장수. 나아질 수 없으면 null이다. */
+  expectedTickets: number | null;
+  averageGain: number | null;
+  averageTotal: number;
+  /** 장수별 누적 성공 확률. */
+  chanceWithin: Record<string, number>;
+};
+
+export type TicketExpectationResponse = {
+  currentTotal: number;
+  /** 이 카드가 첫 슬롯을 잠글 수 있는가. */
+  slotOneLockable: boolean;
+  tickets: TicketOutcome[];
+};
+
+export type TicketExpectationRequest = {
+  cardGrade: string;
+  cardVariant?: string;
+  position: string;
+  selections: ScoreSelection[];
+  battingOrder?: number | null;
+  pitcherSlot?: number | null;
+  userStats?: Record<string, number>;
+  throwHand?: Handedness;
+  batHand?: Handedness;
+  lockSlotOne?: boolean;
+  protectLevels?: boolean[];
+};
+
 export type DeckSummary = {
   id: number;
   name: string;

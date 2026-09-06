@@ -30,6 +30,12 @@ const cardGradeOptions = CARD_GRADES_LOW_TO_HIGH;
  */
 const COMPARE_SPLIT = 1360;
 
+const TICKET_LABEL_KEYS = {
+  SKILL_CHANGE: 'ticket_kind_normal',
+  PREMIUM_SKILL_CHANGE: 'ticket_kind_premium',
+  SUPREME_SKILL_CHANGE: 'ticket_kind_supreme',
+} as const;
+
 export default function CalculatorView({ onViewMethodology }: { onViewMethodology?: () => void }) {
   const calc = useScoreCalculator();
   const { t } = useTranslation();
@@ -343,8 +349,115 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
           <EmptyState text={t('calculator_empty')} />
         </SectionCard>
       ) : null}
+
+      {renderTickets()}
     </View>
   );
+
+  /**
+   * 스킬 변경권 기댓값.
+   *
+   * 계산기가 이미 들고 있는 조건을 그대로 쓰므로 여기서 새로 물어보는 건 잠금 여부뿐이다.
+   */
+  function renderTickets() {
+    const filled = calc.sets[0].selections.filter((selection) => selection.skillId).length;
+    return (
+      <SectionCard title={t('ticket_title')}>
+        <View style={{ gap: spacing.md }}>
+          <Text style={[typography.label, { color: colors.secondaryText }]}>{t('ticket_desc')}</Text>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap' }}>
+            <LinkAction
+              text={`${t('ticket_lock_slot_one')}${calc.lockSlotOne ? ' ✓' : ''}`}
+              onPress={() => calc.setLockSlotOne(!calc.lockSlotOne)}
+              style={linkTouchTarget}
+            />
+            {calc.tickets && !calc.tickets.slotOneLockable ? (
+              <Text style={[typography.label, { color: colors.muted, flex: 1 }]}>
+                {t('ticket_lock_unavailable')}
+              </Text>
+            ) : null}
+          </View>
+
+          <PrimaryActionButton
+            text={t('ticket_calculate')}
+            onPress={calc.evaluateTickets}
+            enabled={filled > 0 && !calc.ticketsLoading}
+            loading={calc.ticketsLoading}
+          />
+
+          {calc.tickets
+            ? calc.tickets.tickets.map((outcome) => {
+                const impossible = outcome.expectedTickets == null;
+                return (
+                  <View
+                    key={outcome.ticket}
+                    style={{
+                      gap: spacing.xs,
+                      paddingVertical: spacing.smd,
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.divider,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+                      <Text style={[typography.card, { color: colors.onSurface, flex: 1 }]}>
+                        {t(TICKET_LABEL_KEYS[outcome.ticket])}
+                      </Text>
+                      <Text
+                        style={[
+                          typography.card,
+                          { color: impossible ? colors.muted : colors.accentValue },
+                          tabularNums,
+                        ]}
+                      >
+                        {impossible
+                          ? t('ticket_impossible')
+                          : `${t('ticket_expected')} ${outcome.expectedTickets?.toFixed(1)}${t('ticket_expected_unit')}`}
+                      </Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' }}>
+                      <Text style={[typography.label, { color: colors.secondaryText }]}>
+                        {t('ticket_chance_per_one')} {(outcome.improveChance * 100).toFixed(1)}%
+                      </Text>
+                      {outcome.averageGain != null ? (
+                        <Text style={[typography.label, { color: colors.statMine }]}>
+                          {t('ticket_avg_gain')} +{outcome.averageGain.toFixed(2)}
+                        </Text>
+                      ) : null}
+                      <Text
+                        style={[
+                          typography.label,
+                          { color: outcome.revocable ? colors.secondaryText : colors.statOpponent },
+                        ]}
+                      >
+                        {outcome.revocable ? t('ticket_revocable') : t('ticket_not_revocable')}
+                      </Text>
+                    </View>
+
+                    {!impossible ? (
+                      <View style={{ flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' }}>
+                        {Object.entries(outcome.chanceWithin).map(([count, chance]) => (
+                          <Text
+                            key={count}
+                            style={[typography.label, { color: colors.secondaryText }, tabularNums]}
+                          >
+                            {count}
+                            {t('ticket_within_suffix')} {(chance * 100).toFixed(0)}%
+                          </Text>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })
+            : null}
+
+          {calc.tickets ? <InfoBanner text={t('ticket_note')} /> : null}
+        </View>
+      </SectionCard>
+    );
+  }
 
   /** 한 벌의 결과. B에는 A와의 차이를 함께 보여 준다. */
   function renderResult(setIndex: number) {

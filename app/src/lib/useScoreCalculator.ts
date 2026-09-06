@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { calculateScore, fetchScoreSkills } from './api';
+import { calculateScore, fetchScoreSkills, fetchTicketExpectation } from './api';
 import { defaultSubPosition } from './useScoreContext';
 import {
   CardGrade,
@@ -13,6 +13,7 @@ import {
   ScoreSelection,
   ScoreSkillOption,
   SubPosition,
+  TicketExpectationResponse,
 } from '../types';
 
 const BASE_SLOT_COUNT = 3;
@@ -87,6 +88,11 @@ export function useScoreCalculator() {
     Array.from({ length: SET_COUNT }, () => emptySet(BASE_SLOT_COUNT)),
   );
   const [compare, setCompare] = useState(false);
+  // 스킬 변경권 기댓값. A 슬롯을 기준으로 본다. 비교를 켜도 기준은 A 하나다.
+  const [tickets, setTickets] = useState<TicketExpectationResponse | null>(null);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [lockSlotOne, setLockSlotOne] = useState(false);
+  const [protectLevels, setProtectLevels] = useState<boolean[]>([]);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +114,8 @@ export function useScoreCalculator() {
   /** 조건이 바뀌면 모든 벌의 결과가 낡는다. */
   const clearResults = useCallback(() => {
     setSets((prev) => prev.map((set) => (set.result ? { ...set, result: null } : set)));
+    // 조건이 바뀌면 변경권 기댓값도 그 조건의 값이 아니다.
+    setTickets(null);
   }, []);
 
   /** 화면에 결과가 하나라도 떠 있는가. 스탯을 고칠 때 다시 계산할지 가른다. */
@@ -318,6 +326,47 @@ export function useScoreCalculator() {
     clearResults();
   }, [clearResults]);
 
+  /**
+   * 지금 A 슬롯을 기준으로 변경권을 몇 장 쓰면 나아지는지 계산한다.
+   *
+   * 버튼으로만 부른다. 2만 번을 뽑는 계산이라 슬롯을 고칠 때마다 자동으로 돌리면
+   * 서버가 그만큼 일한다.
+   */
+  const evaluateTickets = useCallback(async () => {
+    const filled = sets[0].selections.filter((selection) => selection.skillId);
+    if (!filled.length || !scorePosition || scorePosition === 'ALL') return;
+    setTicketsLoading(true);
+    setError(null);
+    try {
+      setTickets(
+        await fetchTicketExpectation({
+          cardGrade,
+          cardVariant,
+          position: scorePosition,
+          selections: filled.map((selection) => ({
+            skillId: selection.skillId,
+            level: selection.level,
+          })),
+          battingOrder: position === Position.BATTER ? battingOrder : undefined,
+          pitcherSlot: position === Position.PITCHER ? pitcherSlot : undefined,
+          throwHand: position === Position.PITCHER ? throwHand : undefined,
+          batHand: position === Position.BATTER ? batHand : undefined,
+          userStats,
+          lockSlotOne,
+          protectLevels,
+        }),
+      );
+    } catch {
+      setTickets(null);
+      setError('score_error_calculate');
+    } finally {
+      setTicketsLoading(false);
+    }
+  }, [
+    sets, scorePosition, cardGrade, cardVariant, position, battingOrder,
+    pitcherSlot, throwHand, batHand, userStats, lockSlotOne, protectLevels,
+  ]);
+
   const calculate = useCallback(async () => {
     await calculateWithStats(userStats);
   }, [calculateWithStats, userStats]);
@@ -371,6 +420,13 @@ export function useScoreCalculator() {
     copyAToB,
     activeCount,
     hasResult,
+    tickets,
+    ticketsLoading,
+    evaluateTickets,
+    lockSlotOne,
+    setLockSlotOne,
+    protectLevels,
+    setProtectLevels,
     selectedSkillIds,
     visibleStats,
     userStats,

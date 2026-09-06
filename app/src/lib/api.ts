@@ -13,6 +13,8 @@ import {
   MethodologyResponse,
   ScoreTableRequest,
   ScoreTableResponse,
+  TicketExpectationRequest,
+  TicketExpectationResponse,
 } from '../types';
 
 // Expo는 EXPO_PUBLIC_ 접두사 환경변수를 클라이언트 번들에 주입한다.
@@ -121,6 +123,14 @@ export async function checkHealth(timeoutMs = 8000): Promise<{ status: string }>
 
 export async function fetchScoreTable(payload: ScoreTableRequest, topN = 10): Promise<ScoreTableResponse> {
   const res = await api.post<ScoreTableResponse>(`/api/score/table?topN=${topN}`, payload);
+  return res.data;
+}
+
+/** 스킬 변경권을 몇 장 쓰면 나아지는지. 저장하지 않으므로 로그인이 필요 없다. */
+export async function fetchTicketExpectation(
+  payload: TicketExpectationRequest,
+): Promise<TicketExpectationResponse> {
+  const res = await api.post<TicketExpectationResponse>('/api/score/tickets', payload);
   return res.data;
 }
 

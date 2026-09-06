@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calculateScore, fetchScoreSkills } from './api';
 import { defaultSubPosition } from './useScoreContext';
 import {
@@ -54,14 +54,39 @@ export type ScoreSlotSelection = {
   level: number;
 };
 
+/**
+ * 스킬 한 벌과 그 결과.
+ *
+ * 카드 등급·포지션·타순·투타 방향·사용자 스탯은 A/B가 공유한다. 같은 조건에서 어떤
+ * 스킬 조합이 나은지 보는 게 목적이라, 조건까지 갈리면 무엇 때문에 점수가 달라졌는지
+ * 알 수 없다.
+ */
+export type ScoreSet = {
+  selections: ScoreSlotSelection[];
+  result: ScoreResponse | null;
+};
+
+const emptySelections = (slotCount: number): ScoreSlotSelection[] =>
+  Array.from({ length: slotCount }, () => ({ skillId: '', level: 1 }));
+
+const emptySet = (slotCount: number): ScoreSet => ({
+  selections: emptySelections(slotCount),
+  result: null,
+});
+
+/** A와 B. 비교를 꺼도 두 벌을 그대로 들고 있다가 다시 켜면 이어서 쓴다. */
+export const SET_COUNT = 2;
+
 export function useScoreCalculator() {
   const [cardGrade, setCardGrade] = useState<CardGrade>(CardGrade.SIGNATURE);
   const [cardVariant, setCardVariant] = useState<CardVariant>(CardVariant.NONE);
   const [position, setPosition] = useState<Position>(Position.BATTER);
   const [subPosition, setSubPosition] = useState<SubPosition | ''>(defaultSubPosition(Position.BATTER));
   const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
-  const [selections, setSelections] = useState<ScoreSlotSelection[]>(Array(BASE_SLOT_COUNT).fill(null).map(() => ({ skillId: '', level: 1 })));
-  const [result, setResult] = useState<ScoreResponse | null>(null);
+  const [sets, setSets] = useState<ScoreSet[]>(() =>
+    Array.from({ length: SET_COUNT }, () => emptySet(BASE_SLOT_COUNT)),
+  );
+  const [compare, setCompare] = useState(false);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,19 +97,43 @@ export function useScoreCalculator() {
   const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);
 
   const slotCount = useMemo(() => slotCountForCard(cardGrade), [cardGrade]);
+  /** 비교가 꺼져 있으면 A만 본다. */
+  const activeCount = compare ? SET_COUNT : 1;
+
+  /** 한 벌만 고친다. 나머지 벌은 신원을 유지한다. */
+  const patchSet = useCallback((index: number, patch: (set: ScoreSet) => ScoreSet) => {
+    setSets((prev) => prev.map((set, idx) => (idx === index ? patch(set) : set)));
+  }, []);
+
+  /** 조건이 바뀌면 모든 벌의 결과가 낡는다. */
+  const clearResults = useCallback(() => {
+    setSets((prev) => prev.map((set) => (set.result ? { ...set, result: null } : set)));
+  }, []);
+
+  /** 화면에 결과가 하나라도 떠 있는가. 스탯을 고칠 때 다시 계산할지 가른다. */
+  const hasResult = sets.slice(0, activeCount).some((set) => set.result != null);
+
+  // 계산은 부를 때의 최신 슬롯을 봐야 한다. deps에 sets를 넣으면 슬롯을 고칠 때마다
+  // calculateWithStats의 신원이 바뀌어 스탯 재계산 경로가 불필요하게 다시 만들어진다.
+  const setsRef = useRef(sets);
+  setsRef.current = sets;
+  const calcSeq = useRef(0);
   const scorePosition = subPosition;
   const visibleStats = useMemo(
     () => [...(position === Position.PITCHER ? PITCHER_STATS : BATTER_STATS), ...DECK_STATS],
     [position],
   );
 
+  /** 벌마다 이미 고른 스킬. 같은 벌 안에서만 중복을 막는다. */
   const selectedSkillIds = useMemo(
-    () => selections.map((selection) => selection.skillId).filter(Boolean),
-    [selections],
+    () => sets.map((set) => set.selections.map((selection) => selection.skillId).filter(Boolean)),
+    [sets],
   );
 
   const canCalculate = useMemo(() => {
-    const slotsFilled = selections.length === slotCount && selections.every((selection) => selection.skillId);
+    const slotsFilled = sets
+      .slice(0, activeCount)
+      .every((set) => set.selections.length === slotCount && set.selections.every((s) => s.skillId));
     if (!slotsFilled) return false;
     if (!subPosition || subPosition === 'ALL') return false;
 
@@ -100,21 +149,23 @@ export function useScoreCalculator() {
       }
       return false;
     }
-  }, [selections, slotCount, subPosition, position, battingOrder, pitcherSlot]);
+  }, [sets, activeCount, slotCount, subPosition, position, battingOrder, pitcherSlot]);
 
   useEffect(() => {
-    setSelections((prev) =>
-      Array.from({ length: slotCount }, (_, idx) => prev[idx] ?? { skillId: '', level: 1 }),
+    setSets((prev) =>
+      prev.map((set) => ({
+        selections: Array.from({ length: slotCount }, (_, idx) => set.selections[idx] ?? { skillId: '', level: 1 }),
+        result: null,
+      })),
     );
-    setResult(null);
   }, [slotCount]);
 
   useEffect(() => {
     setSubPosition(defaultSubPosition(position));
     setBattingOrder(DEFAULT_BATTING_ORDER);
     setPitcherSlot(null);
-    setResult(null);
-  }, [position]);
+    clearResults();
+  }, [position, clearResults]);
 
   useEffect(() => {
     if (!scorePosition) {
@@ -130,12 +181,12 @@ export function useScoreCalculator() {
         const loadedSkills = await fetchScoreSkills(cardGrade, cardVariant, scorePosition);
         if (cancelled) return;
         setSkills(loadedSkills);
-        setSelections(Array.from({ length: slotCount }, () => ({ skillId: '', level: 1 })));
-        setResult(null);
+        // 등급이나 포지션이 바뀌면 새 풀에 없는 스킬이 남을 수 있어 두 벌 모두 비운다.
+        setSets((prev) => prev.map(() => emptySet(slotCount)));
       } catch {
         if (cancelled) return;
         setSkills([]);
-        setResult(null);
+        setSets((prev) => prev.map((set) => ({ ...set, result: null })));
         setError('score_error_load');
       } finally {
         if (!cancelled) {
@@ -151,9 +202,10 @@ export function useScoreCalculator() {
     };
   }, [cardGrade, cardVariant, scorePosition, slotCount]);
 
-  const updateSkill = useCallback((slotIndex: number, skillId: string) => {
-    setSelections((prev) =>
-      prev.map((selection, idx) => {
+  const updateSkill = useCallback((setIndex: number, slotIndex: number, skillId: string) => {
+    patchSet(setIndex, (set) => ({
+      result: null,
+      selections: set.selections.map((selection, idx) => {
         if (idx !== slotIndex) return selection;
         const nextSkill = skills.find((skill) => skill.skillId === skillId);
         if (!nextSkill) return { skillId, level: 1 };
@@ -166,22 +218,41 @@ export function useScoreCalculator() {
             : defaultLevelFor(nextSkill),
         };
       }),
-    );
-    setResult(null);
-  }, [skills]);
+    }));
+  }, [patchSet, skills]);
 
-  const updateLevel = useCallback((slotIndex: number, level: number) => {
-    setSelections((prev) =>
-      prev.map((selection, idx) => (idx === slotIndex ? { ...selection, level } : selection)),
-    );
-    setResult(null);
+  const updateLevel = useCallback((setIndex: number, slotIndex: number, level: number) => {
+    patchSet(setIndex, (set) => ({
+      result: null,
+      selections: set.selections.map((selection, idx) =>
+        idx === slotIndex ? { ...selection, level } : selection,
+      ),
+    }));
+  }, [patchSet]);
+
+  const clearSlot = useCallback((setIndex: number, slotIndex: number) => {
+    patchSet(setIndex, (set) => ({
+      result: null,
+      selections: set.selections.map((selection, idx) =>
+        idx === slotIndex ? { skillId: '', level: 1 } : selection,
+      ),
+    }));
+  }, [patchSet]);
+
+  /**
+   * 비교를 켜고 끈다.
+   *
+   * 켤 때 B를 A와 같게 채운다. 실제로 보고 싶은 건 "이 한 칸만 바꾸면 얼마나 달라지나"라서,
+   * 빈 B로 시작하면 델타를 보기까지 슬롯을 다시 다 골라야 한다.
+   */
+  const toggleCompare = useCallback((next: boolean) => {
+    setCompare(next);
+    if (next) setSets((prev) => [prev[0], { selections: [...prev[0].selections], result: null }]);
   }, []);
 
-  const clearSlot = useCallback((slotIndex: number) => {
-    setSelections((prev) =>
-      prev.map((selection, idx) => (idx === slotIndex ? { skillId: '', level: 1 } : selection)),
-    );
-    setResult(null);
+  /** A의 스킬 구성을 B로 덮어쓴다. */
+  const copyAToB = useCallback(() => {
+    setSets((prev) => [prev[0], { selections: [...prev[0].selections], result: null }]);
   }, []);
 
   const calculateWithStats = useCallback(async (stats: Record<string, number>) => {
@@ -190,11 +261,11 @@ export function useScoreCalculator() {
       return;
     }
 
-    const payload: ScoreRequest = {
+    const payloadFor = (set: ScoreSet): ScoreRequest => ({
       cardGrade,
       cardVariant,
       position: scorePosition,
-      selections: selections.map<ScoreSelection>((selection) => ({
+      selections: set.selections.map<ScoreSelection>((selection) => ({
         skillId: selection.skillId,
         level: selection.level,
       })),
@@ -203,42 +274,49 @@ export function useScoreCalculator() {
       throwHand: position === Position.PITCHER ? throwHand : undefined,
       batHand: position === Position.BATTER ? batHand : undefined,
       userStats: stats,
-    };
+    });
 
+    // 늦게 온 이전 요청이 나중 결과를 덮지 않게 한다. 스탯을 연달아 고치면
+    // 요청이 겹칠 수 있다.
+    const seq = ++calcSeq.current;
     try {
       setCalculating(true);
       setError(null);
-      setResult(await calculateScore(payload));
+      const targets = setsRef.current.slice(0, activeCount);
+      const results = await Promise.all(targets.map((set) => calculateScore(payloadFor(set))));
+      if (seq !== calcSeq.current) return;
+      setSets((prev) => prev.map((set, idx) => (idx < results.length ? { ...set, result: results[idx] } : set)));
     } catch {
-      setResult(null);
+      if (seq !== calcSeq.current) return;
+      setSets((prev) => prev.map((set) => ({ ...set, result: null })));
       setError('score_error_calculate');
     } finally {
-      setCalculating(false);
+      if (seq === calcSeq.current) setCalculating(false);
     }
     // throwHand·batHand가 payload에 들어가므로 deps에도 있어야 한다. 빠져 있던 동안에는
     // 방향을 바꾸고 계산을 누르면 이전 방향으로 요청이 나갔다.
   }, [
     battingOrder, pitcherSlot, canCalculate, cardGrade, cardVariant,
-    position, scorePosition, selections, throwHand, batHand,
+    position, scorePosition, activeCount, throwHand, batHand,
   ]);
 
   // 조건이 바뀌면 화면에 남은 결과는 더 이상 그 조건의 결과가 아니다. updatePitcherSlot과
   // 같은 규칙을 투/타 방향에도 적용한다. 예전에는 raw setter라 낡은 결과가 남았다.
   const updateThrowHand = useCallback((value: Handedness) => {
     setThrowHand(value);
-    setResult(null);
-  }, []);
+    clearResults();
+  }, [clearResults]);
 
   const updateBatHand = useCallback((value: Handedness) => {
     setBatHand(value);
-    setResult(null);
-  }, []);
+    clearResults();
+  }, [clearResults]);
 
   const updatePitcherSlot = useCallback((value: number | null) => {
     const nextValue = value != null && value >= 1 && value <= 6 ? value : null;
     setPitcherSlot(nextValue);
-    setResult(null);
-  }, []);
+    clearResults();
+  }, [clearResults]);
 
   const calculate = useCallback(async () => {
     await calculateWithStats(userStats);
@@ -248,28 +326,28 @@ export function useScoreCalculator() {
     const nextValue = Number.isFinite(value) ? Math.max(0, value) : defaultValueForStat(stat);
     const nextStats = { ...userStats, [stat]: nextValue };
     setUserStats(nextStats);
-    if (result && canCalculate) {
+    if (hasResult && canCalculate) {
       void calculateWithStats(nextStats);
     } else {
-      setResult(null);
+      clearResults();
     }
-  }, [calculateWithStats, canCalculate, result, userStats]);
+  }, [calculateWithStats, canCalculate, clearResults, hasResult, userStats]);
 
   const updateBattingOrder = useCallback((value: number | null) => {
     const nextValue = value != null && value >= 1 && value <= 9 ? value : null;
     setBattingOrder(nextValue);
-    setResult(null);
-  }, []);
+    clearResults();
+  }, [clearResults]);
 
   const resetUserStats = useCallback(() => {
     const nextStats = defaultUserStats();
     setUserStats(nextStats);
-    if (result && canCalculate) {
+    if (hasResult && canCalculate) {
       void calculateWithStats(nextStats);
     } else {
-      setResult(null);
+      clearResults();
     }
-  }, [calculateWithStats, canCalculate, result]);
+  }, [calculateWithStats, canCalculate, clearResults, hasResult]);
 
   return {
     cardGrade,
@@ -287,7 +365,12 @@ export function useScoreCalculator() {
     batHand,
     setBatHand: updateBatHand,
     skills,
-    selections,
+    sets,
+    compare,
+    setCompare: toggleCompare,
+    copyAToB,
+    activeCount,
+    hasResult,
     selectedSkillIds,
     visibleStats,
     userStats,
@@ -297,7 +380,6 @@ export function useScoreCalculator() {
     calculating,
     canCalculate,
     error,
-    result,
     updateSkill,
     updateLevel,
     updateUserStat,

@@ -13,6 +13,7 @@ import {
   NumberField,
   PrimaryActionButton,
   ScoreHero,
+  SegmentedTabs,
   SectionCard,
   TooltipTarget,
 } from '../components/ui';
@@ -20,6 +21,14 @@ import { columnsFor, useResponsive } from '../lib/useResponsive';
 
 // 낮은 등급부터. 서열이 곧 순서다.
 const cardGradeOptions = CARD_GRADES_LOW_TO_HIGH;
+
+/**
+ * 두 벌을 좌우로 나란히 두기 시작하는 폭.
+ *
+ * 계산기 하나가 이미 isSplit(1000)에서 폭을 다 쓴다. 그보다 넉넉해야 반으로 갈라도
+ * 슬롯 카드와 점수가 눌리지 않는다.
+ */
+const COMPARE_SPLIT = 1360;
 
 export default function CalculatorView({ onViewMethodology }: { onViewMethodology?: () => void }) {
   const calc = useScoreCalculator();
@@ -72,8 +81,84 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
       ? new Set(['파워', '정확', '선구', '인내', '주루'])
       : new Set(['구속', '변화', '구위', '제구', '지구력']);
 
-  const mineStatResults = calc.result?.perStat.filter((stat) => !opponentStats.has(stat.stat)) ?? [];
-  const opponentStatResults = calc.result?.perStat.filter((stat) => opponentStats.has(stat.stat)) ?? [];
+  /**
+   * 비교를 켜면 좌우로 나란히 둔다. 계산기 하나가 이미 1000px를 다 쓰므로 그보다
+   * 넉넉할 때만 나눈다. 좁거나 네이티브면 A/B 전환으로 떨어진다.
+   */
+  const sideBySide = calc.compare && width >= COMPARE_SPLIT;
+  const [shownSet, setShownSet] = useState<'a' | 'b'>('a');
+  const visibleSets = sideBySide ? [0, 1] : [calc.compare && shownSet === 'b' ? 1 : 0];
+  const setLabel = (index: number) => t(index === 0 ? 'calculator_set_a' : 'calculator_set_b');
+
+  /** 한 벌의 스킬 슬롯 격자. 비교를 켜면 좌우로 두 번 그린다. */
+  function renderSlots(setIndex: number) {
+    return (
+      <View
+        style={
+          isSplit && !sideBySide
+            ? { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }
+            : { gap: spacing.md }
+        }
+      >
+        {Array.from({ length: calc.slotCount }, (_, index) => index).map((index) => {
+          const selection = calc.sets[setIndex].selections[index];
+          const selectedSkill = calc.skills.find((skill) => skill.skillId === selection?.skillId);
+          const maxLevel = selectedSkill?.maxLevel ?? 1;
+          const levelOptions = Array.from({ length: maxLevel }, (_, levelIndex) => levelIndex + 1);
+          return (
+            <View
+              key={`slot-${index}`}
+              style={[
+                {
+                  backgroundColor: colors.surface,
+                  borderRadius: radius.card,
+                  borderWidth: 1,
+                  borderColor: colors.outlineFaint,
+                  padding: spacing.mdl,
+                  gap: spacing.sm,
+                },
+                // 좌우로 나눌 때 슬롯은 세로로 쌓인다. 이때 flexBasis는 폭이 아니라
+                // 높이로 먹어서 카드가 눌리고 뒤 요소와 겹친다.
+                isSplit && !sideBySide ? slotCard : undefined,
+              ]}
+            >
+              <Text style={[typography.card, { color: colors.onSurface }]}>
+                {t('slot_label')} {index + 1}
+              </Text>
+              <LabeledDropdown
+                label={t('score_select_skill')}
+                selected={selection?.skillId ?? ''}
+                options={['', ...calc.skills.map((skill) => skill.skillId)]}
+                optionLabel={(skillId) =>
+                  calc.skills.find((skill) => skill.skillId === skillId)?.name ?? t('score_select_skill')
+                }
+                onSelect={(skillId) => calc.updateSkill(setIndex, index, skillId)}
+                searchable
+                searchPlaceholder={t('score_table_search_placeholder')}
+              />
+              <LabeledDropdown
+                label={t('score_level')}
+                selected={Math.min(Math.max(selection?.level ?? 1, 1), maxLevel)}
+                options={levelOptions}
+                // 스킬이 없으면 레벨이 의미가 없다. 빈 라벨을 주면 placeholder가 대신 나온다.
+                optionLabel={(level) =>
+                  selectedSkill ? selectedSkill.levelLabels?.[level - 1] ?? `Lv ${level}` : ''
+                }
+                placeholder={t('score_level_empty')}
+                disabled={!selectedSkill}
+                onSelect={(level) => calc.updateLevel(setIndex, index, level)}
+              />
+              <LinkAction
+                text={t('score_clear_slot')}
+                onPress={() => calc.clearSlot(setIndex, index)}
+                style={linkTouchTarget}
+              />
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
 
   return (
     <View style={{ gap: spacing.md }}>
@@ -202,69 +287,43 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
         ) : null}
       </SectionCard>
 
-      <Text style={[typography.card, { color: colors.onSurface }]}>{t('score_skill_slots')}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap' }}>
+        <Text style={[typography.card, { color: colors.onSurface, flex: 1 }]}>
+          {t('score_skill_slots')}
+        </Text>
+        <LinkAction
+          text={calc.compare ? t('calculator_compare_off') : t('calculator_compare_on')}
+          onPress={() => calc.setCompare(!calc.compare)}
+          style={linkTouchTarget}
+        />
+        {calc.compare ? (
+          <LinkAction text={t('calculator_copy_a_to_b')} onPress={calc.copyAToB} style={linkTouchTarget} />
+        ) : null}
+      </View>
 
-      <View
-        style={
-          isSplit
-            ? { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }
-            : { gap: spacing.md }
-        }
-      >
-        {Array.from({ length: calc.slotCount }, (_, index) => index).map((index) => {
-          const selection = calc.selections[index];
-          const selectedSkill = calc.skills.find((skill) => skill.skillId === selection?.skillId);
-          const maxLevel = selectedSkill?.maxLevel ?? 1;
-          const levelOptions = Array.from({ length: maxLevel }, (_, levelIndex) => levelIndex + 1);
-          return (
-            <View
-              key={`slot-${index}`}
-              style={[
-                {
-                  backgroundColor: colors.surface,
-                  borderRadius: radius.card,
-                  borderWidth: 1,
-                  borderColor: colors.outlineFaint,
-                  padding: spacing.mdl,
-                  gap: spacing.sm,
-                },
-                slotCard,
-              ]}
-            >
-              <Text style={[typography.card, { color: colors.onSurface }]}>
-                {t('slot_label')} {index + 1}
-              </Text>
-              <LabeledDropdown
-                label={t('score_select_skill')}
-                selected={selection?.skillId ?? ''}
-                options={['', ...calc.skills.map((skill) => skill.skillId)]}
-                optionLabel={(skillId) =>
-                  calc.skills.find((skill) => skill.skillId === skillId)?.name ?? t('score_select_skill')
-                }
-                onSelect={(skillId) => calc.updateSkill(index, skillId)}
-                searchable
-                searchPlaceholder={t('score_table_search_placeholder')}
-              />
-              <LabeledDropdown
-                label={t('score_level')}
-                selected={Math.min(Math.max(selection?.level ?? 1, 1), maxLevel)}
-                options={levelOptions}
-                // 스킬이 없으면 레벨이 의미가 없다. 빈 라벨을 주면 placeholder가 대신 나온다.
-                optionLabel={(level) =>
-                  selectedSkill ? selectedSkill.levelLabels?.[level - 1] ?? `Lv ${level}` : ''
-                }
-                placeholder={t('score_level_empty')}
-                disabled={!selectedSkill}
-                onSelect={(level) => calc.updateLevel(index, level)}
-              />
-              <LinkAction
-                text={t('score_clear_slot')}
-                onPress={() => calc.clearSlot(index)}
-                style={linkTouchTarget}
-              />
-            </View>
-          );
-        })}
+      {/* 좌우로 못 나눌 때는 어느 벌을 보는지 고르게 한다. */}
+      {calc.compare && !sideBySide ? (
+        <SegmentedTabs
+          tabs={[
+            { key: 'a' as const, label: setLabel(0) },
+            { key: 'b' as const, label: setLabel(1) },
+          ]}
+          selected={shownSet}
+          onSelect={setShownSet}
+          stretch
+        />
+      ) : null}
+
+      <View style={sideBySide ? { flexDirection: 'row', gap: spacing.md } : undefined}>
+        {visibleSets.map((setIndex) => (
+          <View key={`slots-${setIndex}`} style={sideBySide ? { flex: 1, minWidth: 0, gap: spacing.sm } : { gap: spacing.sm }}>
+            {/* 좌우로 나눌 때만 붙인다. 위아래로 볼 때는 A/B 전환 탭이 이미 알려 준다. */}
+            {sideBySide ? (
+              <Text style={[typography.label, { color: colors.secondaryText }]}>{setLabel(setIndex)}</Text>
+            ) : null}
+            {renderSlots(setIndex)}
+          </View>
+        ))}
       </View>
 
       {calc.error ? <InfoBanner text={tk(calc.error)} tone="error" /> : null}
@@ -275,15 +334,51 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
         loading={calc.calculating}
       />
 
-      {calc.result ? (
-        <SectionCard title={t('score_result_ready')}>
-          <ScoreHero label={t('score_total')} value={calc.result.total} />
+      {calc.hasResult ? (
+        <View style={sideBySide ? { flexDirection: 'row', gap: spacing.md } : { gap: spacing.md }}>
+          {visibleSets.map((setIndex) => renderResult(setIndex))}
+        </View>
+      ) : !calc.calculating && !calc.error ? (
+        <SectionCard padding={spacing.xxl}>
+          <EmptyState text={t('calculator_empty')} />
+        </SectionCard>
+      ) : null}
+    </View>
+  );
 
-          {calc.result.perSkill.length ? (
+  /** 한 벌의 결과. B에는 A와의 차이를 함께 보여 준다. */
+  function renderResult(setIndex: number) {
+    const result = calc.sets[setIndex].result;
+    if (!result) return null;
+    const base = calc.sets[0].result;
+    const delta = setIndex > 0 && base ? result.total - base.total : null;
+    const mineStatResults = result.perStat.filter((stat) => !opponentStats.has(stat.stat));
+    const opponentStatResults = result.perStat.filter((stat) => opponentStats.has(stat.stat));
+    return (
+      <SectionCard
+        key={`result-${setIndex}`}
+        title={calc.compare ? `${t('score_result_ready')} · ${setLabel(setIndex)}` : t('score_result_ready')}
+        style={sideBySide ? { flex: 1, minWidth: 0 } : undefined}
+      >
+        <ScoreHero label={t('score_total')} value={result.total} compact={sideBySide} />
+        {delta != null ? (
+          <Text
+            style={[
+              typography.card,
+              { color: delta >= 0 ? colors.statMine : colors.statOpponent },
+              tabularNums,
+            ]}
+          >
+            {t('calculator_delta')} {delta >= 0 ? '+' : '−'}
+            {Math.abs(delta).toFixed(2)}
+          </Text>
+        ) : null}
+
+          {result.perSkill.length ? (
             <View style={{ gap: spacing.xs }}>
               <Text style={[typography.card, { color: colors.onSurface }]}>{t('score_by_skill')}</Text>
               <View>
-                {calc.result.perSkill.map((skill) => (
+                {result.perSkill.map((skill) => (
                   <View
                     key={skill.skillId}
                     style={{
@@ -331,7 +426,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
             </View>
           ) : null}
 
-          {calc.result.perStat.length ? (
+          {result.perStat.length ? (
             <View style={{ gap: spacing.md }}>
               <Text style={[typography.card, { color: colors.onSurface }]}>{t('score_by_stat')}</Text>
 
@@ -424,12 +519,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
               style={{ ...linkTouchTarget, marginTop: spacing.sm }}
             />
           ) : null}
-        </SectionCard>
-      ) : !calc.calculating && !calc.error ? (
-        <SectionCard padding={spacing.xxl}>
-          <EmptyState text={t('calculator_empty')} />
-        </SectionCard>
-      ) : null}
-    </View>
-  );
+      </SectionCard>
+    );
+  }
 }

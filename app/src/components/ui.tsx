@@ -736,27 +736,55 @@ export function LabeledDropdown<T>({
 
 /* ── 결과 ────────────────────────────────────────────────── */
 
-export function ScoreHero({ label, value }: { label: string; value: number }) {
+/**
+ * @param compact 좌우로 나눠 놓을 때. 여백과 글자를 줄인다. 기본 크기 그대로 반 폭에
+ *   넣으면 numberOfLines={1}에 걸려 숫자가 줄임표로 사라진다.
+ */
+export function ScoreHero({
+  label,
+  value,
+  compact = false,
+}: {
+  label: string;
+  value: number;
+  compact?: boolean;
+}) {
   const { colors, radius, spacing, typography, tabularNums } = useAppTheme();
   return (
     <View
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.lg,
+        gap: compact ? spacing.md : spacing.lg,
         backgroundColor: colors.surfaceVariant,
         borderWidth: 1,
         borderColor: colors.outline,
         borderRadius: radius.input,
-        padding: spacing.xl,
+        padding: compact ? spacing.mdl : spacing.xl,
       }}
     >
-      <View style={{ width: 4, height: 54, borderRadius: 999, backgroundColor: colors.accentValue }} />
-      <View style={{ gap: 4, flex: 1 }}>
+      <View
+        style={{
+          width: 4,
+          height: compact ? 40 : 54,
+          borderRadius: 999,
+          backgroundColor: colors.accentValue,
+        }}
+      />
+      <View style={{ gap: 4, flex: 1, minWidth: 0 }}>
         <Text style={{ color: colors.secondaryText, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
           {label}
         </Text>
-        <Text style={[typography.hero, { color: colors.accentValue }, tabularNums]} numberOfLines={1}>
+        <Text
+          style={[
+            typography.hero,
+            compact ? { fontSize: 30, lineHeight: 36 } : null,
+            { color: colors.accentValue },
+            tabularNums,
+          ]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
           {value.toFixed(2)}
         </Text>
       </View>

@@ -252,6 +252,12 @@ export const strings = {
   methodology_pa_prefix: 'PA',
 
   calculator_result_hint: '슬롯과 조건을 바꾸면 다시 계산해야 합니다',
+  calculator_compare_on: '두 벌 비교',
+  calculator_compare_off: '비교 끄기',
+  calculator_copy_a_to_b: 'A를 B로 복사',
+  calculator_set_a: 'A',
+  calculator_set_b: 'B',
+  calculator_delta: 'A 대비',
   calculator_empty: '슬롯의 스킬을 모두 고른 뒤 점수를 계산하세요.',
 
   label_card_grade: '카드 등급',

@@ -22,8 +22,9 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 변경 시스템을 웹에�
 ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=flat&logo=gradle&logoColor=white)
 
 - App: Expo SDK 57, React Native, expo-router, TypeScript, axios. 웹과 안드로이드를 한 코드베이스로 빌드합니다.
-- Backend: Spring Boot 3.2.4, Kotlin 1.9.22(JVM 17), Gradle(Wrapper), OpenCSV.
-- 데이터: 별도 DB 없이 클래스패스 CSV를 부팅 시 읽어 메모리에 적재합니다(`InMemoryScoreSkillRepository`). 서버는 상태를 갖지 않습니다.
+- Backend: Spring Boot 3.2.4, Kotlin 1.9.22(JVM 17), Gradle(Wrapper), OpenCSV, JDBC + Flyway, JJWT.
+- 데이터: 스킬은 클래스패스 CSV를 부팅 시 읽어 메모리에 적재합니다(`InMemoryScoreSkillRepository`). 계정과 덱만 PostgreSQL에 저장합니다.
+- 인증: 이메일 + 비밀번호(BCrypt), JWT 베어러 토큰. `spring-boot-starter-security` 없이 `HandlerInterceptor`로 처리합니다.
 
 ## 폴더 구조
 ```
@@ -74,7 +75,7 @@ Rivals-Skill-Simulator/
 
 ### 3) Docker로 전체 스택 한 번에 (권장)
 
-Node도 JDK도 설치할 필요 없이 프론트와 백엔드가 같이 뜹니다.
+Node도 JDK도 설치할 필요 없이 DB·백엔드·프론트가 같이 뜹니다.
 
 ```bash
 make up                  # 또는 docker compose up --build
@@ -88,6 +89,7 @@ make up                  # 또는 docker compose up --build
 브라우저 ──> localhost:8081  app (nginx)
                               ├── /        정적 파일 (expo export -p web 산출물)
                               └── /api/*   proxy_pass ──> backend:8080 (Spring)
+                                                             └── db:5432 (Postgres)
 ```
 
 **첫 빌드는 오래 걸립니다.** 컨테이너 안에서 Gradle 의존성과 npm 패키지를 처음부터 받고, 백엔드는 이미지 빌드 중에 전체 테스트까지 돌립니다. 두 Dockerfile 모두 BuildKit 캐시 마운트를 쓰므로 두 번째부터는 훨씬 빠릅니다.
@@ -101,11 +103,13 @@ make tunnel-up              # 또는 docker compose -f docker-compose.yml -f doc
 
 | 파일 | 역할 |
 |---|---|
-| `docker-compose.yml` | app + backend 기본 스택. 포트를 호스트에 열지 않습니다 |
+| `docker-compose.yml` | db + backend + app 기본 스택. 포트를 호스트에 열지 않습니다 |
 | `docker-compose.override.yml` | 로컬 개발용. compose가 자동으로 얹어 8081(앱)·8080(API)을 엽니다 |
 | `docker-compose.tunnel.yml` | 개인 서버용 cloudflared. app을 터널로 노출합니다 |
 
-백엔드는 클래스패스 CSV를 데이터 원천으로 쓰고 DB를 두지 않아 상태가 없습니다. 볼륨이 필요 없고 컨테이너를 지웠다 다시 만들어도 잃을 데이터가 없습니다.
+스킬 데이터는 클래스패스 CSV가 원천이지만, **계정과 덱은 `pgdata` 볼륨에 남습니다.** 이 프로젝트에서 잃으면 복구할 수 없는 유일한 데이터입니다.
+
+> ⚠️ `make clean`은 볼륨을 건드리지 않습니다. 볼륨까지 지우려면 `make nuke`(확인 절차 있음)를 쓰고, 백업은 `make db-dump`으로 받습니다.
 
 ### 4) Makefile 단축 명령
 
@@ -120,7 +124,9 @@ make tunnel-up              # 또는 docker compose -f docker-compose.yml -f doc
 | `make logs` | 로그 따라가기 |
 | `make ps` | 컨테이너 상태 |
 | `make build` / `make rebuild` | 이미지 빌드 / 캐시 없이 빌드 |
-| `make clean` | `down` + 볼륨·로컬 이미지 제거 |
+| `make clean` | `down` + 로컬 이미지 제거. **DB 볼륨은 유지** |
+| `make nuke` | `clean` + DB 볼륨 삭제. 계정과 덱이 사라집니다(확인 입력 필요) |
+| `make db-dump` | `pg_dump`으로 `backups/`에 DB 덤프 |
 | `make tunnel-up` / `make tunnel-down` | 터널 오버레이 기동 / 정지 |
 | `make backend` | 도커 없이 Spring Boot 실행 (JDK 17 필요) |
 | `make app` | 도커 없이 Expo 웹 실행 (Node 20+ 필요) |

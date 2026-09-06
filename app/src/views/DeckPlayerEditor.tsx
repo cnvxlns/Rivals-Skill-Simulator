@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { LabeledDropdown, LoadingState, SectionCard, TextField } from '../components/ui';
+import { InfoBanner, LabeledDropdown, LoadingState, SectionCard, TextField } from '../components/ui';
 import { fetchScoreSkills } from '../lib/api';
 import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
@@ -28,6 +28,15 @@ const RELIEVER_ROLE_KEYS = {
   [RelieverRole.CHASE]: 'deck_reliever_chase',
   [RelieverRole.LONG]: 'deck_reliever_long',
 } as const;
+
+/**
+ * 한 번이라도 받아 본 스킬 설명. 세션 동안 쌓인다.
+ *
+ * 카드 등급을 바꿔도 고른 스킬은 지우지 않는데, 새 등급의 목록에 그 스킬이 없으면
+ * 이름을 몰라 드롭다운이 "스킬 선택"으로 보인다. 그러면 유지된 것이 아니라 지워진 것처럼
+ * 읽힌다. 스킬 정의는 바뀌지 않는 참조 데이터라 요청을 더 보내지 않고 모아 두면 된다.
+ */
+const knownSkills = new Map<string, ScoreSkillOption>();
 
 /**
  * 자리 하나의 선수를 편집한다.
@@ -63,6 +72,7 @@ export default function DeckPlayerEditor({
       setLoading(true);
       try {
         const loaded = await fetchScoreSkills(player.cardGrade, variant, position);
+        loaded.forEach((skill) => knownSkills.set(skill.skillId, skill));
         if (!cancelled) setSkills(loaded);
       } catch {
         if (!cancelled) setSkills([]);
@@ -77,6 +87,18 @@ export default function DeckPlayerEditor({
   }, [player.cardGrade, variant, position]);
 
   const byId = useMemo(() => new Map(skills.map((s) => [s.skillId, s])), [skills]);
+
+  /** 지금 카드의 풀에 없어도 이름은 찾아 준다. 유지된 스킬을 화면에 보여 주기 위해서다. */
+  const describe = (skillId: string) => byId.get(skillId) ?? knownSkills.get(skillId);
+
+  /**
+   * 이 카드에서는 나올 수 없는 스킬인가.
+   *
+   * 목록을 못 받아 왔을 때(요청 실패)는 판단하지 않는다. 그때 전부 경고를 띄우면
+   * 멀쩡한 선택을 지우라고 말하는 꼴이 된다.
+   */
+  const unavailable = (skillId: string | undefined) =>
+    !!skillId && !loading && skills.length > 0 && !byId.has(skillId);
 
   // 슬롯 수는 카드 타입을 따라간다. 4칸에서 3칸으로 줄면 넘치는 것을 잘라 낸다.
   const slots = useMemo<(DeckSkillSelection | null)[]>(
@@ -96,7 +118,7 @@ export default function DeckPlayerEditor({
     if (!skillId) {
       next[index] = null;
     } else {
-      const skill = byId.get(skillId);
+      const skill = describe(skillId);
       // 처음 넣을 때는 S 등급을 기본으로 둔다. 점수표와 같은 기준이라 비교하기 쉽다.
       const sIndex = skill?.levelLabels?.indexOf('S') ?? -1;
       const level = sIndex >= 0 ? sIndex + 1 : Math.max(1, skill?.maxLevel ?? 1);
@@ -133,10 +155,16 @@ export default function DeckPlayerEditor({
             options={CARD_GRADES_LOW_TO_HIGH}
             optionLabel={(value) => cardTypeLabel(value)}
             onSelect={(value) => {
-              // 등급이 바뀌면 스킬 풀과 슬롯 수가 달라지므로 고른 스킬을 비운다.
+              // 등급을 잘못 골랐다가 되돌릴 때 고른 스킬까지 사라지는 것이 가장 잦은 불편이라
+              // 스킬은 그대로 둔다. 새 카드에 없는 스킬은 슬롯마다 경고로 알리고, 저장은
+              // 백엔드가 막는다. 다만 칸이 줄면(블랙 4 → 3) 넘치는 것은 버릴 수밖에 없다.
               // 새 등급에 없는 변형이면 기본형으로 되돌린다.
               const next = variantsFor(value).includes(variant) ? variant : CardVariant.NONE;
-              onChange({ cardGrade: value, cardVariant: next, skills: [] });
+              onChange({
+                cardGrade: value,
+                cardVariant: next,
+                skills: player.skills.slice(0, slotCountFor(value)),
+              });
             }}
           />
 
@@ -146,7 +174,7 @@ export default function DeckPlayerEditor({
               selected={variant}
               options={availableVariants}
               optionLabel={(v) => (v === CardVariant.NONE ? t('option_variant_none') : v)}
-              onSelect={(value) => onChange({ cardVariant: value, skills: [] })}
+              onSelect={(value) => onChange({ cardVariant: value })}
             />
           ) : null}
 
@@ -190,10 +218,14 @@ export default function DeckPlayerEditor({
         ) : (
           <View style={{ gap: spacing.lg }}>
             {slots.map((selection, index) => {
-              const skill = selection ? byId.get(selection.skillId) : undefined;
+              const skill = selection ? describe(selection.skillId) : undefined;
+              const stale = unavailable(selection?.skillId);
               const maxLevel = Math.max(1, skill?.maxLevel ?? 1);
               const options = [
                 '',
+                // 지금 풀에 없는 선택도 목록에 넣는다. 빼면 드롭다운이 빈 칸으로 보여
+                // 스킬이 지워진 것처럼 읽힌다.
+                ...(stale && selection ? [selection.skillId] : []),
                 ...skills
                   .filter((s) => s.skillId === selection?.skillId || !chosen.has(s.skillId))
                   .map((s) => s.skillId),
@@ -204,11 +236,12 @@ export default function DeckPlayerEditor({
                     label={`${t('slot_label')} ${index + 1}`}
                     selected={selection?.skillId ?? ''}
                     options={options}
-                    optionLabel={(skillId) => byId.get(skillId)?.name ?? t('score_select_skill')}
+                    optionLabel={(skillId) => describe(skillId)?.name ?? t('score_select_skill')}
                     onSelect={(skillId) => setSkillAt(index, skillId)}
                     searchable
                     searchPlaceholder={t('score_table_search_placeholder')}
                   />
+                  {stale ? <InfoBanner text={t('deck_skill_unavailable')} tone="error" /> : null}
                   <LabeledDropdown
                     label={t('score_level')}
                     selected={Math.min(Math.max(selection?.level ?? 1, 1), maxLevel)}

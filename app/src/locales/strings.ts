@@ -347,6 +347,7 @@ export const strings = {
   deck_score_stale: '저장 시점 점수',
   deck_slot_empty: '비어 있음',
   deck_player_title: '선수 설정',
+  deck_skill_unavailable: '이 카드에서는 등장할 수 없는 스킬이니 다른 스킬로 교체하세요.',
   deck_label_reliever_role: '보직',
   deck_reliever_win: '승리조',
   deck_reliever_chase: '추격조',

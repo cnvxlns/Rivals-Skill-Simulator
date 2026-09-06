@@ -44,6 +44,8 @@ export type BattingOrderRow = {
   /** 보조 설명. 비어 있으면 표시하지 않는다. */
   subtitle?: string;
   done: boolean;
+  /** 카드 등급색. 야구장 칩과 같은 색이라 두 화면이 같은 선수를 가리키는 것이 보인다. */
+  accent?: string;
 };
 
 export default function BattingOrderLane({
@@ -110,6 +112,16 @@ export default function BattingOrderLane({
                 });
               }}
               onCancel={() => setDrag(null)}
+            />
+
+            {/* 등급색 레일. 폭이 좁아 글자를 더 넣기 어려운 자리라 색으로만 알린다. */}
+            <View
+              style={{
+                width: 4,
+                height: 30,
+                borderRadius: 2,
+                backgroundColor: row.accent ?? colors.outline,
+              }}
             />
 
             <Text style={{ ...typography.card, color: colors.onSurface, width: 28 }}>

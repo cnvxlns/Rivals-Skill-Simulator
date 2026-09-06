@@ -34,9 +34,6 @@ export default function BaseballField() {
   const leftPole = { x: HOME_X - FOUL, y: HOME_Y - FOUL };
   const rightPole = { x: HOME_X + FOUL, y: HOME_Y - FOUL };
 
-  // 마운드는 홈과 2루를 잇는 선 위, 홈에서 베이스 거리의 약 0.67 지점이다.
-  const mound = { x: HOME_X, y: HOME_Y - BASE * 0.67 };
-
   return (
     <Svg width="100%" height="100%" viewBox="0 0 100 100" fill="none">
       {/* 페어 지역. 홈에서 45도로 뻗은 파울선과 외야 펜스 곡선으로 닫는다. */}
@@ -55,10 +52,7 @@ export default function BaseballField() {
         strokeWidth={0.5}
       />
 
-      {/*
-        홈 주변 흙. 실제 구장처럼 원형으로 깔아 타석을 감싼다.
-        반지름은 마운드(홈에서 12.7)와 겹치지 않을 만큼만 키운다.
-      */}
+      {/* 홈 주변 흙. 실제 구장처럼 원형으로 깐다. */}
       <Circle
         cx={HOME_X}
         cy={HOME_Y}
@@ -67,20 +61,6 @@ export default function BaseballField() {
         stroke={colors.fieldLine}
         strokeWidth={0.5}
       />
-
-      {/* 좌·우 타석. 홈플레이트를 사이에 두고 마주 본다. */}
-      {[-1, 1].map((side) => (
-        <Rect
-          key={side}
-          x={HOME_X + side * 4.2 - (side < 0 ? 2.8 : 0)}
-          y={HOME_Y - 2.8}
-          width={2.8}
-          height={5.6}
-          fill="none"
-          stroke={colors.fieldLine}
-          strokeWidth={0.5}
-        />
-      ))}
 
       {/* 홈플레이트. */}
       <Path
@@ -103,16 +83,6 @@ export default function BaseballField() {
           fill={colors.fieldLine}
         />
       ))}
-
-      {/* 투수 마운드. 라인업에 투수가 없어 자리 표시만 한다. */}
-      <Circle
-        cx={mound.x}
-        cy={mound.y}
-        r={3.4}
-        fill={colors.fieldDirt}
-        stroke={colors.fieldLine}
-        strokeWidth={0.5}
-      />
     </Svg>
   );
 }

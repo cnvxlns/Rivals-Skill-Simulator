@@ -50,6 +50,8 @@ const TOKEN_DESCRIPTION_KEYS: Record<string, string> = {
   이닝출루2인이상: 'condition_inning_two_baserunners',
   발사각조건: 'condition_launch_angle',
   타순1: 'condition_batting_order_1',
+  타순2: 'condition_batting_order_2',
+  타순3: 'condition_batting_order_3',
   타순1_2: 'condition_batting_order_1_2',
   타순2_3: 'condition_batting_order_2_3',
   타순3_4_5: 'condition_batting_order_3_5',
@@ -69,6 +71,7 @@ const TOKEN_DESCRIPTION_KEYS: Record<string, string> = {
   포지션_SP: 'condition_gate_position_sp',
   포지션_RP_CP: 'condition_gate_position_rp_cp',
   포지션_DH: 'condition_gate_position_dh',
+  포지션_2B: 'condition_gate_position_2b',
   포지션_SS: 'condition_gate_position_ss',
   포지션_OF: 'condition_gate_position_of',
   포지션_C: 'condition_gate_position_c',
@@ -76,6 +79,7 @@ const TOKEN_DESCRIPTION_KEYS: Record<string, string> = {
   우완: 'condition_right_handed_throw',
   좌타: 'condition_left_handed_bat',
   우타: 'condition_right_handed_bat',
+  스위치타: 'condition_switch_hitter',
 };
 
 type SectionKey = 'static' | 'role' | 'batting' | 'reach' | 'gates';

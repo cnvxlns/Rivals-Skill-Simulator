@@ -185,6 +185,8 @@ private const val INNING_TWO_BASERUNNERS_EXPOSURE = 0.25
  */
 internal fun battingOrderProbabilities(battingOrder: Int): Map<String, Double> = mapOf(
     "타순1" to gate(battingOrder == 1),
+    "타순2" to gate(battingOrder == 2),
+    "타순3" to gate(battingOrder == 3),
     "타순1_2" to gate(battingOrder in 1..2),
     "타순2_3" to gate(battingOrder in 2..3),
     "타순3_4_5" to gate(battingOrder in 3..5),
@@ -246,6 +248,7 @@ private object PositionGateResolver : ConditionResolver {
         probabilities["포지션_SP"] = gate(position == "SP")
         probabilities["포지션_RP_CP"] = gate(position in setOf("RP", "CP"))
         probabilities["포지션_DH"] = gate(position == "DH")
+        probabilities["포지션_2B"] = gate(position == "2B")
         probabilities["포지션_SS"] = gate(position == "SS")
         probabilities["포지션_OF"] = gate(position in setOf("OF", "LF", "CF", "RF"))
         probabilities["포지션_C"] = gate(position == "C")

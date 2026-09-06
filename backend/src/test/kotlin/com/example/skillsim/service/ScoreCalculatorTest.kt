@@ -446,6 +446,46 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    fun `gates single batting order tokens`() {
+        val third = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 3)
+
+        assertThat(third).containsEntry("타순2", 0.0)
+        assertThat(third).containsEntry("타순3", 1.0)
+
+        val second = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 2)
+
+        assertThat(second).containsEntry("타순2", 1.0)
+        assertThat(second).containsEntry("타순3", 0.0)
+    }
+
+    @Test
+    fun `gates second base position`() {
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("2B"))
+            .containsEntry("포지션_2B", 1.0)
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("SS"))
+            .containsEntry("포지션_2B", 0.0)
+    }
+
+    /**
+     * 스위치 타자는 좌타 절과 스위치 절을 모두 만족한다. 치퍼(스위치 조건)와
+     * 리틀 빅맨(좌타 조건)이 한 카드에서 동시에 걸릴 수 있어야 한다.
+     */
+    @Test
+    fun `gates switch hitter separately from left handed batter`() {
+        val switch = ScoreCalculator.conditionProbabilitiesForPosition(
+            "2B", batHand = Handedness.SWITCH,
+        )
+        assertThat(switch).containsEntry("스위치타", 1.0)
+        assertThat(switch).containsEntry("좌타", 1.0)
+
+        val left = ScoreCalculator.conditionProbabilitiesForPosition(
+            "2B", batHand = Handedness.LEFT,
+        )
+        assertThat(left).containsEntry("스위치타", 0.0)
+        assertThat(left).containsEntry("좌타", 1.0)
+    }
+
+    @Test
     fun `floors stat increase before applying stat weight`() {
         val skill = scoreSkill("G_038", "결속력", proportionalEffect("파워", "ALWAYS", "0.015", "스페셜덱"))
 

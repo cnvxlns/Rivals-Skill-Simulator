@@ -79,9 +79,13 @@ export function apiErrorMessage(error: unknown): string | null {
 
 /* ── 점수 ────────────────────────────────────────────── */
 
-export async function fetchScoreSkills(cardType: string, position: string): Promise<ScoreSkillOption[]> {
+export async function fetchScoreSkills(
+  cardGrade: string,
+  cardVariant: string | undefined,
+  position: string,
+): Promise<ScoreSkillOption[]> {
   const res = await api.get<ScoreSkillOption[]>('/api/score/skills', {
-    params: { cardType, position },
+    params: { cardGrade, cardVariant, position },
   });
   return res.data;
 }

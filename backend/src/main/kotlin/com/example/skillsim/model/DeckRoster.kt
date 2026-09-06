@@ -44,6 +44,7 @@ data class DeckRoster(
  *
  * @param slot 자리. 주전은 포지션명(`C`, `SS`, `DH` …), 후보는 `BENCH1`~`BENCH5`,
  *   투수는 `SP1`~`SP6` / `RP1`~`RP7` / `CP1`~`CP2`.
+ * @param cardGrade 카드 등급(서열). @param cardVariant 변형(FA·WBC). 둘은 다른 축이다.
  * @param position 채점에 쓰는 포지션. 주전과 투수는 [slot]에서 유도하므로 클라이언트 값을 믿지 않고,
  *   후보만 직접 받는다(후보 포수는 C 전용 스킬을 골라야 한다).
  * @param battingOrder 타순. 주전 9명만 가지며 1~9가 중복 없이 채워진다.
@@ -54,7 +55,10 @@ data class DeckRoster(
 data class DeckPlayer(
     val slot: String,
     val position: String,
-    val cardType: String,
+    /** 카드 등급. 상대등급우세 조건이 이 값을 본다. */
+    val cardGrade: String,
+    /** 카드 변형. 서열에는 영향이 없고 WBC만 스킬 풀을 넓힌다. */
+    val cardVariant: String = "NONE",
     val skills: List<DeckSkillSelection>,
     val battingOrder: Int? = null,
     val pitcherSlot: Int? = null,

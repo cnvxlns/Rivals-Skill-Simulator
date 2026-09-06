@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { calculateScore, fetchScoreSkills } from './api';
 import { defaultSubPosition } from './useScoreContext';
 import {
-  CardType,
+  CardGrade,
+  CardVariant,
   Handedness,
   Position,
   ScoreRequest,
@@ -36,8 +37,9 @@ const BATTER_STATS = ['파워', '정확', '선구', '인내', '주루', '수비'
 const PITCHER_STATS = ['구속', '변화', '구위', '제구', '지구력', '수비'];
 const DECK_STATS = ['스페셜덱', '팀덱'];
 
-const slotCountForCard = (cardType: CardType) =>
-  cardType === CardType.SIGNATURE_BLACK || cardType === CardType.WBC_SIGNATURE_BLACK ? 4 : BASE_SLOT_COUNT;
+/** 슬롯 수는 등급만 본다. 변형은 영향을 주지 않는다. */
+const slotCountForCard = (grade: CardGrade) =>
+  grade === CardGrade.SIGNATURE_BLACK ? 4 : BASE_SLOT_COUNT;
 
 const defaultUserStats = () =>
   [...BATTER_STATS, ...PITCHER_STATS, ...DECK_STATS].reduce<Record<string, number>>((acc, stat) => {
@@ -53,7 +55,8 @@ export type ScoreSlotSelection = {
 };
 
 export function useScoreCalculator() {
-  const [cardType, setCardType] = useState<CardType>(CardType.SIGNATURE);
+  const [cardGrade, setCardGrade] = useState<CardGrade>(CardGrade.SIGNATURE);
+  const [cardVariant, setCardVariant] = useState<CardVariant>(CardVariant.NONE);
   const [position, setPosition] = useState<Position>(Position.BATTER);
   const [subPosition, setSubPosition] = useState<SubPosition | ''>(defaultSubPosition(Position.BATTER));
   const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
@@ -68,7 +71,7 @@ export function useScoreCalculator() {
   const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
   const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);
 
-  const slotCount = useMemo(() => slotCountForCard(cardType), [cardType]);
+  const slotCount = useMemo(() => slotCountForCard(cardGrade), [cardGrade]);
   const scorePosition = subPosition;
   const visibleStats = useMemo(
     () => [...(position === Position.PITCHER ? PITCHER_STATS : BATTER_STATS), ...DECK_STATS],
@@ -124,7 +127,7 @@ export function useScoreCalculator() {
       try {
         setLoadingSkills(true);
         setError(null);
-        const loadedSkills = await fetchScoreSkills(cardType, scorePosition);
+        const loadedSkills = await fetchScoreSkills(cardGrade, cardVariant, scorePosition);
         if (cancelled) return;
         setSkills(loadedSkills);
         setSelections(Array.from({ length: slotCount }, () => ({ skillId: '', level: 1 })));
@@ -146,7 +149,7 @@ export function useScoreCalculator() {
     return () => {
       cancelled = true;
     };
-  }, [cardType, scorePosition, slotCount]);
+  }, [cardGrade, cardVariant, scorePosition, slotCount]);
 
   const updateSkill = useCallback((slotIndex: number, skillId: string) => {
     setSelections((prev) =>
@@ -188,7 +191,8 @@ export function useScoreCalculator() {
     }
 
     const payload: ScoreRequest = {
-      cardType,
+      cardGrade,
+      cardVariant,
       position: scorePosition,
       selections: selections.map<ScoreSelection>((selection) => ({
         skillId: selection.skillId,
@@ -211,7 +215,7 @@ export function useScoreCalculator() {
     } finally {
       setCalculating(false);
     }
-  }, [battingOrder, pitcherSlot, canCalculate, cardType, position, scorePosition, selections]);
+  }, [battingOrder, pitcherSlot, canCalculate, cardGrade, cardVariant, position, scorePosition, selections]);
 
   const updatePitcherSlot = useCallback((value: number | null) => {
     const nextValue = value != null && value >= 1 && value <= 6 ? value : null;
@@ -251,8 +255,10 @@ export function useScoreCalculator() {
   }, [calculateWithStats, canCalculate, result]);
 
   return {
-    cardType,
-    setCardType,
+    cardGrade,
+    setCardGrade,
+    cardVariant,
+    setCardVariant,
     position,
     setPosition,
     subPosition,

@@ -24,6 +24,7 @@ internal object DeckFixtures {
     val skills = (1..4).map { index ->
         ScoreSkill(
             skillKey = "G_00$index",
+            // ScoreSkill.cardType은 스킬 풀 축이다. 카드 등급이 아니다.
             cardType = "NORMAL",
             position = "BATTER, PITCHER",
             name = "스킬$index",
@@ -43,7 +44,7 @@ internal object DeckFixtures {
 
     fun validator(repository: ScoreSkillRepository = repository()) = DeckValidator(
         scoreSkillRepository = repository,
-        allowedSkillCardTypes = { listOf("NORMAL") },
+        skillPoolsFor = { _, _ -> listOf("NORMAL") },
         allowedStatNames = { setOf(STAT) },
     )
 
@@ -62,7 +63,7 @@ internal object DeckFixtures {
         val lineup = DeckRules.LINEUP_SLOTS.mapIndexed { index, slot ->
             DeckPlayerRequest(
                 slot = slot,
-                cardType = "NORMAL",
+                cardGrade = "SIGNATURE",
                 skills = threeSkills(),
                 battingOrder = index + 1,
             )
@@ -70,7 +71,7 @@ internal object DeckFixtures {
         val bench = DeckRules.BENCH_SLOTS.map { slot ->
             DeckPlayerRequest(
                 slot = slot,
-                cardType = "NORMAL",
+                cardGrade = "SIGNATURE",
                 position = "C",
                 skills = threeSkills(),
             )
@@ -78,7 +79,7 @@ internal object DeckFixtures {
         val pitchers = DeckRules.pitcherSlots(starterCount, closerCount).map { slot ->
             DeckPlayerRequest(
                 slot = slot,
-                cardType = "NORMAL",
+                cardGrade = "SIGNATURE",
                 skills = threeSkills(),
                 relieverRole = if (DeckRules.isReliever(slot)) RelieverRole.LONG else null,
             )

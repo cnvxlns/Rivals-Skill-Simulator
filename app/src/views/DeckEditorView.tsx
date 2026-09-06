@@ -20,8 +20,15 @@ import {
   useDeckEditor,
 } from '../lib/useDeckEditor';
 import { useAppTheme } from '../theme/useTheme';
-import { BENCH_SLOTS, DeckDetail, LINEUP_SLOTS } from '../types';
+import { BENCH_SLOTS, CardVariant, DeckDetail, DeckPlayer, LINEUP_SLOTS } from '../types';
 import DeckPlayerEditor from './DeckPlayerEditor';
+
+/** 변형이 있으면 등급 뒤에 붙여 보여 준다. 예: Signature Black · WBC */
+const cardLabel = (player: DeckPlayer) => {
+  const grade = cardTypeLabel(String(player.cardGrade));
+  const variant = player.cardVariant;
+  return !variant || variant === CardVariant.NONE ? grade : `${grade} · ${variant}`;
+};
 
 const PART_LABEL_KEYS = {
   LINEUP: 'deck_section_lineup',
@@ -76,7 +83,7 @@ export default function DeckEditorView({
       >
         <Text style={{ ...typography.label, color: colors.secondaryText }}>{slot}</Text>
         <Text style={{ ...typography.card, color: done ? colors.onSurface : colors.muted }} numberOfLines={1}>
-          {done ? cardTypeLabel(player.cardType) : t('deck_slot_empty')}
+          {done ? cardLabel(player) : t('deck_slot_empty')}
         </Text>
       </Pressable>
     );

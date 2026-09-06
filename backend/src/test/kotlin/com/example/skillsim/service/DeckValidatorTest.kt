@@ -253,13 +253,25 @@ class DeckValidatorTest {
     }
 
     @Test
-    fun `지원하지 않는 카드 타입은 어느 자리인지 알려주며 거부한다`() {
+    fun `지원하지 않는 카드 등급은 어느 자리인지 알려주며 거부한다`() {
         val request = DeckFixtures.deckRequest()
         val players = request.players!!.map {
-            if (it.slot == "CF") it.copy(cardType = "PRIME") else it
+            if (it.slot == "CF") it.copy(cardGrade = "LEGEND") else it
         }
 
         assertThatThrownBy { validator.validate(request.copy(players = players)) }
-            .hasMessageContaining("CF: Unsupported card type: PRIME")
+            .hasMessageContaining("CF: Unsupported card grade: LEGEND")
+    }
+
+    @Test
+    fun `등급에 없는 변형은 어느 자리인지 알려주며 거부한다`() {
+        // FA·WBC는 프라임·시그니처·시그니처블랙에만 붙는다.
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "CF") it.copy(cardGrade = "HOF", cardVariant = "WBC") else it
+        }
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .hasMessageContaining("CF: HOF cards have no WBC variant")
     }
 }

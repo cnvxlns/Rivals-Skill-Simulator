@@ -290,14 +290,15 @@ class ScoreCalculatorTest {
     fun `WBC tier matches its non-WBC counterpart as a rebrand not a different grade`() {
         val table = ScoreCalculator.opponentGradeAdvantageProbabilitiesByCardType
 
-        assertThat(table["WBC"]).isEqualTo(table["NORMAL"])
-        assertThat(table["WBC_BLACK"]).isEqualTo(table["BLACK"])
+        // 변형(FA·WBC)은 서열을 바꾸지 않으므로 이 표에 등장하지 않는다.
+        assertThat(table).doesNotContainKeys("WBC", "WBC_BLACK", "NORMAL", "BLACK")
     }
 
     @Test
     fun `opponent grade advantage probabilities are non-increasing up the ladder`() {
         val table = ScoreCalculator.opponentGradeAdvantageProbabilitiesByCardType
-        val lowToHigh = listOf("MOMENT", "SUPREME_MOMENT", "NORMAL", "WBC", "BLACK", "WBC_BLACK", "HOF")
+        // season = live < impact < prime < moment < signature < signature black < hof
+        val lowToHigh = CardRules.GRADES_LOW_TO_HIGH
 
         for (i in 1 until lowToHigh.size) {
             assertThat(table.getValue(lowToHigh[i])).isLessThanOrEqualTo(table.getValue(lowToHigh[i - 1]))

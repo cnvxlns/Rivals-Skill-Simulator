@@ -22,7 +22,7 @@ class DeckRosterJsonTest {
             DeckPlayer(
                 slot = "SS",
                 position = "SS",
-                cardType = "NORMAL",
+                cardGrade = "SIGNATURE",
                 skills = listOf(DeckSkillSelection("G_001", 3)),
                 battingOrder = 1,
                 stats = mapOf("파워" to 120.0),
@@ -31,7 +31,7 @@ class DeckRosterJsonTest {
             DeckPlayer(
                 slot = "RP2",
                 position = "RP",
-                cardType = "LIVE",
+                cardGrade = "LIVE",
                 skills = listOf(DeckSkillSelection("G_002", 1)),
                 pitcherSlot = 2,
                 relieverRole = RelieverRole.CHASE,
@@ -52,7 +52,7 @@ class DeckRosterJsonTest {
         // 필드를 더할 때 기본값을 주면 기존에 저장된 덱을 계속 읽을 수 있다.
         val minimal = """
             {"starterCount":5,"closerCount":2,"players":[
-              {"slot":"C","position":"C","cardType":"NORMAL",
+              {"slot":"C","position":"C","cardGrade":"SIGNATURE",
                "skills":[{"skillId":"G_001","level":1}]}
             ]}
         """.trimIndent()

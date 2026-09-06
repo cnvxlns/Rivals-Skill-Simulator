@@ -137,23 +137,26 @@ private val MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE = mapOf(
 // 도전정신(상대등급우세): 자기 카드 등급 기준 P(상대 선수 등급 > 내 등급).
 // 상대 라인업이 프라임/시그니처/모먼트/HOF 위주라는 메타 가정에서 산출한 값 (agy×3+codex×3 2라운드 토론 합의).
 // WBC 계열은 일반 계열의 리스킨(동일 등급)이므로 WBC=NORMAL(프라임/시그니처), WBC_BLACK=BLACK과 같은 값을 사용한다.
-// SUPREME_MOMENT(슈프림 모먼트)는 모먼트<슈프림모먼트<시그니처 순서를 반영해 MOMENT와 NORMAL의 중간값을 사용한다.
-// LIVE/SEASON(라이브·시즌)은 전용 스킬이 없고 아이언·브론즈·실버·골드만 가져 스킬 풀이 NORMAL과
-// 완전히 동일하므로, WBC를 NORMAL과 같은 값으로 둔 것과 같은 근거로 NORMAL 값을 쓴다.
-// 이 값은 점수에 직접 영향을 주는 입력이다. 게임 내 실제 등급 서열이 다르면 여기를 고친다.
+// 키는 카드 **등급**이다. 변형(FA·WBC)은 서열을 바꾸지 않으므로 여기에 등장하지 않는다.
 //
-// 이 표에서 카드 타입이 빠지면 getValue가 NoSuchElementException을 던져 채점이 500으로 죽는다.
-// SkillRules.CARD_TYPES와 이 표의 키가 일치하는지는 SkillRulesTest가 검사한다.
-private const val DEFAULT_CARD_TYPE = "BLACK"
+// 서열 근거: season = live < impact < prime < moment < signature < signature black < hof.
+// 등급이 오를수록 값이 단조 감소해야 하며, CardRulesTest가 그 단조성을 검사한다.
+//
+// 상위 네 값(HOF·시그니처블랙·시그니처·모먼트)은 기존 추정치를 그대로 유지했고,
+// 그 아래 세 단계는 증분이 점점 작아지며 1.0에 수렴하는 모양으로 이어 붙였다.
+// SUPREME_MOMENT는 실제 위치가 확인되지 않아 모먼트와 시그니처 사이에 둔다.
+//
+// 이 표에서 등급이 빠지면 getValue가 NoSuchElementException을 던져 채점이 500으로 죽는다.
+private const val DEFAULT_CARD_TYPE = "SIGNATURE_BLACK"
 private val OPPONENT_GRADE_ADVANTAGE_PROBABILITIES_BY_CARD_TYPE = mapOf(
+    "SEASON" to 0.85,
+    "LIVE" to 0.85,
+    "IMPACT" to 0.75,
+    "PRIME" to 0.60,
     "MOMENT" to 0.40,
     "SUPREME_MOMENT" to 0.30,
-    "NORMAL" to 0.20,
-    "WBC" to 0.20,
-    "LIVE" to 0.20,
-    "SEASON" to 0.20,
-    "BLACK" to 0.05,
-    "WBC_BLACK" to 0.05,
+    "SIGNATURE" to 0.20,
+    "SIGNATURE_BLACK" to 0.05,
     "HOF" to 0.00,
 )
 
@@ -315,13 +318,15 @@ private object StatComparisonResolver : ConditionResolver {
 
 private object CardGradeResolver : ConditionResolver {
     override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
-        val cardType = if (context.cardType.isNullOrBlank()) {
+        // context.cardType에는 카드 **등급**이 들어온다. 예전 이름으로 들어와도
+        // normalizeGrade가 등급 쪽을 꺼내 주므로 저장된 덱이 계속 동작한다.
+        val grade = if (context.cardType.isNullOrBlank()) {
             DEFAULT_CARD_TYPE
         } else {
-            SkillRules.normalizeCardType(context.cardType)
+            CardRules.normalizeGrade(context.cardType)
         }
         probabilities["상대등급우세"] =
-            OPPONENT_GRADE_ADVANTAGE_PROBABILITIES_BY_CARD_TYPE.getValue(cardType)
+            OPPONENT_GRADE_ADVANTAGE_PROBABILITIES_BY_CARD_TYPE.getValue(grade)
     }
 }
 

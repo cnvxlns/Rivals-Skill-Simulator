@@ -26,7 +26,7 @@ class ScoreServiceTest {
         `when`(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(listOf(batter, pitcher))
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
-        val options = service.listSkills("normal", "batter")
+        val options = service.listSkills("normal", null, "batter")
 
         assertThat(options).hasSize(1)
         assertThat(options[0].skillId).isEqualTo("S_001")
@@ -43,7 +43,7 @@ class ScoreServiceTest {
         `when`(repository.findByCardTypeIgnoreCase("BLACK")).thenReturn(listOf(black))
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
-        val options = service.listSkills("SIGNATURE_BLACK", "BATTER")
+        val options = service.listSkills("SIGNATURE_BLACK", null, "BATTER")
 
         assertThat(options).hasSize(1)
         assertThat(options[0].maxLevel).isEqualTo(5)
@@ -61,7 +61,7 @@ class ScoreServiceTest {
         `when`(repository.findByCardTypeIgnoreCase("WBC")).thenReturn(listOf(wbc))
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
-        val options = service.listSkills("WBC", "BATTER")
+        val options = service.listSkills("WBC", null, "BATTER")
 
         assertThat(options).extracting("skillId").containsExactly("G_001", "WBC_001")
     }
@@ -81,7 +81,7 @@ class ScoreServiceTest {
         `when`(repository.findByCardTypeIgnoreCase("BLACK")).thenReturn(listOf(black))
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
-        val options = service.listSkills("WBC_SIGNATURE_BLACK", "BATTER")
+        val options = service.listSkills("WBC_SIGNATURE_BLACK", null, "BATTER")
 
         assertThat(options).extracting("skillId").containsExactly("G_001", "WBC_001", "BLACK_001")
     }
@@ -97,7 +97,7 @@ class ScoreServiceTest {
         `when`(repository.findByCardTypeIgnoreCase("MOMENT")).thenReturn(listOf(moment))
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
-        val options = service.listSkills("SUPREME_MOMENT", "BATTER")
+        val options = service.listSkills("SUPREME_MOMENT", null, "BATTER")
 
         assertThat(options).extracting("skillId").containsExactly("G_001", "M_009")
     }
@@ -399,7 +399,7 @@ class ScoreServiceTest {
             mock(ScoreSkillRepository::class.java), ScoreCalculator(), mapOf("파워" to 1.0),
         )
         for (cardType in listOf("LIVE", "SEASON")) {
-            assertThat(service.allowedSkillCardTypes(cardType))
+            assertThat(service.skillPoolsFor(cardType, null))
                 .`as`("%s의 스킬 풀", cardType)
                 .containsExactly("NORMAL")
         }
@@ -416,7 +416,7 @@ class ScoreServiceTest {
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
         // 목록 조회는 NORMAL 풀만 돌려준다.
-        assertThat(service.listSkills("LIVE", "BATTER")).hasSize(1)
+        assertThat(service.listSkills("LIVE", null, "BATTER")).hasSize(1)
 
         // 채점도 통과해야 한다. 상대등급우세 표에 LIVE가 없으면 여기서 500이 났다.
         val ok = service.calculate(
@@ -437,7 +437,7 @@ class ScoreServiceTest {
             )
         }
             .isInstanceOf(ResponseStatusException::class.java)
-            .hasMessageContaining("does not match requested card type")
+            .hasMessageContaining("does not match requested card grade")
     }
 
     private fun scoreSkill(

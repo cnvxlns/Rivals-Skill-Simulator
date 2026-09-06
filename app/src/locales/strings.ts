@@ -250,6 +250,9 @@ export const strings = {
   calculator_result_hint: '슬롯과 조건을 바꾸면 다시 계산해야 합니다',
   calculator_empty: '슬롯의 스킬을 모두 고른 뒤 점수를 계산하세요.',
 
+  label_card_grade: '카드 등급',
+  label_card_variant: '변형',
+  option_variant_none: '기본',
   btn_close: '닫기',
 
   /* ── 인증 ── */

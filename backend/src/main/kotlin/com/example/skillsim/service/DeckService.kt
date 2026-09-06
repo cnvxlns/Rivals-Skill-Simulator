@@ -43,7 +43,7 @@ class DeckService private constructor(
         deckRepository,
         DeckValidator(
             scoreSkillRepository = scoreSkillRepository,
-            allowedSkillCardTypes = scoreService::allowedSkillCardTypes,
+            skillPoolsFor = scoreService::skillPoolsFor,
             allowedStatNames = { scoreDataLoader.statWeights.keys },
         ),
     )
@@ -59,7 +59,7 @@ class DeckService private constructor(
         deckRepository,
         DeckValidator(
             scoreSkillRepository = scoreSkillRepository,
-            allowedSkillCardTypes = scoreService::allowedSkillCardTypes,
+            skillPoolsFor = scoreService::skillPoolsFor,
             allowedStatNames = { statNames },
         ),
     )

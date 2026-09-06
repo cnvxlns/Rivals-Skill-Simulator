@@ -37,11 +37,11 @@ class ScoreService private constructor(
         statWeights: Map<String, Double>,
     ) : this(scoreSkillRepository, scoreCalculator, { statWeights })
 
-    fun listSkills(cardType: String?, position: String?): List<ScoreSkillOption> {
-        val normalizedCardType = normalizeCardTypeOrThrow(cardType)
+    fun listSkills(cardGrade: String?, cardVariant: String?, position: String?): List<ScoreSkillOption> {
+        val card = resolveCard(cardGrade, cardVariant)
         val normalizedPosition = normalizeRequiredOrThrow(position, "Position selection is required.")
 
-        return scoreSkillsForCardType(normalizedCardType)
+        return skillsForCard(card)
             .filter { SkillRules.matchesPosition(it.position, normalizedPosition) }
             .map { it.toOption() }
     }
@@ -51,10 +51,10 @@ class ScoreService private constructor(
             throw badRequest("Score request is required.")
         }
 
-        val normalizedCardType = normalizeCardTypeOrThrow(request.cardType)
+        val card = resolveCard(request.cardGrade ?: request.cardType, request.cardVariant)
         val normalizedPosition = normalizeRequiredOrThrow(request.position, "Position selection is required.")
         val selections = request.selections
-        validateSelections(selections, normalizedCardType)
+        validateSelections(selections, card)
 
         val role = SkillRules.roleForPosition(normalizedPosition)
         val pitcherSlot = request.pitcherSlot
@@ -81,8 +81,8 @@ class ScoreService private constructor(
 
             val skill = scoreSkillRepository.findBySkillKey(skillId)
                 ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Score skill not found: $skillId")
-            if (normalizeCardTypeOrThrow(skill.cardType) !in allowedSkillCardTypes(normalizedCardType)) {
-                throw badRequest("Selected skill does not match requested card type.")
+            if (SkillRules.normalizeSkillPool(skill.cardType) !in CardRules.skillPools(card.grade, card.variant)) {
+                throw badRequest("Selected skill does not match requested card grade.")
             }
             if (!SkillRules.matchesPosition(skill.position, normalizedPosition)) {
                 throw badRequest("Selected skill does not match requested position.")
@@ -99,7 +99,7 @@ class ScoreService private constructor(
         return scoreSelections(
             selections = calculatorSelections,
             position = normalizedPosition,
-            cardType = normalizedCardType,
+            cardType = card.grade,
             battingOrder = battingOrder,
             pitcherSlot = pitcherSlot,
             throwHand = request.throwHand,
@@ -111,7 +111,8 @@ class ScoreService private constructor(
     /**
      * 검증이 끝난 스킬 선택을 채점한다. [calculate]의 뒷부분이며 덱 채점이 같은 경로를 타도록 뽑아냈다.
      *
-     * 검증을 하지 않으므로 호출자가 카드 타입·포지션·레벨을 이미 확인했어야 한다.
+     * 검증을 하지 않으므로 호출자가 카드 등급·포지션·레벨을 이미 확인했어야 한다.
+     * [cardType]에는 카드 **등급**을 넘긴다(상대등급우세 조건이 이 값을 본다).
      * [battingOrder]가 null이면 [ScoreCalculator]의 기본 타순이 쓰인다 — 타순이 없는
      * 후보 선수를 채점할 때 필요하다.
      */
@@ -155,12 +156,12 @@ class ScoreService private constructor(
         return battingOrder
     }
 
-    private fun validateSelections(selections: List<ScoreSelection>?, cardType: String) {
+    private fun validateSelections(selections: List<ScoreSelection>?, card: Card) {
         if (selections.isNullOrEmpty()) {
             throw badRequest("At least one skill selection is required.")
         }
-        if (selections.size > SkillRules.slotCount(cardType)) {
-            throw badRequest("Too many skill selections for card type $cardType.")
+        if (selections.size > CardRules.slotCount(card.grade)) {
+            throw badRequest("Too many skill selections for card grade ${card.grade}.")
         }
         val seenSkillIds = mutableSetOf<String>()
         for (selection in selections) {
@@ -188,30 +189,15 @@ class ScoreService private constructor(
         )
     }
 
-    private fun scoreSkillsForCardType(cardType: String): List<ScoreSkill> =
-        allowedSkillCardTypes(cardType).flatMap { scoreSkillRepository.findByCardTypeIgnoreCase(it) }
+    private fun skillsForCard(card: Card): List<ScoreSkill> =
+        CardRules.skillPools(card.grade, card.variant)
+            .flatMap { scoreSkillRepository.findByCardTypeIgnoreCase(it) }
 
-    /**
-     * 카드 타입이 고를 수 있는 스킬 풀(= CSV의 card_type 목록).
-     *
-     * 라이브/시즌은 전용 스킬이 없고 아이언·브론즈·실버·골드 티어만 가진다. 그 티어 집합은
-     * CSV의 card_type=NORMAL 105건과 정확히 같으므로(skill_id의 I_/B_/S_/G_ 접두사가 곧 NORMAL,
-     * [SkillTier.of] 참고) 별도 티어 필터를 두지 않고 NORMAL 풀을 그대로 쓴다.
-     *
-     * else 분기는 자기 자신만 반환한다. 새 카드 타입을 [SkillRules.normalizeCardType]에만 추가하고
-     * 여기를 빠뜨리면 CSV에 없는 card_type을 조회하게 되어 스킬이 0개가 된다.
-     */
-    internal fun allowedSkillCardTypes(cardType: String): List<String> =
-        when (cardType) {
-            "BLACK" -> listOf("NORMAL", "BLACK")
-            "WBC" -> listOf("NORMAL", "WBC")
-            "WBC_BLACK" -> listOf("NORMAL", "WBC", "BLACK")
-            "MOMENT" -> listOf("NORMAL", "MOMENT")
-            "SUPREME_MOMENT" -> listOf("NORMAL", "MOMENT")
-            "HOF" -> listOf("NORMAL", "HOF")
-            "LIVE", "SEASON" -> listOf("NORMAL")
-            else -> listOf(cardType)
-        }
+    /** 이 카드가 고를 수 있는 스킬 풀. 등급과 변형 두 축이 정한다([CardRules.skillPools]). */
+    internal fun skillPoolsFor(cardGrade: String?, cardVariant: String?): List<String> {
+        val card = resolveCard(cardGrade, cardVariant)
+        return CardRules.skillPools(card.grade, card.variant)
+    }
 
     private fun applyUndefinedConditionWarnings(
         selections: List<ScoreCalculator.Selection>,
@@ -296,12 +282,22 @@ class ScoreService private constructor(
     private fun Map<String, Double>.toStatScores(): List<ScoreResponse.StatScore> =
         map { (stat, value) -> ScoreResponse.StatScore(stat, value) }
 
-    private fun normalizeCardTypeOrThrow(cardType: String?): String =
-        try {
-            SkillRules.normalizeCardType(cardType)
-        } catch (ex: IllegalArgumentException) {
-            throw badRequest(ex.message ?: "Card type is required.")
+    /** 카드 한 장의 두 축. 예전 단일 cardType으로 들어와도 여기서 풀린다. */
+    internal data class Card(val grade: String, val variant: String)
+
+    private fun resolveCard(cardGrade: String?, cardVariant: String?): Card = try {
+        val grade = CardRules.normalizeGrade(cardGrade)
+        // 변형을 따로 주지 않았는데 등급 자리에 예전 이름(WBC_BLACK 등)이 왔다면 거기서 꺼낸다.
+        val variant = if (cardVariant.isNullOrBlank()) {
+            CardRules.fromLegacyCardType(cardGrade)?.second ?: CardRules.VARIANT_NONE
+        } else {
+            CardRules.normalizeVariant(cardVariant)
         }
+        CardRules.validateCombination(grade, variant)
+        Card(grade, variant)
+    } catch (ex: IllegalArgumentException) {
+        throw badRequest(ex.message ?: "Card grade is required.")
+    }
 
     private fun normalizeRequiredOrThrow(value: String?, message: String): String =
         try {

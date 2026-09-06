@@ -9,18 +9,12 @@ internal object SkillRules {
     const val DEFAULT_SLOT_COUNT = 3
 
     /**
-     * 지원하는 정규화 카드 타입 전체. 새 타입을 더할 때 이 목록이 기준점이다.
+     * CSV의 `card_type` 컬럼에 실제로 존재하는 스킬 풀.
      *
-     * 카드 타입은 세 곳에 흩어져 있고 한 곳만 고치면 조용히 깨진다.
-     * - [normalizeCardType] 누락 시 400
-     * - `ScoreService.allowedSkillCardTypes` 누락 시 스킬 0개
-     * - `ScoreCalculator`의 상대등급우세 표 누락 시 채점 중 500
-     *
-     * SkillRulesTest가 이 목록을 훑어 세 곳을 모두 검사한다.
+     * 카드의 등급이 아니라 **스킬이 속한 풀**의 이름이다. 어떤 등급의 카드가 어떤 풀에
+     * 접근하는지는 [CardRules.skillPools]가 정한다.
      */
-    val CARD_TYPES = listOf(
-        "NORMAL", "BLACK", "WBC", "WBC_BLACK", "MOMENT", "SUPREME_MOMENT", "HOF", "LIVE", "SEASON",
-    )
+    val SKILL_POOLS = listOf("NORMAL", "MOMENT", "HOF", "WBC", "BLACK")
 
     private val BATTER_POSITIONS =
         setOf("BATTER", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH", "IF", "OF")
@@ -28,34 +22,31 @@ internal object SkillRules {
     private val PITCHER_POSITIONS = setOf("PITCHER", "SP", "RP", "CP")
     private val OUTFIELD_POSITIONS = setOf("OF", "LF", "CF", "RF")
 
-    fun normalizeCardType(cardType: String?): String =
-        when (val normalized = normalizeRequired(cardType, "Card type is required.")) {
+    /**
+     * 스킬 풀 이름을 정규화한다. CSV의 `card_type` 값이거나 그 별칭이다.
+     *
+     * 카드 등급은 여기가 아니라 [CardRules.normalizeGrade]가 다룬다. 이름이 겹치는 값이
+     * 있지만(예: `MOMENT`) 축이 다르다 — 여기서는 "모먼트 전용 스킬 묶음"을 뜻한다.
+     */
+    fun normalizeSkillPool(pool: String?): String =
+        when (val normalized = normalizeRequired(pool, "Skill pool is required.")) {
             "SIGNATURE", "NORMAL" -> "NORMAL"
             "SIGNATURE_BLACK", "BLACK" -> "BLACK"
-            "WBC_SIGNATURE_BLACK", "WBC_BLACK" -> "WBC_BLACK"
-            "WBC", "MOMENT", "HOF", "SUPREME_MOMENT", "LIVE", "SEASON" -> normalized
-            else -> throw IllegalArgumentException("Unsupported card type: $cardType")
+            "WBC_SIGNATURE_BLACK", "WBC_BLACK" -> "WBC"
+            "SUPREME_MOMENT" -> "MOMENT"
+            "WBC", "MOMENT", "HOF" -> normalized
+            else -> throw IllegalArgumentException("Unsupported skill pool: $pool")
         }
 
     /**
-     * 스킬 슬롯 수. 블랙 계열만 4개이고 나머지는 3개다.
+     * 스킬 풀별 레벨 사다리 — "이 풀의 스킬은 몇 단계까지 올라가는가".
      *
-     * 라이브/시즌은 전용 스킬이 없고 아이언·브론즈·실버·골드만 가지므로 기본값 3을 그대로 쓴다.
-     * 게임 규칙이 다르면 아래 조건 한 줄만 고치면 된다.
+     * 카드의 축이 아니다. 호출부가 전부 `skill.cardType`(= 풀 이름)을 넘긴다.
      */
-    fun slotCount(cardType: String?): Int =
-        if (normalizeCardType(cardType) in setOf("BLACK", "WBC_BLACK")) 4 else DEFAULT_SLOT_COUNT
-
-    /**
-     * 카드 타입별 등급 사다리.
-     *
-     * NORMAL과 라이브/시즌이 else로 떨어져 D~S4 전체를 쓴다. 셋 다 스킬 풀이 같으므로
-     * (아이언·브론즈·실버·골드) 사다리도 같은 것이 맞다. 라이브/시즌만 달라지면 분기를 하나 더한다.
-     */
-    fun gradeLadder(cardType: String?): List<Level> =
-        when (normalizeCardType(cardType)) {
-            "MOMENT", "SUPREME_MOMENT" -> listOf(Level.S)
-            "WBC", "WBC_BLACK" -> listOf(Level.S, Level.S1, Level.S2)
+    fun gradeLadder(skillPool: String?): List<Level> =
+        when (normalizeSkillPool(skillPool)) {
+            "MOMENT" -> listOf(Level.S)
+            "WBC" -> listOf(Level.S, Level.S1, Level.S2)
             "BLACK" -> listOf(Level.D, Level.C, Level.B, Level.A, Level.S, Level.S1, Level.S2)
             "HOF" -> listOf(Level.D, Level.C, Level.B, Level.A, Level.S, Level.S1)
             else -> listOf(

@@ -8,7 +8,16 @@ import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
 import { isBench, isReliever, positionForSlot, slotCountFor } from '../lib/useDeckEditor';
 import { useAppTheme } from '../theme/useTheme';
-import { CardType, DeckPlayer, DeckSkillSelection, RelieverRole, ScoreSkillOption } from '../types';
+import {
+  CARD_GRADES_LOW_TO_HIGH,
+  CardGrade,
+  CardVariant,
+  DeckPlayer,
+  DeckSkillSelection,
+  RelieverRole,
+  ScoreSkillOption,
+  variantsFor,
+} from '../types';
 
 const BENCH_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
 
@@ -39,14 +48,16 @@ export default function DeckPlayerEditor({
   const [loading, setLoading] = useState(false);
 
   const position = positionForSlot(slot, player.position);
-  const slotCount = slotCountFor(player.cardType);
+  const slotCount = slotCountFor(player.cardGrade);
+  const variant = (player.cardVariant as CardVariant) ?? CardVariant.NONE;
+  const availableVariants = variantsFor(player.cardGrade as CardGrade);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
       try {
-        const loaded = await fetchScoreSkills(player.cardType, position);
+        const loaded = await fetchScoreSkills(player.cardGrade, variant, position);
         if (!cancelled) setSkills(loaded);
       } catch {
         if (!cancelled) setSkills([]);
@@ -58,7 +69,7 @@ export default function DeckPlayerEditor({
     return () => {
       cancelled = true;
     };
-  }, [player.cardType, position]);
+  }, [player.cardGrade, variant, position]);
 
   const byId = useMemo(() => new Map(skills.map((s) => [s.skillId, s])), [skills]);
 
@@ -105,12 +116,27 @@ export default function DeckPlayerEditor({
       <SectionCard title={`${slot} · ${t('deck_player_title')}`}>
         <View style={{ gap: spacing.lg }}>
           <LabeledDropdown
-            label={t('label_card_type')}
-            selected={player.cardType}
-            options={Object.values(CardType) as string[]}
+            label={t('label_card_grade')}
+            selected={player.cardGrade as CardGrade}
+            options={CARD_GRADES_LOW_TO_HIGH}
             optionLabel={(value) => cardTypeLabel(value)}
-            onSelect={(value) => onChange({ cardType: value, skills: [] })}
+            onSelect={(value) => {
+              // 등급이 바뀌면 스킬 풀과 슬롯 수가 달라지므로 고른 스킬을 비운다.
+              // 새 등급에 없는 변형이면 기본형으로 되돌린다.
+              const next = variantsFor(value).includes(variant) ? variant : CardVariant.NONE;
+              onChange({ cardGrade: value, cardVariant: next, skills: [] });
+            }}
           />
+
+          {availableVariants.length > 1 ? (
+            <LabeledDropdown
+              label={t('label_card_variant')}
+              selected={variant}
+              options={availableVariants}
+              optionLabel={(v) => (v === CardVariant.NONE ? t('option_variant_none') : v)}
+              onSelect={(value) => onChange({ cardVariant: value, skills: [] })}
+            />
+          ) : null}
 
           {isBench(slot) ? (
             <LabeledDropdown

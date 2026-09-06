@@ -9,20 +9,10 @@ import org.junit.jupiter.api.Test
 
 class SkillRulesTest {
 
-    @Test
-    fun `slot counts match card type rules`() {
-        assertThat(SkillRules.slotCount("SIGNATURE")).isEqualTo(3)
-        assertThat(SkillRules.slotCount("HOF")).isEqualTo(3)
-        assertThat(SkillRules.slotCount("WBC")).isEqualTo(3)
-        assertThat(SkillRules.slotCount("MOMENT")).isEqualTo(3)
-        assertThat(SkillRules.slotCount("SUPREME_MOMENT")).isEqualTo(3)
-        assertThat(SkillRules.slotCount("SIGNATURE_BLACK")).isEqualTo(4)
-        assertThat(SkillRules.slotCount("WBC_SIGNATURE_BLACK")).isEqualTo(4)
-        assertThat(SkillRules.slotCount("BLACK")).isEqualTo(4)
-    }
+    // 슬롯 수는 카드 등급의 축이라 CardRulesTest가 검사한다. 여기는 스킬 풀 축만 본다.
 
     @Test
-    fun `grade ladders match card type rules`() {
+    fun `grade ladders match skill pool rules`() {
         assertThat(SkillRules.gradeLadder("NORMAL")).containsExactly(
             Level.D, Level.C, Level.B, Level.A, Level.S, Level.S1, Level.S2, Level.S3, Level.S4,
         )
@@ -51,10 +41,25 @@ class SkillRulesTest {
     }
 
     @Test
-    fun `normalizeCardType rejects PRIME and keeps WBC signature black distinct`() {
-        assertThatThrownBy { SkillRules.normalizeCardType("PRIME") }
-            .isInstanceOf(IllegalArgumentException::class.java)
-        assertThat(SkillRules.normalizeCardType("WBC_SIGNATURE_BLACK")).isEqualTo("WBC_BLACK")
+    fun `스킬 풀 이름만 받고 카드 등급 이름은 거부한다`() {
+        // 축이 다르다. PRIME은 카드 등급이지 스킬 풀이 아니다.
+        for (notAPool in listOf("PRIME", "IMPACT", "LIVE", "SEASON")) {
+            assertThatThrownBy { SkillRules.normalizeSkillPool(notAPool) }
+                .`as`(notAPool)
+                .isInstanceOf(IllegalArgumentException::class.java)
+        }
+        // WBC 계열 별칭은 모두 WBC 풀로 모인다.
+        assertThat(SkillRules.normalizeSkillPool("WBC_SIGNATURE_BLACK")).isEqualTo("WBC")
+        assertThat(SkillRules.normalizeSkillPool("SIGNATURE")).isEqualTo("NORMAL")
+        assertThat(SkillRules.normalizeSkillPool("SUPREME_MOMENT")).isEqualTo("MOMENT")
+    }
+
+    @Test
+    fun `CSV에 있는 스킬 풀은 전부 사다리를 가진다`() {
+        for (pool in SkillRules.SKILL_POOLS) {
+            assertThat(SkillRules.normalizeSkillPool(pool)).`as`(pool).isEqualTo(pool)
+            assertThat(SkillRules.gradeLadder(pool)).`as`(pool).isNotEmpty()
+        }
     }
 
     @Test
@@ -108,40 +113,8 @@ class SkillRulesTest {
         assertThat(SkillRules.levelIndex(Level.S, "BLACK")).isEqualTo(5)
     }
 
-    @Test
-    fun `라이브와 시즌은 노멀과 같은 슬롯 수와 등급 사다리를 가진다`() {
-        // 전용 스킬이 없고 아이언·브론즈·실버·골드만 가지므로 NORMAL과 같은 규칙을 따른다.
-        for (cardType in listOf("LIVE", "SEASON")) {
-            assertThat(SkillRules.normalizeCardType(cardType)).isEqualTo(cardType)
-            assertThat(SkillRules.slotCount(cardType)).isEqualTo(3)
-            assertThat(SkillRules.gradeLadder(cardType))
-                .isEqualTo(SkillRules.gradeLadder("NORMAL"))
-        }
-    }
-
-    @Test
-    fun `모든 카드 타입이 세 곳의 표에 빠짐없이 등록되어 있다`() {
-        // 카드 타입은 정규화·스킬풀·상대등급우세 세 곳에 흩어져 있고, 한 곳만 고치면
-        // 400이나 스킬 0개, 심하면 채점 중 500으로 조용히 깨진다. 10번째 타입을 더할 때
-        // 운영에서 터지는 대신 이 테스트가 먼저 깨지게 한다.
-        assertThat(SkillRules.CARD_TYPES).doesNotHaveDuplicates()
-
-        for (cardType in SkillRules.CARD_TYPES) {
-            // 1) 정규화가 자기 자신으로 떨어져야 한다(정규화 결과가 곧 표의 키다).
-            assertThat(SkillRules.normalizeCardType(cardType))
-                .`as`("normalizeCardType(%s)", cardType)
-                .isEqualTo(cardType)
-
-            // 2) 슬롯 수와 등급 사다리가 성립해야 한다.
-            assertThat(SkillRules.slotCount(cardType)).`as`("slotCount(%s)", cardType).isIn(3, 4)
-            assertThat(SkillRules.gradeLadder(cardType)).`as`("gradeLadder(%s)", cardType).isNotEmpty()
-
-            // 3) 상대등급우세 표에 키가 있어야 한다. 없으면 getValue가 채점 중 500을 낸다.
-            assertThat(ScoreCalculator.opponentGradeAdvantageProbabilitiesByCardType)
-                .`as`("상대등급우세 표에 %s 누락", cardType)
-                .containsKey(cardType)
-        }
-    }
+    // 카드 등급의 슬롯 수·스킬 풀·상대등급우세는 CardRulesTest가 검사한다.
+    // 여기에 있던 "모든 카드 타입" 가드는 두 축을 하나로 보던 시절의 것이라 옮겼다.
 
     private fun skill(skillKey: String, cardType: String) = ScoreSkill(
         skillKey = skillKey,

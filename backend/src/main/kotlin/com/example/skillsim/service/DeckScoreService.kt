@@ -60,7 +60,7 @@ class DeckScoreService(
         return scoreService.scoreSelections(
             selections = selections,
             position = player.position,
-            cardType = player.cardType,
+            cardType = player.cardGrade,
             // 후보는 타순이 없다. null이면 ScoreCalculator의 기본 타순으로 채점된다.
             battingOrder = player.battingOrder,
             // 중계 하위 역할은 여기 넘기지 않는다. 조건 게이트가 슬롯 번호만 보기 때문이다.
@@ -78,7 +78,7 @@ class DeckScoreService(
     ) = DeckScoreResponse.PlayerScore(
         slot = player.slot,
         position = player.position,
-        cardType = player.cardType,
+        cardType = player.cardGrade,
         score = result.total,
         battingOrder = player.battingOrder,
         pitcherSlot = player.pitcherSlot,

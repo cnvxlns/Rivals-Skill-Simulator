@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Text, View, ViewStyle } from 'react-native';
-import { CardType, Handedness, Position, SubPosition } from '../types';
+import { CARD_GRADES_LOW_TO_HIGH, CardVariant, Handedness, Position, SubPosition, variantsFor } from '../types';
 import { useScoreCalculator } from '../lib/useScoreCalculator';
 import { useTranslation } from '../lib/i18n';
 import { useAppTheme } from '../theme/useTheme';
@@ -18,7 +18,8 @@ import {
 } from '../components/ui';
 import { columnsFor, useResponsive } from '../lib/useResponsive';
 
-const cardTypeOptions = Object.values(CardType);
+// 낮은 등급부터. 서열이 곧 순서다.
+const cardGradeOptions = CARD_GRADES_LOW_TO_HIGH;
 
 export default function CalculatorView({ onViewMethodology }: { onViewMethodology?: () => void }) {
   const calc = useScoreCalculator();
@@ -86,10 +87,10 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
           <View style={controlField}>
             <LabeledDropdown
               label={t('label_card_type')}
-              selected={calc.cardType}
-              options={cardTypeOptions}
+              selected={calc.cardGrade}
+              options={cardGradeOptions}
               optionLabel={(option) => cardTypeLabel(option)}
-              onSelect={(option) => calc.setCardType(option)}
+              onSelect={(option) => calc.setCardGrade(option)}
             />
           </View>
           <View style={controlField}>

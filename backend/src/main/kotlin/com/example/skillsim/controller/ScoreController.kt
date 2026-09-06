@@ -23,11 +23,17 @@ class ScoreController(
     private val methodologyService: MethodologyService,
 ) {
 
+    /**
+     * @param cardGrade 카드 등급. 예전 이름(`cardType`)으로 보내도 등급과 변형으로 풀린다.
+     * @param cardVariant 카드 변형. 생략하면 기본형이다.
+     */
     @GetMapping("/skills")
     fun listSkills(
-        @RequestParam cardType: String,
+        @RequestParam(required = false) cardGrade: String?,
+        @RequestParam(required = false) cardVariant: String?,
+        @RequestParam(required = false) cardType: String?,
         @RequestParam position: String,
-    ): List<ScoreSkillOption> = scoreService.listSkills(cardType, position)
+    ): List<ScoreSkillOption> = scoreService.listSkills(cardGrade ?: cardType, cardVariant, position)
 
     @PostMapping
     fun calculate(@Valid @RequestBody request: ScoreRequest): ScoreResponse =

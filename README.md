@@ -8,19 +8,30 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 조합 점수를 웹에서 
 - **산정 방식 공개**: 점수를 어떤 근거로 계산했는지 스킬·효과·스탯 가중치를 앱에서 그대로 확인할 수 있습니다.
 - **카드 타입별 규칙**: 타입마다 슬롯 수와 레벨 사다리(등급 라벨)가 다릅니다. 백엔드가 이를 단일 기준으로 관리하고 앱은 그 결과를 받아 씁니다.
 - **포지션 필터**: 투수/타자 전용 스킬 풀을 분리하며, 세부 포지션(SP·RP·CP·IF·OF 등)도 해석합니다. 카드 타입이나 포지션이 없으면 400을 반환합니다.
-- **정적 데이터 시드**: `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 애플리케이션 시작 시 읽어 메모리에 적재합니다.
+- **덱 관리(로그인 필요)**: 26명(타자 14 + 투수 12)짜리 덱을 구성해 저장하고 종합 점수를 받습니다. 계정별로 격리됩니다.
+- **정적 데이터 시드**: `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 애플리케이션 시작 시 읽어 메모리에 적재합니다. 스킬은 DB가 아니라 CSV가 원천이며, DB에는 계정과 덱만 들어갑니다.
 
-### 카드 타입과 슬롯
+### 카드 등급과 변형
 
-| 카드 타입 (`cardType`) | 별칭 | 슬롯 | 레벨 사다리 |
-|---|---|---|---|
-| `NORMAL` | `SIGNATURE` | 3 | D · C · B · A · S · S1 · S2 · S3 · S4 |
-| `HOF` | — | 3 | D · C · B · A · S · S1 |
-| `MOMENT` | — | 3 | S |
-| `SUPREME_MOMENT` | — | 3 | S |
-| `WBC` | — | 3 | S · S1 · S2 |
-| `BLACK` | `SIGNATURE_BLACK` | 4 | D · C · B · A · S · S1 · S2 |
-| `WBC_BLACK` | `WBC_SIGNATURE_BLACK` | 4 | S · S1 · S2 |
+카드는 **등급**과 **변형** 두 축을 가집니다. 스킬이 속한 **티어**는 또 다른 축이며, 셋은 서로 다릅니다.
+
+**등급**(`cardGrade`) — 낮은 것부터. 이 서열이 `상대등급우세` 조건의 발동 확률을 정합니다.
+
+| 등급 | 슬롯 | 고를 수 있는 스킬 |
+|---|---|---|
+| `SEASON` · `LIVE` | 3 | 아이언·브론즈·실버·골드 |
+| `IMPACT` | 3 | 〃 |
+| `PRIME` | 3 | 〃 |
+| `MOMENT` | 3 | 〃 + 모먼트 |
+| `SUPREME_MOMENT` | 3 | 〃 + 모먼트 |
+| `SIGNATURE` | 3 | 아이언·브론즈·실버·골드 |
+| `SIGNATURE_BLACK` | **4** | 〃 + 블랙 |
+| `HOF` | 3 | 〃 + HOF |
+
+**변형**(`cardVariant`) — `NONE`(기본) · `FA` · `WBC`. **서열을 바꾸지 않습니다.** `PRIME`·`SIGNATURE`·`SIGNATURE_BLACK`에만 붙으며, `WBC`만 WBC 전용 스킬 풀을 더합니다.
+
+> `SUPREME_MOMENT`의 실제 서열 위치는 확인되지 않아 모먼트와 시그니처 사이에 두었습니다.
+> 예전 단일 `cardType`(`NORMAL`·`WBC`·`WBC_BLACK` 등)으로 보내도 등급과 변형으로 자동 변환됩니다.
 
 `position`은 `PITCHER` / `BATTER` 외에 `SP`, `RP`, `CP`, `C`, `1B`~`SS`, `IF`, `LF`/`CF`/`RF`, `OF`, `DH`를 받습니다. 값은 대소문자를 가리지 않습니다.
 
@@ -47,7 +58,7 @@ Rivals-Skill-Simulator/
 ├── app        # Expo(React Native) 앱 — 웹/안드로이드 공용 UI, axios로 /api/score 호출
 ├── docs       # 데이터 원천(rivals_skills.xlsx)과 변환기(convert_xlsx.py)
 ├── .github    # EAS APK 빌드 / OTA 업데이트 워크플로
-├── docker-compose.yml         # app + backend 실행 스택 (+ .override / .tunnel)
+├── docker-compose.yml         # db + backend + app 실행 스택 (+ .override / .tunnel)
 ├── Makefile   # docker compose / gradlew / npm 을 감싼 단축 명령 (make up)
 └── README.md  # 본 문서
 ```
@@ -149,7 +160,7 @@ make tunnel-up              # 또는 docker compose -f docker-compose.yml -f doc
 
 ## API 개요
 
-모든 엔드포인트는 인증 없이 열려 있고 상태를 갖지 않습니다.
+점수 관련 엔드포인트는 인증 없이 열려 있습니다. 덱 관련은 로그인이 필요하며 덱은 소유자에게만 보입니다.
 
 | 메서드 | 경로 | 하는 일 |
 |---|---|---|
@@ -158,19 +169,28 @@ make tunnel-up              # 또는 docker compose -f docker-compose.yml -f doc
 | `POST` | `/api/score` | 선택한 스킬 조합의 점수 계산 |
 | `POST` | `/api/score/table?topN=10` | 티어별 스킬 점수표 (S레벨 기준, `topN` 0 이하면 전부) |
 | `GET` | `/api/score/methodology` | 점수 산정 근거(효과·스탯 가중치) |
+| `POST` | `/api/auth/signup` · `/api/auth/login` | 가입 · 로그인 → `{ token }` |
+| `GET` | `/api/auth/me` | 내 계정 🔒 |
+| `POST` | `/api/decks/score` | 저장 없이 덱 채점(편집 중 미리보기) |
+| `GET` `POST` | `/api/decks` | 내 덱 목록 · 생성 🔒 |
+| `GET` `PUT` `DELETE` | `/api/decks/{id}` | 상세 · 수정 · 삭제 🔒 |
+
+🔒 표시는 `Authorization: Bearer <token>` 헤더가 필요합니다.
 
 ### 스킬 목록 조회
 ```
-GET /api/score/skills?cardType=NORMAL&position=BATTER
+GET /api/score/skills?cardGrade=SIGNATURE&cardVariant=WBC&position=BATTER
 ```
-`cardType`과 `position` 모두 필수이며, 빠지거나 지원하지 않는 값이면 400을 반환합니다.
+`cardGrade`와 `position`은 필수이고 `cardVariant`는 생략하면 기본형입니다. 지원하지 않는 값이거나
+등급에 없는 변형(예: `HOF` + `WBC`)이면 400을 반환합니다.
 
 ### 스킬 점수 계산
 - 점수 계산: `POST /api/score`
 - 요청 예시:
 ```json
 {
-  "cardType": "NORMAL",
+  "cardGrade": "SIGNATURE",
+  "cardVariant": "NONE",
   "position": "BATTER",
   "battingOrder": 3,
   "selections": [
@@ -225,9 +245,11 @@ GET /api/score/skills?cardType=NORMAL&position=BATTER
 ### 티어별 점수표
 ```
 POST /api/score/table?topN=10
-{ "cardType": "NORMAL", "position": "BATTER" }
+{ "position": "BATTER", "battingOrder": 3 }
 ```
 전체 스킬을 S레벨 기준으로 채점해 티어별 상위 `topN`개를 내림차순으로 돌려줍니다(`{"tiers": [...]}`). `topN`은 기본 10이고 0 이하면 전부 반환합니다.
+
+응답이 이미 티어별로 나뉘므로 **카드 등급은 받지 않습니다.**
 
 
 ## 면책 조항 (Disclaimer)

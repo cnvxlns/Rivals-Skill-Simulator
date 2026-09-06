@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiErrorMessage, createDeck, fetchDeck, scoreDeck, updateDeck } from './api';
 import {
   BENCH_SLOTS,
-  CardType,
+  CardGrade,
+  CardVariant,
   DeckDetail,
   DeckPlayer,
   DeckSaveRequest,
@@ -31,9 +32,9 @@ export const isLineup = (slot: string) => (LINEUP_SLOTS as readonly string[]).in
 export const isReliever = (slot: string) => slot.startsWith('RP');
 export const isPitcher = (slot: string) => /^(SP|RP|CP)\d+$/.test(slot);
 
-/** 카드 타입별 스킬 슬롯 수. 백엔드 SkillRules.slotCount와 같은 규칙이다. */
-export const slotCountFor = (cardType: string) =>
-  cardType === CardType.SIGNATURE_BLACK || cardType === CardType.WBC_SIGNATURE_BLACK ? 4 : 3;
+/** 스킬 슬롯 수. 등급만 본다(백엔드 CardRules.slotCount와 같은 규칙). */
+export const slotCountFor = (cardGrade: string) =>
+  cardGrade === CardGrade.SIGNATURE_BLACK ? 4 : 3;
 
 /** 스킬 목록을 조회할 때 쓰는 포지션. 후보만 직접 고르고 나머지는 자리에서 나온다. */
 export const positionForSlot = (slot: string, benchPosition?: string): string => {
@@ -45,13 +46,14 @@ export const positionForSlot = (slot: string, benchPosition?: string): string =>
 /** 아직 스킬을 다 고르지 않은 자리인가. */
 export const isPlayerComplete = (player: DeckPlayer | undefined): boolean => {
   if (!player) return false;
-  const needed = slotCountFor(player.cardType);
+  const needed = slotCountFor(player.cardGrade);
   return player.skills.length === needed && player.skills.every((s) => s.skillId);
 };
 
 const emptyPlayer = (slot: string, battingOrder?: number): DeckPlayer => ({
   slot,
-  cardType: CardType.SIGNATURE,
+  cardGrade: CardGrade.SIGNATURE,
+  cardVariant: CardVariant.NONE,
   skills: [],
   ...(battingOrder ? { battingOrder } : {}),
   ...(isBench(slot) ? { position: 'C' } : {}),
@@ -134,7 +136,8 @@ export function useDeckEditor(initial?: DeckDetail) {
         const p = players[slot];
         return {
           slot,
-          cardType: p.cardType,
+          cardGrade: p.cardGrade,
+          cardVariant: p.cardVariant ?? CardVariant.NONE,
           skills: p.skills,
           ...(isLineup(slot) ? { battingOrder: p.battingOrder } : {}),
           ...(isBench(slot) ? { position: p.position || 'C' } : {}),

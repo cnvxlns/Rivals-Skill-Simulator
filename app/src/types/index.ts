@@ -1,17 +1,59 @@
 // 프론트엔드에서 사용하는 점수 관련 타입 정의와 열거형 모음
-export enum CardType {
-  SIGNATURE = 'SIGNATURE',
-  SIGNATURE_BLACK = 'SIGNATURE_BLACK',
-  WBC = 'WBC',
-  WBC_SIGNATURE_BLACK = 'WBC_SIGNATURE_BLACK',
-  HOF = 'HOF',
+
+/**
+ * 카드 등급. 낮은 것부터 높은 순이며 이 순서가 곧 서열이다.
+ *
+ * season = live < impact < prime < moment < signature < signature black < hof.
+ * 서열이 낮을수록 상대등급우세 조건이 자주 발동해 관련 스킬의 점수가 올라간다.
+ * SUPREME_MOMENT는 실제 위치가 확인되지 않아 모먼트와 시그니처 사이에 둔다.
+ */
+export enum CardGrade {
+  SEASON = 'SEASON',
+  LIVE = 'LIVE',
+  IMPACT = 'IMPACT',
+  PRIME = 'PRIME',
   MOMENT = 'MOMENT',
   SUPREME_MOMENT = 'SUPREME_MOMENT',
-  // 라이브/시즌은 전용 스킬이 없고 아이언·브론즈·실버·골드만 가진다.
-  // 백엔드가 시그니처와 같은 스킬 풀·슬롯 3개·D~S4 사다리로 다룬다.
-  LIVE = 'LIVE',
-  SEASON = 'SEASON',
+  SIGNATURE = 'SIGNATURE',
+  SIGNATURE_BLACK = 'SIGNATURE_BLACK',
+  HOF = 'HOF',
 }
+
+/** 낮은 등급부터. 드롭다운 순서로 쓴다. */
+export const CARD_GRADES_LOW_TO_HIGH: CardGrade[] = [
+  CardGrade.SEASON,
+  CardGrade.LIVE,
+  CardGrade.IMPACT,
+  CardGrade.PRIME,
+  CardGrade.MOMENT,
+  CardGrade.SUPREME_MOMENT,
+  CardGrade.SIGNATURE,
+  CardGrade.SIGNATURE_BLACK,
+  CardGrade.HOF,
+];
+
+/**
+ * 카드 변형. 서열을 바꾸지 않으므로 등급과 별개 축이다.
+ *
+ * WBC만 스킬 풀을 넓히고, FA는 지금은 이름뿐이다.
+ */
+export enum CardVariant {
+  NONE = 'NONE',
+  FA = 'FA',
+  WBC = 'WBC',
+}
+
+/** FA·WBC를 가질 수 있는 등급. 나머지는 기본형만 존재한다. */
+export const VARIANT_CAPABLE_GRADES: CardGrade[] = [
+  CardGrade.PRIME,
+  CardGrade.SIGNATURE,
+  CardGrade.SIGNATURE_BLACK,
+];
+
+export const variantsFor = (grade: CardGrade): CardVariant[] =>
+  VARIANT_CAPABLE_GRADES.includes(grade)
+    ? [CardVariant.NONE, CardVariant.FA, CardVariant.WBC]
+    : [CardVariant.NONE];
 
 export enum Position {
   PITCHER = 'PITCHER',
@@ -55,7 +97,8 @@ export enum Handedness {
 }
 
 export type ScoreRequest = {
-  cardType: CardType | string;
+  cardGrade: CardGrade | string;
+  cardVariant?: CardVariant | string;
   position: Position | SubPosition | string;
   selections: ScoreSelection[];
   battingOrder?: number | null;
@@ -224,7 +267,8 @@ export type DeckPlayer = {
   slot: string;
   /** 후보만 직접 정한다. 주전과 투수는 백엔드가 자리에서 유도한다. */
   position?: string;
-  cardType: string;
+  cardGrade: CardGrade | string;
+  cardVariant?: CardVariant | string;
   skills: DeckSkillSelection[];
   battingOrder?: number | null;
   pitcherSlot?: number | null;

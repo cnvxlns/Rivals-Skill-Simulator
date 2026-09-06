@@ -15,11 +15,12 @@ import com.example.skillsim.repository.ScoreSkillRepository
  * 덕분에 이 클래스는 Spring도 HTTP도 모르고 순수 JUnit으로 규칙 전부를 검증할 수 있다.
  * [SkillRules] → `ScoreService.normalizeRequiredOrThrow` → `badRequest()` 사슬과 같은 구조다.
  *
+ * @param skillPoolsFor (등급, 변형) -> 고를 수 있는 스킬 풀.
  * @param allowedStatNames 허용 능력치 이름. stat_weights.csv가 원천이며 하드코딩하지 않는다.
  */
 internal class DeckValidator(
     private val scoreSkillRepository: ScoreSkillRepository,
-    private val allowedSkillCardTypes: (String) -> List<String>,
+    private val skillPoolsFor: (String?, String?) -> List<String>,
     private val allowedStatNames: () -> Set<String>,
 ) {
 
@@ -77,8 +78,17 @@ internal class DeckValidator(
     }
 
     private fun toPlayer(request: DeckPlayerRequest, slot: String): DeckPlayer {
-        val cardType = try {
-            SkillRules.normalizeCardType(request.cardType)
+        // 등급 자리에 예전 단일 cardType이 와도 받아 준다. 변형은 거기서 꺼낸다.
+        val rawGrade = request.cardGrade ?: request.cardType
+        val (cardGrade, cardVariant) = try {
+            val grade = CardRules.normalizeGrade(rawGrade)
+            val variant = if (request.cardVariant.isNullOrBlank()) {
+                CardRules.fromLegacyCardType(rawGrade)?.second ?: CardRules.VARIANT_NONE
+            } else {
+                CardRules.normalizeVariant(request.cardVariant)
+            }
+            CardRules.validateCombination(grade, variant)
+            grade to variant
         } catch (ex: IllegalArgumentException) {
             throw IllegalArgumentException("$slot: ${ex.message}")
         }
@@ -86,14 +96,15 @@ internal class DeckValidator(
         val position = resolvePosition(request, slot)
         val battingOrder = resolveBattingOrder(request, slot)
         val relieverRole = resolveRelieverRole(request, slot)
-        val skills = resolveSkills(request, slot, cardType, position)
+        val skills = resolveSkills(request, slot, cardGrade, cardVariant, position)
         val stats = resolveStats(request, slot)
         validateHands(request, slot)
 
         return DeckPlayer(
             slot = slot,
             position = position,
-            cardType = cardType,
+            cardGrade = cardGrade,
+            cardVariant = cardVariant,
             skills = skills,
             battingOrder = battingOrder,
             pitcherSlot = DeckRules.pitcherSlotNumber(slot),
@@ -142,17 +153,18 @@ internal class DeckValidator(
     private fun resolveSkills(
         request: DeckPlayerRequest,
         slot: String,
-        cardType: String,
+        cardGrade: String,
+        cardVariant: String,
         position: String,
     ): List<DeckSkillSelection> {
         val requested = request.skills.orEmpty()
-        val slotCount = SkillRules.slotCount(cardType)
+        val slotCount = CardRules.slotCount(cardGrade)
         // ScoreService.calculate는 미만도 허용하지만, 저장되는 덱은 완성품이므로 정확히 요구한다.
         require(requested.size == slotCount) {
-            "$slot: $cardType card must have exactly $slotCount skills, but had ${requested.size}."
+            "$slot: $cardGrade card must have exactly $slotCount skills, but had ${requested.size}."
         }
 
-        val allowedCardTypes = allowedSkillCardTypes(cardType)
+        val allowedPools = skillPoolsFor(cardGrade, cardVariant)
         val seen = mutableSetOf<String>()
         return requested.map { selection ->
             val skillId = selection.skillId.orEmpty().trim()
@@ -162,8 +174,8 @@ internal class DeckValidator(
             // 없는 스킬은 400으로 돌려준다. 덱 저장 요청의 404는 "덱이 없다"로 읽힌다.
             val skill = scoreSkillRepository.findBySkillKey(skillId)
                 ?: throw IllegalArgumentException("$slot: Unknown skill $skillId.")
-            require(SkillRules.normalizeCardType(skill.cardType) in allowedCardTypes) {
-                "$slot: Skill $skillId does not match card type $cardType."
+            require(SkillRules.normalizeSkillPool(skill.cardType) in allowedPools) {
+                "$slot: Skill $skillId does not match card grade $cardGrade."
             }
             require(SkillRules.matchesPosition(skill.position, position)) {
                 "$slot: Skill $skillId does not match position $position."

@@ -36,7 +36,11 @@ data class DeckSaveRequest(
 data class DeckPlayerRequest(
     @field:NotBlank
     val slot: String? = null,
-    @field:NotBlank
+    /** 카드 등급. 예전 단일 cardType으로 보내도 등급과 변형으로 풀린다. */
+    val cardGrade: String? = null,
+    /** 카드 변형. NONE(기본) / FA / WBC. */
+    val cardVariant: String? = null,
+    /** 예전 단일 카드 타입. [cardGrade]가 없을 때만 쓰인다. */
     val cardType: String? = null,
     /** 후보만 필요하다. 주전과 투수는 슬롯에서 유도하므로 보내도 무시한다. */
     val position: String? = null,

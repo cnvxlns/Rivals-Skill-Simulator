@@ -253,7 +253,7 @@ export const strings = {
   methodology_pa_prefix: 'PA',
 
   calculator_result_hint: '슬롯과 조건을 바꾸면 다시 계산해야 합니다',
-  calculator_compare_on: '조합 비교',
+  calculator_compare_on: '비교하기',
   calculator_compare_off: '비교 끄기',
   calculator_copy_a_to_b: 'A를 B로 복사',
   calculator_set_a: 'A',

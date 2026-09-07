@@ -322,11 +322,6 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
         <Text style={[typography.card, { color: colors.onSurface, flex: 1 }]}>
           {t('score_skill_slots')}
         </Text>
-        <LinkAction
-          text={calc.compare ? t('calculator_compare_off') : t('calculator_compare_on')}
-          onPress={() => calc.setCompare(!calc.compare)}
-          style={linkTouchTarget}
-        />
         {calc.compare ? (
           <LinkAction text={t('calculator_copy_a_to_b')} onPress={calc.copyAToB} style={linkTouchTarget} />
         ) : null}
@@ -363,6 +358,15 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
         onPress={calc.calculate}
         enabled={!calc.calculating}
         loading={calc.calculating}
+      />
+      {/*
+        비교는 슬롯 제목 옆 링크였다. 두 벌을 만드는 큰 동작인데 링크로는 눈에 띄지 않아
+        계산 버튼 바로 아래 같은 모양으로 내려놓는다.
+      */}
+      <PrimaryActionButton
+        text={calc.compare ? t('calculator_compare_off') : t('calculator_compare_on')}
+        onPress={() => calc.setCompare(!calc.compare)}
+        enabled={!calc.calculating}
       />
 
       {calc.hasResult ? (

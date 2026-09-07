@@ -3,7 +3,7 @@
 // 규칙 두 가지를 전 컴포넌트가 지킨다.
 //  1. 그림자를 쓰지 않는다. 면 분리는 외곽선 + 배경 명도차로만 한다(플랫폼별 동작이 달라서).
 //  2. hover에만 의존하는 정보를 두지 않는다. 웹과 앱이 같은 컴포넌트를 공유한다.
-import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import {
   ActivityIndicator,
@@ -425,11 +425,14 @@ export function SearchInput({
   onChangeText,
   placeholder,
   height,
+  inputRef,
 }: {
   value: string;
   onChangeText: (v: string) => void;
   placeholder: string;
   height?: number;
+  /** 열자마자 커서를 넣고 싶은 호출부가 넘긴다. */
+  inputRef?: React.RefObject<TextInput | null>;
 }) {
   const { colors, radius, controlHeight, spacing } = useAppTheme();
   const [focused, setFocused] = useState(false);
@@ -449,6 +452,7 @@ export function SearchInput({
     >
       <SearchIcon size={17} color={focused ? colors.accentAction : colors.muted} />
       <TextInput
+        ref={inputRef}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -605,6 +609,19 @@ export function LabeledDropdown<T>({
   const { height: windowHeight } = useWindowDimensions();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const searchRef = useRef<TextInput>(null);
+
+  /*
+    열면 바로 검색창에 커서를 넣는다. 스킬 목록이 200개가 넘어 여는 이유가 대개 검색이다.
+
+    시트가 슬라이드로 올라오는 중에 focus()를 부르면 먹지 않아 한 틱 뒤에 준다.
+    터치 기기는 제외한다. 커서를 넣으면 키보드가 올라와 목록의 절반을 가린다.
+  */
+  useEffect(() => {
+    if (!open || !searchable || Platform.OS !== 'web') return;
+    const timer = setTimeout(() => searchRef.current?.focus(), 80);
+    return () => clearTimeout(timer);
+  }, [open, searchable]);
 
   const selectedLabel = optionLabel(selected);
   const shown = useMemo(() => {
@@ -685,7 +702,13 @@ export function LabeledDropdown<T>({
 
             {searchable ? (
               <View style={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.md }}>
-                <SearchInput value={query} onChangeText={setQuery} placeholder={searchPlaceholder} height={46} />
+                <SearchInput
+                  inputRef={searchRef}
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder={searchPlaceholder}
+                  height={46}
+                />
               </View>
             ) : null}
 

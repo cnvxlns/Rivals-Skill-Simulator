@@ -14,7 +14,7 @@ import jakarta.validation.constraints.NotEmpty
  * @param lockSlotOne 첫 슬롯 잠금. 등급이 허용하지 않으면 무시하고 응답의
  *   `slotOneLockable`이 false로 내려간다.
  *
- * 등급 보호는 받지 않는다. 쓰지 않고 돌리는 사람이 없다시피 해서 늘 켠 것으로 본다
+ * 스킬레벨보호권은 받지 않는다. 쓰지 않고 돌리는 사람이 없다시피 해서 늘 켠 것으로 본다
  * ([TicketExpectationService]).
  */
 data class TicketExpectationRequest(

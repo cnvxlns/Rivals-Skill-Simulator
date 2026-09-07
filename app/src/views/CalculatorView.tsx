@@ -405,7 +405,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
           </View>
 
           {/*
-            등급 보호는 켜고 끄게 두지 않는다. 끄고 보는 경우가 없어 선택지만 늘렸다.
+            스킬레벨보호권은 켜고 끄게 두지 않는다. 끄고 보는 경우가 없어 선택지만 늘렸다.
             숫자가 그 가정 위에 서 있으므로 한 줄로 밝혀 둔다.
           */}
           <Text style={[typography.label, { color: colors.muted }]}>{t('ticket_protect_assumed')}</Text>

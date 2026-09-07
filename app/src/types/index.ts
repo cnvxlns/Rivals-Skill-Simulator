@@ -405,7 +405,6 @@ export type TicketExpectationRequest = {
   throwHand?: Handedness;
   batHand?: Handedness;
   lockSlotOne?: boolean;
-  protectLevels?: boolean[];
 };
 
 export type DeckSummary = {

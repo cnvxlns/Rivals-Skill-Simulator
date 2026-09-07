@@ -405,54 +405,10 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
           </View>
 
           {/*
-            레벨 보호는 슬롯마다 따로 켠다. 빈 칸은 지킬 값이 없어 켤 수 없다.
-            잠근 첫 칸도 어차피 다시 뽑지 않으므로 뺀다.
+            등급 보호는 켜고 끄게 두지 않는다. 끄고 보는 경우가 없어 선택지만 늘렸다.
+            숫자가 그 가정 위에 서 있으므로 한 줄로 밝혀 둔다.
           */}
-          <View style={{ gap: spacing.xs }}>
-            <Text style={[typography.label, { color: colors.secondaryText }]}>
-              {t('ticket_protect_levels')}
-            </Text>
-            <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
-              {Array.from({ length: calc.slotCount }, (_, index) => index).map((index) => {
-                const empty = !calc.sets[0].selections[index]?.skillId;
-                const locked = index === 0 && calc.lockSlotOne && (calc.tickets?.slotOneLockable ?? true);
-                const disabled = empty || locked;
-                const on = !disabled && (calc.protectLevels[index] ?? false);
-                return (
-                  <Pressable
-                    key={`protect-${index}`}
-                    onPress={
-                      disabled
-                        ? undefined
-                        : () =>
-                            calc.setProtectLevels(
-                              Array.from({ length: calc.slotCount }, (_, slot) =>
-                                slot === index ? !on : (calc.protectLevels[slot] ?? false),
-                              ),
-                            )
-                    }
-                    style={{
-                      minHeight: 44,
-                      paddingHorizontal: spacing.md,
-                      justifyContent: 'center',
-                      borderRadius: radius.control,
-                      borderWidth: 1,
-                      borderColor: on ? colors.accentAction : colors.outline,
-                      backgroundColor: on ? 'rgba(76,201,240,0.12)' : colors.surfaceVariant,
-                      opacity: disabled ? 0.4 : 1,
-                    }}
-                  >
-                    <Text style={[typography.label, { color: on ? colors.accentAction : colors.secondaryText }]}>
-                      {index + 1}
-                      {t('ticket_slot_suffix')}
-                      {on ? ' ✓' : ''}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Text style={[typography.label, { color: colors.muted }]}>{t('ticket_protect_hint')}</Text>
-          </View>
+          <Text style={[typography.label, { color: colors.muted }]}>{t('ticket_protect_assumed')}</Text>
 
           <PrimaryActionButton
             text={t('ticket_calculate')}
@@ -500,14 +456,6 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                           {t('ticket_avg_gain')} +{outcome.averageGain.toFixed(2)}
                         </Text>
                       ) : null}
-                      <Text
-                        style={[
-                          typography.label,
-                          { color: outcome.revocable ? colors.secondaryText : colors.statOpponent },
-                        ]}
-                      >
-                        {outcome.revocable ? t('ticket_revocable') : t('ticket_not_revocable')}
-                      </Text>
                     </View>
 
                     {!impossible ? (
@@ -528,7 +476,6 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
               })
             : null}
 
-          {calc.tickets ? <InfoBanner text={t('ticket_note')} /> : null}
         </View>
       </SectionCard>
     );

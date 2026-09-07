@@ -21,6 +21,10 @@ import org.springframework.stereotype.Service
  * 일반권은 결과를 무를 수 없어 그 사이 더 나쁜 상태를 거치고, 나아진 판에서 멈추지 않으면 잃는다.
  * 숫자를 억지로 다르게 만들지 않고 [TicketType.revocable]로 그 차이를 함께 내려보낸다.
  *
+ * **등급 보호는 늘 쓴다고 본다.** 화면에서 켜고 끄게 두었더니 끄고 보는 경우가 없어
+ * 선택지만 늘리는 꼴이었다. 보호가 없으면 뽑을 때마다 레벨이 내려갈 수 있어 같은 카드의
+ * 기대 장수가 크게 달라진다.
+ *
  * 해석적으로 풀지 않고 몬테카를로로 센다. 한 칸의 결과가 티어 → 레벨 → 스킬로 이어지고 블랙
  * 선추첨과 중복 배제까지 얽혀 있어, 정확한 분포를 접어 올리는 것보다 돌려 보는 편이 단순하다.
  */
@@ -60,7 +64,6 @@ class TicketExpectationService(
             batHand = request.batHand,
             userStats = request.userStats,
             lockSlotOne = request.lockSlotOne,
-            protectLevels = request.protectLevels.orEmpty(),
         )
     }
 
@@ -80,7 +83,6 @@ class TicketExpectationService(
         batHand: Handedness? = null,
         userStats: Map<String, Double>? = null,
         lockSlotOne: Boolean = false,
-        protectLevels: List<Boolean> = emptyList(),
         seed: Long? = null,
     ): TicketExpectationResponse {
         val score = { selections: List<ScoreCalculator.Selection> ->
@@ -111,7 +113,9 @@ class TicketExpectationService(
             currentSkillKeys = currentSkillKeys,
             currentLevels = currentLevels,
             lockSlotOne = lockSlotOne && lockable,
-            protectLevels = protectLevels,
+            // 등급 보호는 늘 쓴다고 본다. 안 쓰고 돌리는 사람이 없다시피 한데, 그 가정이
+            // 없으면 뽑을 때마다 레벨이 내려갈 수 있어 기대 장수가 실제보다 훨씬 나쁘게 나온다.
+            protectLevels = List(CardRules.slotCount(CardRules.resolveGrade(grade))) { true },
         )
 
         val tickets = TicketType.entries.map { ticket ->

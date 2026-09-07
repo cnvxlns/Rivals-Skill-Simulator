@@ -13,7 +13,9 @@ import jakarta.validation.constraints.NotEmpty
  * @param selections 지금 끼워 둔 스킬. 비어 있는 칸은 빼고 보내면 그만큼 0점으로 본다.
  * @param lockSlotOne 첫 슬롯 잠금. 등급이 허용하지 않으면 무시하고 응답의
  *   `slotOneLockable`이 false로 내려간다.
- * @param protectLevels 슬롯별 레벨 보호권 사용 여부.
+ *
+ * 등급 보호는 받지 않는다. 쓰지 않고 돌리는 사람이 없다시피 해서 늘 켠 것으로 본다
+ * ([TicketExpectationService]).
  */
 data class TicketExpectationRequest(
     @field:NotBlank
@@ -29,5 +31,4 @@ data class TicketExpectationRequest(
     val throwHand: Handedness? = null,
     val batHand: Handedness? = null,
     val lockSlotOne: Boolean = false,
-    val protectLevels: List<Boolean>? = null,
 )

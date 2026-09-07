@@ -50,7 +50,7 @@ class RollEngine(
 
     fun roll(input: RollInput, random: Random): List<RolledSlot> {
         val family = RollFamily.of(input.grade, input.variant)
-        val grade = CardRules.fromLegacyCardType(input.grade)?.first ?: CardRules.normalizeGrade(input.grade)
+        val grade = CardRules.resolveGrade(input.grade)
         val slotCount = CardRules.slotCount(grade)
         val levels = List(slotCount) { input.currentLevels.getOrNull(it) }
         val protect = List(slotCount) { input.protectLevels.getOrNull(it) ?: false }
@@ -220,8 +220,7 @@ class RollEngine(
         return if (protect && ladder.indexOf(safeRolled) < ladder.indexOf(safeCurrent)) safeCurrent else safeRolled
     }
 
-    private fun gradeOf(input: RollInput): String =
-        CardRules.fromLegacyCardType(input.grade)?.first ?: CardRules.normalizeGrade(input.grade)
+    private fun gradeOf(input: RollInput): String = CardRules.resolveGrade(input.grade)
 
     private fun coerce(level: Level, ladder: List<Level>): Level =
         if (level in ladder) level else ladder[level.ordinal.coerceIn(0, ladder.size - 1)]
@@ -249,7 +248,7 @@ class RollEngine(
     }
 
     fun canLockSlotOne(grade: String, slotOneSkillKey: String?): Boolean {
-        val normalized = CardRules.fromLegacyCardType(grade)?.first ?: CardRules.normalizeGrade(grade)
+        val normalized = CardRules.resolveGrade(grade)
         if (normalized !in LOCKABLE_GRADES) return false
         if (normalized != "MOMENT" && normalized != "SUPREME_MOMENT") return true
         val skill = slotOneSkillKey?.let { scoreSkillRepository.findBySkillKey(it) } ?: return false

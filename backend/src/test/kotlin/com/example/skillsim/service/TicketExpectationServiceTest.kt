@@ -113,6 +113,29 @@ class TicketExpectationServiceTest {
         assertThat(supreme.revocable).isTrue()
     }
 
+    /**
+     * 등급 보호는 화면에서 고르지 않고 늘 켠 것으로 본다.
+     *
+     * 보호가 없으면 뽑은 레벨이 그대로라 지금 레벨이 무엇이든 평균 총점이 같다. 보호가
+     * 있으면 지금 레벨 아래로 내려가지 않으므로, 높은 레벨에서 시작할수록 평균이 높다.
+     * 이 차이가 보이면 보호가 실제로 걸린 것이다.
+     */
+    @Test
+    fun `등급 보호를 항상 켜고 센다`() {
+        val gold = repository.findAll().filter { it.skillKey.startsWith("G_") }
+            .filter { SkillRules.matchesPosition(it.position, "C") }
+            .take(3).map { it.skillKey }
+
+        val fromLow = evaluate(gold, Level.D).tickets.associateBy { it.ticket }
+        val fromHigh = evaluate(gold, Level.S4).tickets.associateBy { it.ticket }
+
+        for (ticket in fromLow.keys) {
+            assertThat(fromHigh.getValue(ticket).averageTotal)
+                .`as`(ticket)
+                .isGreaterThan(fromLow.getValue(ticket).averageTotal)
+        }
+    }
+
     /** 누적 성공 확률은 기하분포다. 장수가 늘수록 단조 증가해야 한다. */
     @Test
     fun `누적 성공 확률은 장수가 늘수록 올라간다`() {

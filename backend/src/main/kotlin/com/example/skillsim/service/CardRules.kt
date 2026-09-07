@@ -96,6 +96,15 @@ internal object CardRules {
         return LEGACY_CARD_TYPES[normalized]
     }
 
+    /**
+     * 등급 이름 하나로 정규화한다. 예전 단일 `cardType`으로 와도 등급만 꺼낸다.
+     *
+     * 호출부마다 `fromLegacyCardType(...)?.first ?: normalizeGrade(...)`를 되풀이하던 것을
+     * 한자리로 모은 것이다.
+     */
+    fun resolveGrade(grade: String?): String =
+        fromLegacyCardType(grade)?.first ?: normalizeGrade(grade)
+
     fun validateCombination(grade: String, variant: String) {
         if (variant != VARIANT_NONE && grade !in VARIANT_CAPABLE_GRADES) {
             throw IllegalArgumentException("$grade cards have no $variant variant.")

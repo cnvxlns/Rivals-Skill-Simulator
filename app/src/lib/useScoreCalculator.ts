@@ -87,7 +87,6 @@ export function useScoreCalculator() {
   const [tickets, setTickets] = useState<TicketExpectationResponse | null>(null);
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [lockSlotOne, setLockSlotOne] = useState(false);
-  const [protectLevels, setProtectLevels] = useState<boolean[]>([]);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -392,7 +391,6 @@ export function useScoreCalculator() {
           batHand: position === Position.BATTER ? batHand : undefined,
           userStats,
           lockSlotOne,
-          protectLevels,
         }),
       );
     } catch {
@@ -403,7 +401,7 @@ export function useScoreCalculator() {
     }
   }, [
     sets, scorePosition, cardGrade, cardVariant, position, battingOrder,
-    pitcherSlot, throwHand, batHand, userStats, lockSlotOne, protectLevels,
+    pitcherSlot, throwHand, batHand, userStats, lockSlotOne,
   ]);
 
   const calculate = useCallback(async () => {
@@ -464,8 +462,6 @@ export function useScoreCalculator() {
     evaluateTickets,
     lockSlotOne,
     setLockSlotOne,
-    protectLevels,
-    setProtectLevels,
     selectedSkillIds,
     visibleStats,
     userStats,

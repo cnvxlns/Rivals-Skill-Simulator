@@ -19,8 +19,9 @@ private val INNING_WEIGHTS_BY_ROLE = mapOf(
 
 private val STATIC_CONDITION_PROBABILITIES = mapOf(
     "ALWAYS" to 1.0,
-    "홈" to 0.3,
-    "원정" to 0.7,
+    // 랭킹대전은 전부 원정으로 치러진다. 홈 조건은 발동하지 않고 원정 조건은 늘 발동한다.
+    "홈" to 0.0,
+    "원정" to 1.0,
     "주자있음" to 0.4,
     "주자없음" to 0.6,
     "주자1명" to 0.25,

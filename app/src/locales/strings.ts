@@ -264,7 +264,7 @@ export const strings = {
   ticket_calculate: '기댓값 계산',
   ticket_lock_slot_one: '첫 슬롯 잠금',
   ticket_lock_unavailable: '이 카드 등급은 첫 슬롯을 잠글 수 없습니다.',
-  ticket_protect_assumed: '등급 보호를 항상 쓴다고 보고 셉니다. 뽑은 등급이 지금보다 낮으면 지금 등급을 지킵니다.',
+  ticket_protect_assumed: '등급 보호를 항상 쓴다고 보고 셉니다.',
   ticket_slot_prefix: '',
   ticket_kind_normal: '스킬 변경권',
   ticket_kind_premium: '고급 스킬 변경권',

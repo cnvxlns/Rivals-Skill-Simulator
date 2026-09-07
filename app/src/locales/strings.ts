@@ -66,6 +66,7 @@ export const strings = {
   score_table_desc: '전체 스킬을 S레벨 기준으로 채점해 티어별 상위 10개를 보여줍니다.',
   score_table_search: '스킬 검색',
   score_table_search_placeholder: '스킬명으로 검색',
+  skill_unavailable: '이 카드에서는 등장할 수 없는 스킬이니 다른 스킬로 교체하세요.',
   score_table_no_match: '일치하는 스킬이 없습니다.',
   score_table_error: '점수표를 불러오지 못했습니다.',
   // 0점 경로는 셋이다: 포지션 게이트, 가중치 0인 스탯, 확률 0인 조건(랭킹대전 외 모드 등).
@@ -347,7 +348,7 @@ export const strings = {
   deck_score_stale: '저장 시점 점수',
   deck_slot_empty: '비어 있음',
   deck_player_title: '선수 설정',
-  deck_skill_unavailable: '이 카드에서는 등장할 수 없는 스킬이니 다른 스킬로 교체하세요.',
+
   deck_label_reliever_role: '보직',
   deck_reliever_win: '승리조',
   deck_reliever_chase: '추격조',

@@ -110,6 +110,8 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
         {Array.from({ length: calc.slotCount }, (_, index) => index).map((index) => {
           const selection = calc.sets[setIndex].selections[index];
           const selectedSkill = calc.skills.find((skill) => skill.skillId === selection?.skillId);
+          // 등급을 바꿔도 고른 스킬을 비우지 않으므로 새 카드의 풀 밖인 것이 남을 수 있다.
+          const stale = calc.unavailableSlots[setIndex]?.[index] ?? false;
           const maxLevel = selectedSkill?.maxLevel ?? 1;
           const levelOptions = Array.from({ length: maxLevel }, (_, levelIndex) => levelIndex + 1);
           return (
@@ -137,6 +139,9 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                 selected={selection?.skillId ?? ''}
                 options={[
                   '',
+                  // 못 쓰게 된 선택도 목록에 남긴다. 빼면 빈 칸으로 보여 스킬이 지워진
+                  // 것처럼 읽힌다. 이름을 모르면 ID가 대신 나온다.
+                  ...(stale && selection?.skillId ? [selection.skillId] : []),
                   ...calc.skills
                     // 이 칸에 나올 수 없는 스킬은 목록에서 뺀다(모먼트 전용은 첫 칸에만,
                     // 블랙은 카드당 한 장). 등장 확률표에서 0%인 조합이다.
@@ -154,12 +159,14 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                     .map((skill) => skill.skillId),
                 ]}
                 optionLabel={(skillId) =>
-                  calc.skills.find((skill) => skill.skillId === skillId)?.name ?? t('score_select_skill')
+                  calc.skills.find((skill) => skill.skillId === skillId)?.name ??
+                  (skillId ? skillId : t('score_select_skill'))
                 }
                 onSelect={(skillId) => calc.updateSkill(setIndex, index, skillId)}
                 searchable
                 searchPlaceholder={t('score_table_search_placeholder')}
               />
+              {stale ? <InfoBanner text={t('skill_unavailable')} tone="error" /> : null}
               <LabeledDropdown
                 label={t('score_level')}
                 selected={Math.min(Math.max(selection?.level ?? 1, 1), maxLevel)}

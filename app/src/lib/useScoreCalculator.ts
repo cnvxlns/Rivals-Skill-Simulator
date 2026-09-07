@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calculateScore, fetchScoreSkills, fetchTicketExpectation } from './api';
-import { slotCountFor } from './cardRules';
+import { canPlaceSkill, slotCountFor } from './cardRules';
 import { defaultSubPosition } from './useScoreContext';
 import {
   CardGrade,
@@ -133,6 +133,31 @@ export function useScoreCalculator() {
     [sets],
   );
 
+  /**
+   * 이 카드에서는 나올 수 없는 스킬을 낀 벌이 있는가.
+   *
+   * 등급을 바꿔도 고른 스킬을 비우지 않으므로 새 카드의 풀 밖인 것이 남을 수 있다.
+   * 스킬 ID 앞자리가 곧 풀이라 목록을 다시 받기 전에도 판단할 수 있다.
+   */
+  const unavailableSlots = useMemo(
+    () =>
+      sets.slice(0, activeCount).map((set) =>
+        set.selections.map(
+          (selection, index) =>
+            !!selection.skillId &&
+            !canPlaceSkill(
+              cardGrade,
+              cardVariant,
+              index,
+              selection.skillId,
+              set.selections.filter((_, other) => other !== index).map((other) => other.skillId),
+            ),
+        ),
+      ),
+    [sets, activeCount, cardGrade, cardVariant],
+  );
+  const hasUnavailableSkill = unavailableSlots.some((set) => set.some(Boolean));
+
   const canCalculate = useMemo(() => {
     const slotsFilled = sets
       .slice(0, activeCount)
@@ -170,6 +195,21 @@ export function useScoreCalculator() {
     clearResults();
   }, [position, clearResults]);
 
+  /**
+   * 포지션이 바뀌면 고른 스킬을 비운다.
+   *
+   * 등급·변형은 비우지 않는다 — 잘못 골랐다가 되돌릴 때 처음부터 다시 고르게 되는 것이
+   * 가장 잦은 불편이라 라인업 편집기와 같이 유지한다. 새 카드에 없는 스킬은 슬롯마다
+   * 경고로 알린다. 포지션은 사정이 다르다. 그 자리에서 아예 쓸 수 없는 스킬이 되므로
+   * 남겨 두면 고칠 방법이 "하나씩 지우기"밖에 없다.
+   */
+  const lastPosition = useRef(scorePosition);
+  useEffect(() => {
+    if (lastPosition.current === scorePosition) return;
+    lastPosition.current = scorePosition;
+    setSets((prev) => prev.map(() => emptySet(slotCount)));
+  }, [scorePosition, slotCount]);
+
   useEffect(() => {
     if (!scorePosition) {
       setSkills([]);
@@ -184,8 +224,8 @@ export function useScoreCalculator() {
         const loadedSkills = await fetchScoreSkills(cardGrade, cardVariant, scorePosition);
         if (cancelled) return;
         setSkills(loadedSkills);
-        // 등급이나 포지션이 바뀌면 새 풀에 없는 스킬이 남을 수 있어 두 벌 모두 비운다.
-        setSets((prev) => prev.map(() => emptySet(slotCount)));
+        // 고른 스킬은 건드리지 않는다. 비우는 것은 포지션이 바뀔 때뿐이다(위 효과).
+        clearResults();
       } catch {
         if (cancelled) return;
         setSkills([]);
@@ -203,7 +243,7 @@ export function useScoreCalculator() {
     return () => {
       cancelled = true;
     };
-  }, [cardGrade, cardVariant, scorePosition, slotCount]);
+  }, [cardGrade, cardVariant, scorePosition, clearResults]);
 
   const updateSkill = useCallback((setIndex: number, slotIndex: number, skillId: string) => {
     patchSet(setIndex, (set) => ({
@@ -259,6 +299,10 @@ export function useScoreCalculator() {
   }, []);
 
   const calculateWithStats = useCallback(async (stats: Record<string, number>) => {
+    if (hasUnavailableSkill) {
+      setError('skill_unavailable');
+      return;
+    }
     if (!canCalculate) {
       setError('score_fill_slots');
       return;
@@ -299,7 +343,7 @@ export function useScoreCalculator() {
     // throwHand·batHand가 payload에 들어가므로 deps에도 있어야 한다. 빠져 있던 동안에는
     // 방향을 바꾸고 계산을 누르면 이전 방향으로 요청이 나갔다.
   }, [
-    battingOrder, pitcherSlot, canCalculate, cardGrade, cardVariant,
+    battingOrder, pitcherSlot, canCalculate, hasUnavailableSkill, cardGrade, cardVariant,
     position, scorePosition, activeCount, throwHand, batHand,
   ]);
 
@@ -430,6 +474,7 @@ export function useScoreCalculator() {
     loadingSkills,
     calculating,
     canCalculate,
+    unavailableSlots,
     error,
     updateSkill,
     updateLevel,

@@ -241,7 +241,7 @@ export default function DeckPlayerEditor({
                     searchable
                     searchPlaceholder={t('score_table_search_placeholder')}
                   />
-                  {stale ? <InfoBanner text={t('deck_skill_unavailable')} tone="error" /> : null}
+                  {stale ? <InfoBanner text={t('skill_unavailable')} tone="error" /> : null}
                   <LabeledDropdown
                     label={t('score_level')}
                     selected={Math.min(Math.max(selection?.level ?? 1, 1), maxLevel)}

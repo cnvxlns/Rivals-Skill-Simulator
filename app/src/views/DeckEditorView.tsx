@@ -460,7 +460,7 @@ export default function DeckEditorView({
           {/* 어느 자리가 왜 막혔는지 먼저 알려 준다. 저장을 눌러야 서버 오류로 아는 것보다 빠르다. */}
           {editor.brokenSlots.length > 0 ? (
             <InfoBanner
-              text={`${editor.brokenSlots.join(', ')}: ${t('deck_skill_unavailable')}`}
+              text={`${editor.brokenSlots.join(', ')}: ${t('skill_unavailable')}`}
               tone="error"
             />
           ) : null}

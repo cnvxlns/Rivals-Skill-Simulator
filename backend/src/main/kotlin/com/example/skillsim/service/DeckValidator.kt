@@ -200,7 +200,8 @@ internal class DeckValidator(
 
         val allowedPools = skillPoolsFor(cardGrade, cardVariant)
         val seen = mutableSetOf<String>()
-        return requested.map { selection ->
+        val poolCounts = mutableMapOf<String, Int>()
+        return requested.mapIndexed { slotIndex, selection ->
             val skillId = selection.skillId.orEmpty().trim()
             require(skillId.isNotEmpty()) { "$slot: Skill id is required." }
             require(seen.add(skillId)) { "$slot: Duplicate skill $skillId." }
@@ -208,8 +209,19 @@ internal class DeckValidator(
             // 없는 스킬은 400으로 돌려준다. 덱 저장 요청의 404는 "덱이 없다"로 읽힌다.
             val skill = scoreSkillRepository.findBySkillKey(skillId)
                 ?: throw IllegalArgumentException("$slot: Unknown skill $skillId.")
-            require(SkillRules.normalizeSkillPool(skill.cardType) in allowedPools) {
+            val pool = SkillRules.normalizeSkillPool(skill.cardType)
+            require(pool in allowedPools) {
                 "$slot: Skill $skillId does not match card grade $cardGrade."
+            }
+            // 등장 확률이 0인 자리에는 넣을 수 없다. 모먼트 전용은 첫 칸에만 나온다.
+            require(CardRules.allowsPoolInSlot(pool, slotIndex)) {
+                "$slot: Skill $skillId can only be in the first slot on $cardGrade cards."
+            }
+            val count = (poolCounts[pool] ?: 0) + 1
+            poolCounts[pool] = count
+            require(count <= CardRules.maxSkillsFromPool(pool)) {
+                "$slot: $cardGrade cards can have at most " +
+                    "${CardRules.maxSkillsFromPool(pool)} $pool skill."
             }
             require(SkillRules.matchesPosition(skill.position, position)) {
                 "$slot: Skill $skillId does not match position $position."

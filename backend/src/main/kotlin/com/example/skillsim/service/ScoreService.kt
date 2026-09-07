@@ -71,9 +71,10 @@ class ScoreService private constructor(
         }
 
         val seenSkillIds = mutableSetOf<String>()
+        val poolCounts = mutableMapOf<String, Int>()
         val calculatorSelections = mutableListOf<ScoreCalculator.Selection>()
 
-        for (selection in selections.orEmpty()) {
+        selections.orEmpty().forEachIndexed { slotIndex, selection ->
             val skillId = normalizeRequiredOrThrow(selection.skillId, "Skill selection is required.")
             if (!seenSkillIds.add(skillId)) {
                 throw badRequest("Duplicate skill selection is not allowed.")
@@ -81,8 +82,17 @@ class ScoreService private constructor(
 
             val skill = scoreSkillRepository.findBySkillKey(skillId)
                 ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Score skill not found: $skillId")
-            if (SkillRules.normalizeSkillPool(skill.cardType) !in CardRules.skillPools(card.grade, card.variant)) {
+            val pool = SkillRules.normalizeSkillPool(skill.cardType)
+            if (pool !in CardRules.skillPools(card.grade, card.variant)) {
                 throw badRequest("Selected skill does not match requested card grade.")
+            }
+            // 등장 확률이 0인 자리는 막는다. 모먼트 전용은 첫 칸에만 나오고 블랙은 카드당 한 장이다.
+            if (!CardRules.allowsPoolInSlot(pool, slotIndex)) {
+                throw badRequest("Moment skills can only be in the first slot.")
+            }
+            poolCounts[pool] = (poolCounts[pool] ?: 0) + 1
+            if (poolCounts.getValue(pool) > CardRules.maxSkillsFromPool(pool)) {
+                throw badRequest("A card can have at most ${CardRules.maxSkillsFromPool(pool)} $pool skill.")
             }
             if (!SkillRules.matchesPosition(skill.position, normalizedPosition)) {
                 throw badRequest("Selected skill does not match requested position.")

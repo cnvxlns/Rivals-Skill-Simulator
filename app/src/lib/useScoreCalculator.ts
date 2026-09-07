@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calculateScore, fetchScoreSkills, fetchTicketExpectation } from './api';
+import { slotCountFor } from './cardRules';
 import { defaultSubPosition } from './useScoreContext';
 import {
   CardGrade,
@@ -15,8 +16,6 @@ import {
   SubPosition,
   TicketExpectationResponse,
 } from '../types';
-
-const BASE_SLOT_COUNT = 3;
 
 /** 평균 타순 개념을 두지 않으므로 지정이 없으면 1번타자로 본다. 백엔드와 같은 전제다. */
 const DEFAULT_BATTING_ORDER = 1;
@@ -37,10 +36,6 @@ const DEFAULT_DECK_SCORE = 500;
 const BATTER_STATS = ['파워', '정확', '선구', '인내', '주루', '수비'];
 const PITCHER_STATS = ['구속', '변화', '구위', '제구', '지구력', '수비'];
 const DECK_STATS = ['스페셜덱', '팀덱'];
-
-/** 슬롯 수는 등급만 본다. 변형은 영향을 주지 않는다. */
-const slotCountForCard = (grade: CardGrade) =>
-  grade === CardGrade.SIGNATURE_BLACK ? 4 : BASE_SLOT_COUNT;
 
 const defaultUserStats = () =>
   [...BATTER_STATS, ...PITCHER_STATS, ...DECK_STATS].reduce<Record<string, number>>((acc, stat) => {
@@ -85,7 +80,7 @@ export function useScoreCalculator() {
   const [subPosition, setSubPosition] = useState<SubPosition | ''>(defaultSubPosition(Position.BATTER));
   const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
   const [sets, setSets] = useState<ScoreSet[]>(() =>
-    Array.from({ length: SET_COUNT }, () => emptySet(BASE_SLOT_COUNT)),
+    Array.from({ length: SET_COUNT }, () => emptySet(slotCountFor(CardGrade.SIGNATURE))),
   );
   const [compare, setCompare] = useState(false);
   // 스킬 변경권 기댓값. A 슬롯을 기준으로 본다. 비교를 켜도 기준은 A 하나다.
@@ -102,7 +97,7 @@ export function useScoreCalculator() {
   const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
   const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);
 
-  const slotCount = useMemo(() => slotCountForCard(cardGrade), [cardGrade]);
+  const slotCount = useMemo(() => slotCountFor(cardGrade), [cardGrade]);
   /** 비교가 꺼져 있으면 A만 본다. */
   const activeCount = compare ? SET_COUNT : 1;
 

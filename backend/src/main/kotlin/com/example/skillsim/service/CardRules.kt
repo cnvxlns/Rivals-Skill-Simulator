@@ -124,4 +124,25 @@ internal object CardRules {
     /** 스킬 슬롯 수. 블랙 등급만 4개다. */
     fun slotCount(grade: String): Int =
         if (grade == "SIGNATURE_BLACK") 4 else SkillRules.DEFAULT_SLOT_COUNT
+
+    /**
+     * 이 풀의 스킬이 이 칸에 놓일 수 있는가.
+     *
+     * [RollTables]에서 확률이 0인 조합을 막는다. 지금 그런 규칙은 하나다 — 모먼트 전용
+     * 스킬은 모먼트·슈프림 모먼트의 **첫 칸**에서만 나온다
+     * ([RollEngine]이 `momentSlotOneTable`을 slotIndex 0에서만 쓴다).
+     *
+     * @param slotIndex 0부터 센다.
+     */
+    fun allowsPoolInSlot(pool: String, slotIndex: Int): Boolean =
+        pool != "MOMENT" || slotIndex == 0
+
+    /**
+     * 카드 한 장이 가질 수 있는 이 풀의 최대 장수.
+     *
+     * 블랙은 롤이 한 칸만 미리 잡아 두므로([RollEngine.pickForcedBlackSlot]) 두 장이 될 수
+     * 없다. 모먼트는 첫 칸 전용이라 [allowsPoolInSlot]만으로 이미 한 장이다.
+     */
+    fun maxSkillsFromPool(pool: String): Int =
+        if (pool == "BLACK") 1 else Int.MAX_VALUE
 }

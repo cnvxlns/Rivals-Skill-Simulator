@@ -65,7 +65,7 @@ export const strings = {
   score_table_title: '스킬 점수표',
   score_table_desc: '전체 스킬을 S레벨 기준으로 채점해 티어별 상위 10개를 보여줍니다.',
   score_table_search: '스킬 검색',
-  score_table_search_placeholder: '스킬명 또는 ID로 검색',
+  score_table_search_placeholder: '스킬명으로 검색',
   score_table_no_match: '일치하는 스킬이 없습니다.',
   score_table_error: '점수표를 불러오지 못했습니다.',
   // 0점 경로는 셋이다: 포지션 게이트, 가중치 0인 스탯, 확률 0인 조건(랭킹대전 외 모드 등).

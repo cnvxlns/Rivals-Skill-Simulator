@@ -6,7 +6,8 @@ import { InfoBanner, LabeledDropdown, LoadingState, SectionCard, TextField } fro
 import { fetchScoreSkills } from '../lib/api';
 import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
-import { isBench, isLineup, isReliever, positionForSlot, slotCountFor } from '../lib/useDeckEditor';
+import { canPlaceSkill, slotCountFor } from '../lib/cardRules';
+import { isBench, isLineup, isReliever, positionForSlot } from '../lib/useDeckEditor';
 import { useAppTheme } from '../theme/useTheme';
 import {
   CARD_GRADES_LOW_TO_HIGH,
@@ -28,15 +29,6 @@ const RELIEVER_ROLE_KEYS = {
   [RelieverRole.CHASE]: 'deck_reliever_chase',
   [RelieverRole.LONG]: 'deck_reliever_long',
 } as const;
-
-/**
- * 한 번이라도 받아 본 스킬 설명. 세션 동안 쌓인다.
- *
- * 카드 등급을 바꿔도 고른 스킬은 지우지 않는데, 새 등급의 목록에 그 스킬이 없으면
- * 이름을 몰라 드롭다운이 "스킬 선택"으로 보인다. 그러면 유지된 것이 아니라 지워진 것처럼
- * 읽힌다. 스킬 정의는 바뀌지 않는 참조 데이터라 요청을 더 보내지 않고 모아 두면 된다.
- */
-const knownSkills = new Map<string, ScoreSkillOption>();
 
 /**
  * 자리 하나의 선수를 편집한다.
@@ -72,7 +64,6 @@ export default function DeckPlayerEditor({
       setLoading(true);
       try {
         const loaded = await fetchScoreSkills(player.cardGrade, variant, position);
-        loaded.forEach((skill) => knownSkills.set(skill.skillId, skill));
         if (!cancelled) setSkills(loaded);
       } catch {
         if (!cancelled) setSkills([]);
@@ -88,17 +79,20 @@ export default function DeckPlayerEditor({
 
   const byId = useMemo(() => new Map(skills.map((s) => [s.skillId, s])), [skills]);
 
-  /** 지금 카드의 풀에 없어도 이름은 찾아 준다. 유지된 스킬을 화면에 보여 주기 위해서다. */
-  const describe = (skillId: string) => byId.get(skillId) ?? knownSkills.get(skillId);
-
   /**
-   * 이 카드에서는 나올 수 없는 스킬인가.
+   * 이 카드의 이 칸에 놓을 수 있는 스킬인가.
    *
-   * 목록을 못 받아 왔을 때(요청 실패)는 판단하지 않는다. 그때 전부 경고를 띄우면
-   * 멀쩡한 선택을 지우라고 말하는 꼴이 된다.
+   * 스킬 ID 앞자리가 곧 풀이라 목록을 받아 오기 전에도, 목록에 없는 스킬이어도 판단할 수
+   * 있다. 서버 응답에 기대면 요청이 실패했을 때 멀쩡한 선택까지 틀렸다고 말하게 된다.
    */
-  const unavailable = (skillId: string | undefined) =>
-    !!skillId && !loading && skills.length > 0 && !byId.has(skillId);
+  const placeable = (skillId: string, index: number, ignore?: string) =>
+    canPlaceSkill(
+      String(player.cardGrade),
+      variant,
+      index,
+      skillId,
+      player.skills.map((s) => s.skillId).filter((id) => id !== ignore && id !== skillId),
+    );
 
   // 슬롯 수는 카드 타입을 따라간다. 4칸에서 3칸으로 줄면 넘치는 것을 잘라 낸다.
   const slots = useMemo<(DeckSkillSelection | null)[]>(
@@ -118,7 +112,7 @@ export default function DeckPlayerEditor({
     if (!skillId) {
       next[index] = null;
     } else {
-      const skill = describe(skillId);
+      const skill = byId.get(skillId);
       // 처음 넣을 때는 S 등급을 기본으로 둔다. 점수표와 같은 기준이라 비교하기 쉽다.
       const sIndex = skill?.levelLabels?.indexOf('S') ?? -1;
       const level = sIndex >= 0 ? sIndex + 1 : Math.max(1, skill?.maxLevel ?? 1);
@@ -218,16 +212,19 @@ export default function DeckPlayerEditor({
         ) : (
           <View style={{ gap: spacing.lg }}>
             {slots.map((selection, index) => {
-              const skill = selection ? describe(selection.skillId) : undefined;
-              const stale = unavailable(selection?.skillId);
+              const skill = selection ? byId.get(selection.skillId) : undefined;
+              const stale = !!selection && !placeable(selection.skillId, index);
               const maxLevel = Math.max(1, skill?.maxLevel ?? 1);
               const options = [
                 '',
-                // 지금 풀에 없는 선택도 목록에 넣는다. 빼면 드롭다운이 빈 칸으로 보여
-                // 스킬이 지워진 것처럼 읽힌다.
+                // 지금 카드에 못 쓰는 선택도 목록에 넣는다. 빼면 드롭다운이 빈 칸으로 보여
+                // 스킬이 지워진 것처럼 읽힌다. 이름을 모르면 ID가 대신 나온다.
                 ...(stale && selection ? [selection.skillId] : []),
                 ...skills
                   .filter((s) => s.skillId === selection?.skillId || !chosen.has(s.skillId))
+                  // 이 칸에 나올 수 없는 스킬은 아예 고르지 못하게 한다.
+                  // (모먼트 전용은 첫 칸에만, 블랙은 카드당 한 장.)
+                  .filter((s) => placeable(s.skillId, index, selection?.skillId))
                   .map((s) => s.skillId),
               ];
               return (
@@ -236,7 +233,10 @@ export default function DeckPlayerEditor({
                     label={`${t('slot_label')} ${index + 1}`}
                     selected={selection?.skillId ?? ''}
                     options={options}
-                    optionLabel={(skillId) => describe(skillId)?.name ?? t('score_select_skill')}
+                    // 이름을 모르는 것은 이 카드 밖의 스킬뿐이다. 그때는 ID를 그대로 보여 준다.
+                    optionLabel={(skillId) =>
+                      byId.get(skillId)?.name ?? (skillId ? skillId : t('score_select_skill'))
+                    }
                     onSelect={(skillId) => setSkillAt(index, skillId)}
                     searchable
                     searchPlaceholder={t('score_table_search_placeholder')}

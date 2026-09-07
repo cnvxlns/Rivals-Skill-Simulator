@@ -5,6 +5,7 @@ import com.example.skillsim.enums.Handedness
 import com.example.skillsim.enums.RelieverRole
 import com.example.skillsim.model.DeckRoster
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 
@@ -239,6 +240,86 @@ class DeckValidatorTest {
 
         assertThatThrownBy { validator.validate(request.copy(players = players)) }
             .hasMessageContaining("must have exactly 3 skills, but had 2")
+    }
+
+    @Test
+    fun `시그니처 블랙은 스킬 칸이 네 개다`() {
+        val request = DeckFixtures.deckRequest()
+        fun withBlackCard(skills: List<String>) = request.copy(
+            players = request.players!!.map {
+                if (it.slot == "C") {
+                    it.copy(
+                        cardGrade = "SIGNATURE_BLACK",
+                        skills = skills.map { id -> DeckSkillRequest(id, 1) },
+                    )
+                } else {
+                    it
+                }
+            },
+        )
+
+        assertThatThrownBy { validator.validate(withBlackCard(listOf("G_001", "G_002", "G_003"))) }
+            .hasMessageContaining("must have exactly 4 skills, but had 3")
+        assertThatCode { validator.validate(withBlackCard(listOf("G_001", "G_002", "G_003", "G_004"))) }
+            .doesNotThrowAnyException()
+    }
+
+    /**
+     * 모먼트 전용은 첫 칸에서만 나온다.
+     *
+     * 롤 엔진이 `momentSlotOneTable`을 slotIndex 0에서만 쓰므로 둘째·셋째 칸의 등장 확률이
+     * 0이다. 0인 조합은 저장도 막는다.
+     */
+    @Test
+    fun `모먼트 전용 스킬은 첫 칸에만 놓을 수 있다`() {
+        val momentValidator = DeckFixtures.validator(
+            DeckFixtures.repository(DeckFixtures.exclusiveSkills),
+            pools = listOf("NORMAL", "MOMENT"),
+        )
+        val request = DeckFixtures.deckRequest()
+        fun withMomentCard(skills: List<String>) = request.copy(
+            players = request.players!!.map {
+                if (it.slot == "C") {
+                    it.copy(cardGrade = "MOMENT", skills = skills.map { id -> DeckSkillRequest(id, 1) })
+                } else {
+                    it
+                }
+            },
+        )
+
+        assertThatCode { momentValidator.validate(withMomentCard(listOf("M_001", "G_001", "G_002"))) }
+            .doesNotThrowAnyException()
+        assertThatThrownBy { momentValidator.validate(withMomentCard(listOf("G_001", "M_001", "G_002"))) }
+            .hasMessageContaining("can only be in the first slot")
+    }
+
+    /** 블랙은 롤이 한 칸만 미리 잡으므로 두 장이 되는 경우가 없다. */
+    @Test
+    fun `블랙 전용 스킬은 카드당 한 장이다`() {
+        val blackValidator = DeckFixtures.validator(
+            DeckFixtures.repository(DeckFixtures.exclusiveSkills),
+            pools = listOf("NORMAL", "BLACK"),
+        )
+        val request = DeckFixtures.deckRequest()
+        fun withBlackCard(skills: List<String>) = request.copy(
+            players = request.players!!.map {
+                if (it.slot == "C") {
+                    it.copy(
+                        cardGrade = "SIGNATURE_BLACK",
+                        skills = skills.map { id -> DeckSkillRequest(id, 1) },
+                    )
+                } else {
+                    it
+                }
+            },
+        )
+
+        assertThatCode {
+            blackValidator.validate(withBlackCard(listOf("BLACK_001", "G_001", "G_002", "G_003")))
+        }.doesNotThrowAnyException()
+        assertThatThrownBy {
+            blackValidator.validate(withBlackCard(listOf("BLACK_001", "BLACK_002", "G_001", "G_002")))
+        }.hasMessageContaining("at most 1 BLACK skill")
     }
 
     @Test

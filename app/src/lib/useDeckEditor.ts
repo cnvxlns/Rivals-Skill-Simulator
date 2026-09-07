@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiErrorMessage, createDeck, fetchDeck, scoreDeck, updateDeck } from './api';
+import { canPlaceSkill, slotCountFor } from './cardRules';
 import {
   BENCH_SLOTS,
   CardGrade,
@@ -41,9 +42,9 @@ export const isLineup = (slot: string) => (LINEUP_SLOTS as readonly string[]).in
 export const isReliever = (slot: string) => slot.startsWith('RP');
 export const isPitcher = (slot: string) => /^(SP|RP|CP)\d+$/.test(slot);
 
-/** 스킬 슬롯 수. 등급만 본다(백엔드 CardRules.slotCount와 같은 규칙). */
-export const slotCountFor = (cardGrade: string) =>
-  cardGrade === CardGrade.SIGNATURE_BLACK ? 4 : 3;
+// 슬롯 수 규칙은 카드 축의 다른 규칙과 함께 둔다. 여기서 다시 내보내는 것은 이미 이
+// 모듈에서 가져다 쓰는 화면이 있어서다.
+export { slotCountFor };
 
 /** 스킬 목록을 조회할 때 쓰는 포지션. 후보만 직접 고르고 나머지는 자리에서 나온다. */
 export const positionForSlot = (slot: string, benchPosition?: string): string => {
@@ -57,6 +58,27 @@ export const isPlayerComplete = (player: DeckPlayer | undefined): boolean => {
   if (!player) return false;
   const needed = slotCountFor(player.cardGrade);
   return player.skills.length === needed && player.skills.every((s) => s.skillId);
+};
+
+/**
+ * 이 카드에서는 나올 수 없는 스킬을 끼고 있는가.
+ *
+ * 등급을 바꿔도 고른 스킬을 지우지 않으므로 남은 스킬이 새 카드의 풀 밖일 수 있다.
+ * 스킬 ID 앞자리만 보면 알 수 있어 스킬 목록을 받아 두지 않아도 된다.
+ */
+export const unavailableSkills = (player: DeckPlayer | undefined): string[] => {
+  if (!player) return [];
+  const ids = player.skills.map((s) => s.skillId);
+  return ids.filter(
+    (skillId, index) =>
+      !canPlaceSkill(
+        String(player.cardGrade),
+        player.cardVariant ? String(player.cardVariant) : undefined,
+        index,
+        skillId,
+        ids.filter((_, other) => other !== index),
+      ),
+  );
 };
 
 const emptyPlayer = (slot: string, battingOrder?: number): DeckPlayer => ({
@@ -148,8 +170,19 @@ export function useDeckEditor(initial?: DeckDetail) {
   }, [pitcherSlots]);
 
   const completedCount = allSlots.filter((slot) => isPlayerComplete(players[slot])).length;
+  /**
+   * 이 카드에서 나올 수 없는 스킬을 낀 자리.
+   *
+   * 백엔드도 같은 것을 막지만 그쪽 오류는 저장을 눌러야 보인다. 어느 자리가 문제인지
+   * 미리 알려 주고 채점·저장을 멈춘다.
+   */
+  const brokenSlots = useMemo(
+    () => allSlots.filter((slot) => unavailableSkills(players[slot]).length > 0),
+    [allSlots, players],
+  );
   // 합이 12가 아니면 자리 수 자체가 26이 아니므로 저장도 채점도 할 수 없다.
-  const isComplete = completedCount === allSlots.length && isPitcherStaffValid;
+  const isComplete =
+    completedCount === allSlots.length && isPitcherStaffValid && brokenSlots.length === 0;
 
   const updatePlayer = useCallback((slot: string, patch: Partial<DeckPlayer>) => {
     setPlayers((prev) => ({ ...prev, [slot]: { ...prev[slot], ...patch, slot } }));
@@ -288,6 +321,7 @@ export function useDeckEditor(initial?: DeckDetail) {
     allSlots,
     pitcherSlots,
     completedCount,
+    brokenSlots,
     isComplete,
     score,
     scoring,

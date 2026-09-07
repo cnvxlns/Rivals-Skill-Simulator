@@ -35,16 +35,38 @@ internal object DeckFixtures {
         )
     }
 
-    fun repository(): ScoreSkillRepository {
+    /**
+     * 등급 전용 풀의 스킬. 칸 규칙(모먼트는 첫 칸만, 블랙은 카드당 한 장)을 검증하는 데 쓴다.
+     *
+     * 스킬 ID 앞자리가 곧 풀이라는 관례를 그대로 따른다.
+     */
+    val exclusiveSkills = listOf("M_001" to "MOMENT", "BLACK_001" to "BLACK", "BLACK_002" to "BLACK")
+        .map { (key, pool) ->
+            ScoreSkill(
+                skillKey = key,
+                cardType = pool,
+                position = "BATTER, PITCHER",
+                name = key,
+                description = "설명",
+                effects = mutableListOf(
+                    ScoreEffect(stat = STAT, condition = "ALWAYS", values = "1"),
+                ),
+            )
+        }
+
+    fun repository(extra: List<ScoreSkill> = emptyList()): ScoreSkillRepository {
         val repository = mock(ScoreSkillRepository::class.java)
-        skills.forEach { `when`(repository.findBySkillKey(it.skillKey)).thenReturn(it) }
+        (skills + extra).forEach { `when`(repository.findBySkillKey(it.skillKey)).thenReturn(it) }
         `when`(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(skills)
         return repository
     }
 
-    fun validator(repository: ScoreSkillRepository = repository()) = DeckValidator(
+    fun validator(
+        repository: ScoreSkillRepository = repository(),
+        pools: List<String> = listOf("NORMAL"),
+    ) = DeckValidator(
         scoreSkillRepository = repository,
-        skillPoolsFor = { _, _ -> listOf("NORMAL") },
+        skillPoolsFor = { _, _ -> pools },
         allowedStatNames = { setOf(STAT) },
     )
 

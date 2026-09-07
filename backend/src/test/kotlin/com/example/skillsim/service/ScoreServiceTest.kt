@@ -35,6 +35,28 @@ class ScoreServiceTest {
     }
 
     @Test
+    fun `모먼트 전용 스킬은 첫 칸에서만 채점을 받는다`() {
+        val repository = mock(ScoreSkillRepository::class.java)
+        val gold = scoreSkill("G_001", "NORMAL", "BATTER", "골드", effect("파워", "ALWAYS", "1/2/3"))
+        val moment = scoreSkill("M_001", "MOMENT", "BATTER", "모먼트", effect("파워", "ALWAYS", "1"))
+        `when`(repository.findBySkillKey("G_001")).thenReturn(gold)
+        `when`(repository.findBySkillKey("M_001")).thenReturn(moment)
+        val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
+
+        fun request(vararg ids: String) = ScoreRequest(
+            cardGrade = "MOMENT",
+            position = "C",
+            battingOrder = 1,
+            selections = ids.map { ScoreSelection(it, 1) },
+        )
+
+        assertThat(service.calculate(request("M_001", "G_001")).total).isGreaterThan(0.0)
+        assertThatThrownBy { service.calculate(request("G_001", "M_001")) }
+            .isInstanceOf(ResponseStatusException::class.java)
+            .hasMessageContaining("first slot")
+    }
+
+    @Test
     fun `listSkills exposes card type grade labels and clamped max level`() {
         val repository = mock(ScoreSkillRepository::class.java)
         val black = scoreSkill(

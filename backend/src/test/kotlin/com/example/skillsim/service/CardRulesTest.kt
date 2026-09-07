@@ -106,6 +106,31 @@ class CardRulesTest {
         }
     }
 
+    /**
+     * 등장 확률이 0인 조합.
+     *
+     * [RollEngine]이 `momentSlotOneTable`을 첫 칸에서만 쓰고, 블랙은 한 칸만 미리 잡는다.
+     * 그래서 둘째 칸의 모먼트와 두 장째 블랙은 나올 수 없다.
+     */
+    @Test
+    fun `모먼트는 첫 칸에서만 나오고 블랙은 카드당 한 장이다`() {
+        assertThat(CardRules.allowsPoolInSlot("MOMENT", 0)).isTrue()
+        assertThat(CardRules.allowsPoolInSlot("MOMENT", 1)).isFalse()
+        assertThat(CardRules.allowsPoolInSlot("MOMENT", 2)).isFalse()
+
+        // 나머지 풀은 어느 칸에나 나온다.
+        for (pool in listOf("NORMAL", "BLACK", "WBC", "HOF")) {
+            for (slot in 0..3) {
+                assertThat(CardRules.allowsPoolInSlot(pool, slot)).`as`("%s %d", pool, slot).isTrue()
+            }
+        }
+
+        assertThat(CardRules.maxSkillsFromPool("BLACK")).isEqualTo(1)
+        for (pool in listOf("NORMAL", "WBC", "HOF", "MOMENT")) {
+            assertThat(CardRules.maxSkillsFromPool(pool)).`as`(pool).isEqualTo(Int.MAX_VALUE)
+        }
+    }
+
     @Test
     fun `지원하지 않는 등급과 변형은 거부한다`() {
         assertThatThrownBy { CardRules.normalizeGrade("NOPE") }

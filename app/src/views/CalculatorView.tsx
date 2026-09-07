@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, Text, View, ViewStyle } from 'react-native';
 import { CARD_GRADES_LOW_TO_HIGH, CardVariant, Handedness, Position, SubPosition, variantsFor } from '../types';
 import { useScoreCalculator } from '../lib/useScoreCalculator';
+import { canPlaceSkill } from '../lib/cardRules';
 import { useTranslation } from '../lib/i18n';
 import { useAppTheme } from '../theme/useTheme';
 import { cardTypeLabel } from '../lib/format';
@@ -134,7 +135,24 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
               <LabeledDropdown
                 label={t('score_select_skill')}
                 selected={selection?.skillId ?? ''}
-                options={['', ...calc.skills.map((skill) => skill.skillId)]}
+                options={[
+                  '',
+                  ...calc.skills
+                    // 이 칸에 나올 수 없는 스킬은 목록에서 뺀다(모먼트 전용은 첫 칸에만,
+                    // 블랙은 카드당 한 장). 등장 확률표에서 0%인 조합이다.
+                    .filter((skill) =>
+                      canPlaceSkill(
+                        calc.cardGrade,
+                        calc.cardVariant,
+                        index,
+                        skill.skillId,
+                        calc.sets[setIndex].selections
+                          .filter((_, other) => other !== index)
+                          .map((other) => other.skillId),
+                      ),
+                    )
+                    .map((skill) => skill.skillId),
+                ]}
                 optionLabel={(skillId) =>
                   calc.skills.find((skill) => skill.skillId === skillId)?.name ?? t('score_select_skill')
                 }

@@ -13,7 +13,13 @@ import {
 } from '../components/ui';
 import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
-import { PITCHER_RANGES, PitcherField, isPlayerComplete, useDeckEditor } from '../lib/useDeckEditor';
+import {
+  PITCHER_RANGES,
+  PitcherField,
+  isPlayerComplete,
+  unavailableSkills,
+  useDeckEditor,
+} from '../lib/useDeckEditor';
 import { useAppTheme } from '../theme/useTheme';
 import { useResponsive } from '../lib/useResponsive';
 import {
@@ -121,8 +127,11 @@ export default function DeckEditorView({
    * 것은 "채웠나"가 아니라 "무슨 카드인가"라서 등급을 색으로 옮긴다. 아직 덜 채운 자리는
    * 색을 주지 않아 회색으로 남는다.
    */
-  const chipAccent = (player: DeckPlayer | undefined) =>
-    isPlayerComplete(player) ? cardGradeColor(String(player!.cardGrade)) : null;
+  const chipAccent = (player: DeckPlayer | undefined) => {
+    // 이 카드에 못 쓰는 스킬이 남아 있으면 등급색보다 그 사실이 급하다.
+    if (unavailableSkills(player).length > 0) return { hex: colors.error, soft: 'transparent' };
+    return isPlayerComplete(player) ? cardGradeColor(String(player!.cardGrade)) : null;
+  };
 
   const slotChip = (slot: string, compact = false) => {
     const player = editor.players[slot];
@@ -448,6 +457,13 @@ export default function DeckEditorView({
           ) : (
             <InfoBanner text={t('deck_error_incomplete')} />
           )}
+          {/* 어느 자리가 왜 막혔는지 먼저 알려 준다. 저장을 눌러야 서버 오류로 아는 것보다 빠르다. */}
+          {editor.brokenSlots.length > 0 ? (
+            <InfoBanner
+              text={`${editor.brokenSlots.join(', ')}: ${t('deck_skill_unavailable')}`}
+              tone="error"
+            />
+          ) : null}
           {editor.error ? <InfoBanner text={editor.error} tone="error" /> : null}
           <PrimaryActionButton
             text={t('deck_btn_save')}

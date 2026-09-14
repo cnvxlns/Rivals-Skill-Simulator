@@ -339,6 +339,18 @@ class ScoreDataLoaderTest {
         // 타점 사냥꾼. 워크북에 '터점'으로 오타가 나 있었다.
         assertThat(skills.first { it.skillKey == "BLACK_008" }.name).isEqualTo("타점 사냥꾼")
 
+        // 오펜시브 리더(13차 Live 업데이트 모먼트 카드). 첫 타석 12에서 2씩 줄고
+        // 공지의 괄호 주석대로 6~7번째 타석은 2로 멈춘다. G_034 오버페이스와 같은 꼴이다.
+        val offensiveLeader = skills.first { it.skillKey == "M_045" }
+        assertThat(offensiveLeader.name).isEqualTo("오펜시브 리더")
+        assertThat(offensiveLeader.cardType).isEqualTo("MOMENT")
+        for (stat in listOf("파워", "정확", "선구", "인내")) {
+            assertThat(valuesFor(skills, "M_045", stat, "타석1")).containsExactly("12")
+            assertThat(valuesFor(skills, "M_045", stat, "타석5")).containsExactly("4")
+            assertThat(valuesFor(skills, "M_045", stat, "타석6_7")).containsExactly("2")
+        }
+    }
+
     private fun readBundledScoreSkills(): List<ScoreSkill> =
         resourceReader("score_skills.csv").use { skillsReader ->
             resourceReader("score_effects.csv").use { effectsReader ->

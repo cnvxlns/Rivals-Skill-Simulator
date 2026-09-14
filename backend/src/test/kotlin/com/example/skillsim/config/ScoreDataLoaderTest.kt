@@ -327,7 +327,17 @@ class ScoreDataLoaderTest {
         for (stat in listOf("파워", "정확", "선구", "인내")) {
             assertThat(valuesFor(skills, "HOF_040", stat, "좌타상대")).containsExactly("3/3/3/3/3/4")
         }
-    }
+
+        // 빅 허트(프랭크 토머스, DH 전용). 5차 HOF 공지 표기는 '빅 허트'인데
+        // '빅 히트'로 옮겨 적혀 있었다. hit가 아니라 별명 The Big Hurt다.
+        assertThat(skills.first { it.skillKey == "HOF_044" }.name).isEqualTo("빅 허트")
+        for (stat in listOf("구위", "변화", "제구", "구속")) {
+            assertThat(valuesFor(skills, "HOF_044", stat, "ALWAYS")).containsExactly("4/5/6/7/8/9")
+            assertThat(valuesFor(skills, "HOF_044", stat, "포지션_DH")).containsExactly("3/5/7/9/11/13")
+        }
+
+        // 타점 사냥꾼. 워크북에 '터점'으로 오타가 나 있었다.
+        assertThat(skills.first { it.skillKey == "BLACK_008" }.name).isEqualTo("타점 사냥꾼")
 
     private fun readBundledScoreSkills(): List<ScoreSkill> =
         resourceReader("score_skills.csv").use { skillsReader ->

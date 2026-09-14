@@ -84,6 +84,15 @@ class SkillRulesTest {
         assertThat(SkillRules.matchesPosition(allAround, "CF")).isTrue()
         assertThat(SkillRules.matchesPosition(allAround, "RF")).isTrue()
         assertThat(SkillRules.matchesPosition(allAround, "DH")).isFalse()
+
+        // WBC_006(아웃필더)의 position이 'LF, CR, RF'로 잘못 적혀 있었다. CR은 포지션이
+        // 아니라서 CF 선수만 이 스킬을 못 받았는데, 목록에서 빠질 뿐 오류가 나지 않아
+        // 드러나지 않았다. 세 자리가 모두 걸리는지 못 박는다.
+        val outfield = "LF, CF, RF"
+        assertThat(SkillRules.matchesPosition(outfield, "LF")).isTrue()
+        assertThat(SkillRules.matchesPosition(outfield, "CF")).isTrue()
+        assertThat(SkillRules.matchesPosition(outfield, "RF")).isTrue()
+        assertThat(SkillRules.matchesPosition(outfield, "1B")).isFalse()
     }
 
     @Test

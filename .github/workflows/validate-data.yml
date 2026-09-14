@@ -9,12 +9,12 @@ on:
   push:
     paths:
       - 'backend/src/main/resources/*.csv'
-      - 'tools/validate_skill_csv.py'
+      - 'tools/**'
       - '.github/workflows/validate-data.yml'
   pull_request:
     paths:
       - 'backend/src/main/resources/*.csv'
-      - 'tools/validate_skill_csv.py'
+      - 'tools/**'
       - '.github/workflows/validate-data.yml'
   workflow_dispatch:
 
@@ -31,3 +31,8 @@ jobs:
       # 의존성이 없다. stdlib만 쓰므로 설치 단계가 필요 없다.
       - name: Validate skill CSVs
         run: python3 tools/validate_skill_csv.py --warn
+
+      # 설명문 파서의 회귀 테스트. 커밋된 CSV의 효과행도 함께 검사한다.
+      - name: Parser tests
+        working-directory: tools
+        run: python3 -m unittest discover -p 'test_*.py' -v

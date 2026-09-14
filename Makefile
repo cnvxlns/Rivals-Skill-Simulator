@@ -137,6 +137,7 @@ app:
 # 파이썬 3.12+ 필요. 의존성은 없다.
 validate-data:
 	python3 tools/validate_skill_csv.py --warn
+	cd tools && python3 -m unittest discover -p 'test_*.py'
 
 # --- 도움말 ----------------------------------------------------------------
 

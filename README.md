@@ -57,8 +57,9 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 조합 점수를 웹에서 
 Rivals-Skill-Simulator/
 ├── backend    # Spring Boot API 서버 (포트 8080, CSV 시드)
 ├── app        # Expo(React Native) 앱 — 웹/안드로이드 공용 UI, axios로 /api/score 호출
-├── docs       # 데이터 원천(rivals_skills.xlsx)과 변환기(convert_xlsx.py)
-├── .github    # EAS APK 빌드 / OTA 업데이트 워크플로
+├── tools      # 스킬 데이터 도구 — CSV 검증기, 설명문 파서 (파이썬, 의존성 없음)
+├── docs       # 참고 자료 (비스탯효과 목록, 채점 로직 메모)
+├── .github    # EAS APK 빌드 / OTA 업데이트 / 데이터 검증 워크플로
 ├── docker-compose.yml         # db + backend + app 실행 스택 (+ .override / .tunnel)
 ├── Makefile   # docker compose / gradlew / npm 을 감싼 단축 명령 (make up)
 └── README.md  # 본 문서

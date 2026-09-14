@@ -1,32 +1,13 @@
 from __future__ import annotations
 
-import csv
-import posixpath
 import re
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Iterable
-from zipfile import ZipFile
 
 
 X_LEVELS = list(range(1, 10))
 STATS = ["파워", "정확", "선구", "인내", "구위", "변화", "제구", "구속", "주루", "수비", "지구력"]
 BATTER_STATS = ["파워", "정확", "선구", "인내", "주루", "수비"]
 PITCHER_STATS = ["구속", "구위", "변화", "제구", "지구력", "수비"]
-STAT_WEIGHTS = {
-    "파워": "1.10",
-    "정확": "0.90",
-    "선구": "0.40",
-    "구위": "1.20",
-    "변화": "1.15",
-    "제구": "0.00",
-    "인내": "0.00",
-    "구속": "0.00",
-    "주루": "0.00",
-    "수비": "0.00",
-    "지구력": "0.00",
-}
 
 SPECIAL_EFFECT_CONDITIONS = {
     ("M_029", "구위", "5"): "등판후9타자",
@@ -58,10 +39,6 @@ CARD_TYPES = {
     "HOF": "HOF",
 }
 
-NS = {
-    "main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
-    "rel": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
-}
 
 VALUE_RE = re.compile(
     r"\{?\s*(?:"
@@ -443,86 +420,6 @@ def _effect_condition_and_values(row: SkillRow, stat: str, values: str, default_
     return SPECIAL_EFFECT_CONDITIONS.get(key, default_condition), SPECIAL_EFFECT_VALUES.get(key, values)
 
 
-def read_skill_rows(xlsx_path: Path) -> list[SkillRow]:
-    rows: list[SkillRow] = []
-    for sheet_name, data in _iter_xlsx_rows(xlsx_path):
-        skill_id = data.get("id", "").strip()
-        if not skill_id:
-            continue
-        card_type = CARD_TYPES.get(sheet_name, sheet_name.upper())
-        name = (data.get("name_kor") or data.get("이름") or "").strip()
-        variables = {key: data.get(key, "").strip() for key in ["y", "z", "a", "b", "c"]}
-        rows.append(
-            SkillRow(
-                skill_id=skill_id,
-                card_type=card_type,
-                position=data.get("exclusive", "").strip(),
-                name=name,
-                description=data.get("explanation_kor", "").strip(),
-                variables=variables,
-            )
-        )
-    return rows
-
-
-def write_outputs(
-    rows: list[SkillRow],
-    resources_dir: Path,
-    review_path: Path,
-) -> tuple[int, int, int]:
-    resources_dir.mkdir(parents=True, exist_ok=True)
-    review_path.parent.mkdir(parents=True, exist_ok=True)
-
-    skills_path = resources_dir / "score_skills.csv"
-    effects_path = resources_dir / "score_effects.csv"
-    weights_path = resources_dir / "stat_weights.csv"
-
-    with skills_path.open("w", newline="", encoding="utf-8") as fp:
-        writer = csv.writer(fp)
-        writer.writerow(["skill_id", "card_type", "position", "name", "description"])
-        for row in rows:
-            writer.writerow([row.skill_id, row.card_type, row.position, row.name, row.description])
-
-    effect_rows: list[EffectRow] = []
-    review_notes: list[ReviewNote] = []
-    for row in rows:
-        effects, notes = build_effect_rows(row)
-        effect_rows.extend(effects)
-        review_notes.extend(notes)
-
-    with effects_path.open("w", newline="", encoding="utf-8") as fp:
-        writer = csv.writer(fp)
-        writer.writerow(["skill_id", "stat", "condition", "values", "base_stat"])
-        for effect in effect_rows:
-            writer.writerow([effect.skill_id, effect.stat, effect.condition, effect.values, effect.base_stat])
-
-    with weights_path.open("w", newline="", encoding="utf-8") as fp:
-        writer = csv.writer(fp)
-        writer.writerow(["stat", "weight"])
-        for stat, weight in STAT_WEIGHTS.items():
-            writer.writerow([stat, weight])
-
-    with review_path.open("w", newline="", encoding="utf-8") as fp:
-        writer = csv.writer(fp)
-        writer.writerow(["skill_id", "reason", "text"])
-        for note in review_notes:
-            writer.writerow([note.skill_id, note.reason, note.text])
-
-    return len(rows), len(effect_rows), len(review_notes)
-
-
-def main() -> None:
-    docs_dir = Path(__file__).resolve().parent
-    project_dir = docs_dir.parent
-    rows = read_skill_rows(docs_dir / "rivals_skills.xlsx")
-    skill_count, effect_count, review_count = write_outputs(
-        rows=rows,
-        resources_dir=project_dir / "backend" / "src" / "main" / "resources",
-        review_path=docs_dir / "score_effects_manual_review.csv",
-    )
-    print(f"score_skills.csv rows: {skill_count}")
-    print(f"score_effects.csv rows: {effect_count}")
-    print(f"score_effects_manual_review.csv rows: {review_count}")
 
 
 def _format_number(value: float) -> str:
@@ -718,83 +615,3 @@ def _review_reason(sentence: str) -> str:
     if "감소" in sentence and "상대" not in sentence and "타자의" not in sentence and "투수의" not in sentence:
         return "자기감소"
     return "수동검토"
-
-
-def _load_shared_strings(archive: ZipFile) -> list[str]:
-    # 엑셀은 셀 텍스트를 xl/sharedStrings.xml 에 모아두고 셀에서는 t="s" + 인덱스로 참조한다.
-    # (인라인 문자열 전용 export 파일에는 이 파트가 없을 수 있으므로 없으면 빈 목록.)
-    try:
-        data = archive.read("xl/sharedStrings.xml")
-    except KeyError:
-        return []
-    root = ET.fromstring(data)
-    return [
-        "".join(text.text or "" for text in si.findall(".//main:t", NS))
-        for si in root.findall("main:si", NS)
-    ]
-
-
-def _iter_xlsx_rows(xlsx_path: Path) -> Iterable[tuple[str, dict[str, str]]]:
-    with ZipFile(xlsx_path) as archive:
-        workbook = ET.fromstring(archive.read("xl/workbook.xml"))
-        rels_root = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
-        shared_strings = _load_shared_strings(archive)
-
-        def _resolve_target(target: str) -> str:
-            # rels 의 Target 은 소유 파트(xl/workbook.xml)가 있는 'xl/' 폴더 기준 상대경로다.
-            # 절대(/로 시작)면 앞 슬래시만 제거, 아니면 'xl/'과 정규 결합한다(엑셀 저장 툴마다
-            # '/xl/worksheets/sheet1.xml' 또는 'worksheets/sheet1.xml' 둘 다 나옴).
-            if target.startswith("/"):
-                return target.lstrip("/")
-            return posixpath.normpath(posixpath.join("xl", target))
-
-        rels = {rel.attrib["Id"]: _resolve_target(rel.attrib["Target"]) for rel in rels_root}
-        for sheet in workbook.findall("main:sheets/main:sheet", NS):
-            sheet_name = sheet.attrib["name"]
-            rel_id = sheet.attrib[f"{{{NS['rel']}}}id"]
-            worksheet = ET.fromstring(archive.read(rels[rel_id]))
-            rows = [_read_xlsx_row(row, shared_strings) for row in worksheet.findall("main:sheetData/main:row", NS)]
-            if not rows:
-                continue
-            headers = rows[0]
-            for values in rows[1:]:
-                values = values + [""] * (len(headers) - len(values))
-                yield sheet_name, dict(zip(headers, values))
-
-
-def _read_xlsx_row(row: ET.Element, shared_strings: list[str]) -> list[str]:
-    values: list[str] = []
-    for cell in row.findall("main:c", NS):
-        idx = _column_index(cell.attrib.get("r", "A1"))
-        while len(values) <= idx:
-            values.append("")
-        values[idx] = _cell_value(cell, shared_strings)
-    return values
-
-
-def _column_index(cell_ref: str) -> int:
-    number = 0
-    for char in "".join(char for char in cell_ref if char.isalpha()):
-        number = number * 26 + (ord(char.upper()) - 64)
-    return number - 1
-
-
-def _cell_value(cell: ET.Element, shared_strings: list[str]) -> str:
-    cell_type = cell.attrib.get("t")
-    if cell_type == "inlineStr":
-        return "".join(text.text or "" for text in cell.findall(".//main:t", NS))
-    value = cell.find("main:v", NS)
-    if value is None:
-        return ""
-    raw = value.text or ""
-    if cell_type == "s":
-        # 공유 문자열: <v> 는 sharedStrings 인덱스다. 실제 텍스트로 치환.
-        try:
-            return shared_strings[int(raw)]
-        except (ValueError, IndexError):
-            return ""
-    return raw
-
-
-if __name__ == "__main__":
-    main()

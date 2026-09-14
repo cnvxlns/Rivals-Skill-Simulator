@@ -115,6 +115,7 @@ class ScoreService private constructor(
             throwHand = request.throwHand,
             batHand = request.batHand,
             userStats = request.userStats,
+            baseStats = request.baseStats,
         )
     }
 
@@ -135,6 +136,7 @@ class ScoreService private constructor(
         throwHand: Handedness? = null,
         batHand: Handedness? = null,
         userStats: Map<String, Double>? = null,
+        baseStats: Map<String, Double>? = null,
         statBonus: Double = 0.0,
     ): ScoreResponse {
         val conditionProbabilities = ScoreCalculator.conditionProbabilitiesForPosition(
@@ -144,6 +146,7 @@ class ScoreService private constructor(
             cardType = cardType,
             throwHand = throwHand,
             batHand = batHand,
+            baseStats = baseStats,
         )
         val undefinedConditionWarnings =
             applyUndefinedConditionWarnings(selections, conditionProbabilities)
@@ -343,6 +346,7 @@ class ScoreService private constructor(
             cardType = null,
             throwHand = request.throwHand,
             batHand = request.batHand,
+            baseStats = request.baseStats,
         )
         val statWeights = statWeightsSupplier()
 

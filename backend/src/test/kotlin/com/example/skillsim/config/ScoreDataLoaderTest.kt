@@ -341,6 +341,21 @@ class ScoreDataLoaderTest {
 
         // 오펜시브 리더(13차 Live 업데이트 모먼트 카드). 첫 타석 12에서 2씩 줄고
         // 공지의 괄호 주석대로 6~7번째 타석은 2로 멈춘다. G_034 오버페이스와 같은 꼴이다.
+        // 엘 그란데(13차 Live 업데이트 HOF 티어 스킬). 두 임계 절은 배타가 아니라
+        // 누적이다. 165를 넘는 카드는 155 절도 함께 받는다.
+        val elGrande = skills.first { it.skillKey == "HOF_049" }
+        assertThat(elGrande.name).isEqualTo("엘 그란데")
+        assertThat(elGrande.cardType).isEqualTo("HOF")
+        for (stat in listOf("구위", "변화")) {
+            assertThat(valuesFor(skills, "HOF_049", stat, "ALWAYS")).containsExactly("5/6/7/8/9/10")
+        }
+        for (stat in listOf("파워", "정확", "선구")) {
+            assertThat(valuesFor(skills, "HOF_049", stat, "기본주루수비합155이상"))
+                .containsExactly("4/5/6/7/8/9")
+            assertThat(valuesFor(skills, "HOF_049", stat, "기본주루수비합165이상"))
+                .containsExactly("1/2/3/4/5/6")
+        }
+
         val offensiveLeader = skills.first { it.skillKey == "M_045" }
         assertThat(offensiveLeader.name).isEqualTo("오펜시브 리더")
         assertThat(offensiveLeader.cardType).isEqualTo("MOMENT")

@@ -304,17 +304,48 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
         }
       >
         {statsOpen ? (
-          <View style={controlGrid}>
-            {calc.visibleStats.map((stat) => (
-              <View key={stat} style={statField}>
-                <NumberField
-                  label={tk(`stat_${stat}`)}
-                  value={String(Math.round(calc.userStats[stat] ?? 0))}
-                  onChangeText={(raw) => calc.updateUserStat(stat, parseFloat(raw) || 0)}
-                />
+          <>
+            <View style={controlGrid}>
+              {calc.visibleStats.map((stat) => (
+                <View key={stat} style={statField}>
+                  <NumberField
+                    label={tk(`stat_${stat}`)}
+                    value={String(Math.round(calc.userStats[stat] ?? 0))}
+                    onChangeText={(raw) => calc.updateUserStat(stat, parseFloat(raw) || 0)}
+                  />
+                </View>
+              ))}
+            </View>
+
+            {/*
+              기본 능력치는 위의 스탯과 다르다. 육성·구단 관리를 뺀 카드 고유 값이라
+              별도로 받는다. 임계 조건을 쓰는 스킬(엘 그란데 등)에만 쓰이고, 비워 두면
+              서버가 표본 확률로 채점하므로 선택 입력이다.
+            */}
+            {calc.visibleBaseStats.length > 0 ? (
+              <View style={{ marginTop: spacing.lg, gap: spacing.xs }}>
+                <Text style={[typography.card, { color: colors.onSurface }]}>
+                  {t('score_base_stats')}
+                </Text>
+                <Text style={[typography.label, { color: colors.secondaryText }]}>
+                  {t('score_base_stats_hint')}
+                </Text>
+                <View style={[controlGrid, { marginTop: spacing.xs }]}>
+                  {calc.visibleBaseStats.map((stat) => (
+                    <View key={stat} style={statField}>
+                      <NumberField
+                        label={tk(`stat_${stat}`)}
+                        value={calc.baseStats[stat] != null ? String(calc.baseStats[stat]) : ''}
+                        onChangeText={(raw) =>
+                          calc.updateBaseStat(stat, raw.trim() === '' ? null : parseFloat(raw))
+                        }
+                      />
+                    </View>
+                  ))}
+                </View>
               </View>
-            ))}
-          </View>
+            ) : null}
+          </>
         ) : null}
       </SectionCard>
 

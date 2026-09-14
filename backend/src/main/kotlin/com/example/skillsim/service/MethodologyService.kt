@@ -17,6 +17,8 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "주자3루" to "condition_runner_3rd",
     "OVR열세" to "condition_ovr_inferior",
     "OVR우세" to "condition_ovr_superior",
+    "기본주루수비합155이상" to "condition_base_run_field_155",
+    "기본주루수비합165이상" to "condition_base_run_field_165",
     "좌투상대" to "condition_vs_left_pitcher",
     "우투상대" to "condition_vs_right_pitcher",
     "좌타상대" to "condition_vs_left_batter",
@@ -85,6 +87,8 @@ private val GATE_TOKENS = listOf(
     "포지션_SP", "포지션_RP_CP", "포지션_DH", "포지션_2B", "포지션_SS", "포지션_OF", "포지션_C",
     "선발1", "선발1_2", "선발3_4", "선발3_4_5", "선발4_5", "중계3_4_5",
     "좌완", "우완", "좌타", "우타", "스위치타",
+    // 카드 고유 능력치 임계. baseStats가 오면 0/1로 확정되므로 게이트로 다룬다.
+    "기본주루수비합155이상", "기본주루수비합165이상",
 )
 
 private val ROLES = listOf("SP", "RP", "CP", "BATTER")

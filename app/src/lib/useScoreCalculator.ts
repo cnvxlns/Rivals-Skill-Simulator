@@ -37,6 +37,18 @@ const BATTER_STATS = ['파워', '정확', '선구', '인내', '주루', '수비'
 const PITCHER_STATS = ['구속', '변화', '구위', '제구', '지구력', '수비'];
 const DECK_STATS = ['스페셜덱', '팀덱'];
 
+/**
+ * 카드 고유 능력치를 받아야 하는 스탯.
+ *
+ * 위의 스탯 입력은 육성·구단 관리를 반영한 값이지만, 일부 스킬은 "기본 주루+수비 합이
+ * 155 이상인 경우"처럼 카드가 타고난 값에 임계를 건다(엘 그란데 등). 그 판정에만 쓰이므로
+ * 실제로 필요한 스탯만 받는다. 비워 두면 서버가 표본 확률로 채점한다.
+ */
+const BASE_STAT_INPUTS: Record<Position, string[]> = {
+  [Position.BATTER]: ['주루', '수비'],
+  [Position.PITCHER]: [],
+};
+
 const defaultUserStats = () =>
   [...BATTER_STATS, ...PITCHER_STATS, ...DECK_STATS].reduce<Record<string, number>>((acc, stat) => {
     acc[stat] = DECK_STATS.includes(stat) ? DEFAULT_DECK_SCORE : DEFAULT_USER_STAT;
@@ -91,6 +103,8 @@ export function useScoreCalculator() {
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userStats, setUserStats] = useState<Record<string, number>>(defaultUserStats);
+  // 기본값을 두지 않는다. 비어 있음이 "모른다"는 뜻이고, 그때는 서버가 표본 확률을 쓴다.
+  const [baseStats, setBaseStats] = useState<Record<string, number>>({});
   const [battingOrder, setBattingOrder] = useState<number | null>(DEFAULT_BATTING_ORDER);
   const [pitcherSlot, setPitcherSlot] = useState<number | null>(null);
   const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
@@ -125,6 +139,7 @@ export function useScoreCalculator() {
     () => [...(position === Position.PITCHER ? PITCHER_STATS : BATTER_STATS), ...DECK_STATS],
     [position],
   );
+  const visibleBaseStats = useMemo(() => BASE_STAT_INPUTS[position] ?? [], [position]);
 
   /** 벌마다 이미 고른 스킬. 같은 벌 안에서만 중복을 막는다. */
   const selectedSkillIds = useMemo(
@@ -297,7 +312,10 @@ export function useScoreCalculator() {
     setSets((prev) => [prev[0], { selections: [...prev[0].selections], result: null }]);
   }, []);
 
-  const calculateWithStats = useCallback(async (stats: Record<string, number>) => {
+  const calculateWithStats = useCallback(async (
+    stats: Record<string, number>,
+    base: Record<string, number> = baseStats,
+  ) => {
     if (hasUnavailableSkill) {
       setError('skill_unavailable');
       return;
@@ -320,6 +338,8 @@ export function useScoreCalculator() {
       throwHand: position === Position.PITCHER ? throwHand : undefined,
       batHand: position === Position.BATTER ? batHand : undefined,
       userStats: stats,
+      // 다 채웠을 때만 보낸다. 일부만 오면 서버가 어차피 표본 확률로 떨어진다.
+      baseStats: Object.keys(base).length > 0 ? base : undefined,
     });
 
     // 늦게 온 이전 요청이 나중 결과를 덮지 않게 한다. 스탯을 연달아 고치면
@@ -419,6 +439,25 @@ export function useScoreCalculator() {
     }
   }, [calculateWithStats, canCalculate, clearResults, hasResult, userStats]);
 
+  /**
+   * 기본 능력치 한 칸을 고친다. 빈 칸(NaN)이면 키를 지워 "모른다"로 되돌린다.
+   * 지우면 서버가 다시 표본 확률로 채점한다.
+   */
+  const updateBaseStat = useCallback((stat: string, value: number | null) => {
+    const next = { ...baseStats };
+    if (value == null || !Number.isFinite(value)) {
+      delete next[stat];
+    } else {
+      next[stat] = Math.max(0, value);
+    }
+    setBaseStats(next);
+    if (hasResult && canCalculate) {
+      void calculateWithStats(userStats, next);
+    } else {
+      clearResults();
+    }
+  }, [baseStats, calculateWithStats, canCalculate, clearResults, hasResult, userStats]);
+
   const updateBattingOrder = useCallback((value: number | null) => {
     const nextValue = value != null && value >= 1 && value <= 9 ? value : null;
     setBattingOrder(nextValue);
@@ -465,6 +504,9 @@ export function useScoreCalculator() {
     selectedSkillIds,
     visibleStats,
     userStats,
+    visibleBaseStats,
+    baseStats,
+    updateBaseStat,
     battingOrder,
     pitcherSlot,
     loadingSkills,

@@ -458,6 +458,58 @@ class ScoreCalculatorTest {
         assertThat(second).containsEntry("타순3", 0.0)
     }
 
+    /**
+     * 카드 고유 능력치 임계는 경기 중 확률이 아니라 카드마다 켜짐/꺼짐이다.
+     * 기본 능력치가 들어오면 확률을 무시하고 0/1로 확정해야 한다.
+     *
+     * 실측 앵커 두 장(fmkorea 야구게임판, 2026-09):
+     * 클레멘테 75+90=165로 두 절 모두 만족, 루스 147로 둘 다 미달.
+     */
+    @Test
+    fun `base stat thresholds resolve from the card's own stats`() {
+        val clemente = ScoreCalculator.conditionProbabilitiesForPosition(
+            "RF", baseStats = mapOf("주루" to 75.0, "수비" to 90.0),
+        )
+        assertThat(clemente).containsEntry("기본주루수비합155이상", 1.0)
+        assertThat(clemente).containsEntry("기본주루수비합165이상", 1.0)
+
+        val ruth = ScoreCalculator.conditionProbabilitiesForPosition(
+            "RF", baseStats = mapOf("주루" to 57.0, "수비" to 90.0),
+        )
+        assertThat(ruth).containsEntry("기본주루수비합155이상", 0.0)
+        assertThat(ruth).containsEntry("기본주루수비합165이상", 0.0)
+
+        // 155는 넘고 165는 못 넘는 중간 카드.
+        val between = ScoreCalculator.conditionProbabilitiesForPosition(
+            "CF", baseStats = mapOf("주루" to 80.0, "수비" to 80.0),
+        )
+        assertThat(between).containsEntry("기본주루수비합155이상", 1.0)
+        assertThat(between).containsEntry("기본주루수비합165이상", 0.0)
+    }
+
+    /**
+     * 기본 능력치가 없으면 표본 비율로 떨어진다. 값 자체는 추정이라 바뀔 수 있지만
+     * 165가 155보다 흔할 수는 없다 — 더 센 조건이므로 부분집합이다.
+     */
+    @Test
+    fun `base stat thresholds fall back to a population rate when stats are missing`() {
+        val unknown = ScoreCalculator.conditionProbabilitiesForPosition("CF")
+        val loose = unknown.getValue("기본주루수비합155이상")
+        val strict = unknown.getValue("기본주루수비합165이상")
+
+        assertThat(loose).isBetween(0.0, 1.0)
+        assertThat(strict).isBetween(0.0, 1.0)
+        assertThat(strict).isLessThanOrEqualTo(loose)
+        // 1.0으로 두면 점수표에서 이 스킬이 상한값으로 보인다. 루스조차 155를 못 넘는다.
+        assertThat(loose).isLessThan(1.0)
+
+        // 스탯이 일부만 오면 카드를 특정할 수 없으므로 표본 비율을 그대로 쓴다.
+        val partial = ScoreCalculator.conditionProbabilitiesForPosition(
+            "CF", baseStats = mapOf("주루" to 90.0),
+        )
+        assertThat(partial).containsEntry("기본주루수비합155이상", loose)
+    }
+
     @Test
     fun `gates second base position`() {
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("2B"))

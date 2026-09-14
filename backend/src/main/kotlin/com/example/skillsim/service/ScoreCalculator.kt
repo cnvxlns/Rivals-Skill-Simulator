@@ -161,6 +161,44 @@ private val OPPONENT_GRADE_ADVANTAGE_PROBABILITIES_BY_CARD_TYPE = mapOf(
     "HOF" to 0.00,
 )
 
+/**
+ * 카드 고유 능력치 임계 조건의 정의.
+ *
+ * `기본 주루 능력치와 기본 수비 능력치 합이 155 이상인 경우`처럼 카드가 타고난 값에
+ * 걸리는 조건이다. 여기서 말하는 기본 능력치는 육성·구단 관리를 반영하지 않은 값이라
+ * 계산기의 `userStats`(육성 후 수치)와 다르다. 그래서 요청의 `baseStats`를 따로 받는다.
+ */
+private data class BaseStatThreshold(val stats: List<String>, val threshold: Double)
+
+private val BASE_STAT_THRESHOLDS = mapOf(
+    "기본주루수비합155이상" to BaseStatThreshold(listOf("주루", "수비"), 155.0),
+    "기본주루수비합165이상" to BaseStatThreshold(listOf("주루", "수비"), 165.0),
+)
+
+/**
+ * 기본 능력치를 모를 때 쓰는 값. HOF 타자 카드 중 임계를 넘는 카드의 비율이다.
+ *
+ * 엘 그란데는 스킬 변경으로 아무 HOF 타자 카드에나 붙을 수 있어서, 모집단은 "이 스킬을
+ * 위해 고른 카드"가 아니라 HOF 타자 전체다. 그래서 1.0으로 두면 안 된다.
+ *
+ * 실측 앵커 두 개(fmkorea 야구게임판, 2026-09):
+ * - 로베르토 클레멘테: 기본 주루 75 + 수비 90 = 165. 임계를 정확히 맞춘다.
+ * - 베이브 루스: 기본 주수합 147. 최고 OVR인데도 155에 못 미친다.
+ *
+ * 165는 "클레멘테밖에 없다"는 증언이 독립적으로 둘 있어 0.05로 둔다. 155는 앵커가 위
+ * 둘뿐이라 근거가 약하다 — 주수합이 OVR이 아니라 선수 유형을 따라가고 대략 145~165에
+ * 몰린다는 관찰에서 발/수비형만 넘는다고 보고 0.20으로 잡았다. **이 값은 추정이다.**
+ *
+ * 정확히 채점하려면 요청에 `baseStats`를 넣는다. 그러면 이 값은 쓰이지 않고 0/1로
+ * 확정된다. 계산기 화면의 '기본 능력치' 칸이 그 입력이다.
+ *
+ * 값을 실측으로 바꾸려면 게임 내 도감에서 HOF 타자 10~15장의 주루·수비만 적어 오면 된다.
+ */
+private val BASE_STAT_THRESHOLD_FALLBACK = mapOf(
+    "기본주루수비합155이상" to 0.20,
+    "기본주루수비합165이상" to 0.05,
+)
+
 private val TOP_ORDER_PLATE_APPEARANCE_REACH = doubleArrayOf(1.0, 1.0, 0.95, 0.70, 0.25, 0.05, 0.01)
 private val MIDDLE_ORDER_PLATE_APPEARANCE_REACH = doubleArrayOf(1.0, 1.0, 0.90, 0.55, 0.12, 0.02, 0.005)
 private val LOWER_ORDER_PLATE_APPEARANCE_REACH = doubleArrayOf(1.0, 0.95, 0.80, 0.40, 0.06, 0.01, 0.00)
@@ -215,6 +253,15 @@ private data class ConditionContext(
     val cardType: String?,
     val throwHand: Handedness,
     val batHand: Handedness,
+    /**
+     * 카드 고유 능력치. 육성·구단 관리를 뺀 값이라 [ScoreRequest.userStats]와 다르다.
+     *
+     * 일부 스킬은 "기본 주루+수비 합이 155 이상인 경우"처럼 카드 고유 능력치에 임계를
+     * 건다. 그 조건은 경기 중에 확률적으로 발동하는 게 아니라 카드마다 켜지거나 꺼져
+     * 있으므로, 값이 들어오면 확률이 아니라 0/1로 확정된다. 비어 있으면 표본 기반
+     * 기본 확률로 떨어진다.
+     */
+    val baseStats: Map<String, Double>,
 )
 
 private fun interface ConditionResolver {
@@ -320,6 +367,29 @@ private object StatComparisonResolver : ConditionResolver {
     }
 }
 
+/**
+ * 카드 고유 능력치 임계 조건.
+ *
+ * 다른 조건과 성격이 다르다. "주자가 있을 때"는 경기 중 확률적으로 발생하지만
+ * "기본 주루+수비 합이 155 이상"은 카드를 고르는 순간 이미 정해져 있다. 그래서
+ * 기본 능력치가 들어오면 확률이 아니라 0 또는 1로 확정한다.
+ *
+ * 값이 없을 때만 [BASE_STAT_THRESHOLD_FALLBACK]으로 떨어진다. 점수표(`/api/score/table`)
+ * 처럼 특정 카드가 없는 화면이 그 경우다.
+ */
+private object BaseStatThresholdResolver : ConditionResolver {
+    override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
+        for ((token, spec) in BASE_STAT_THRESHOLDS) {
+            // 구성 스탯이 하나라도 비면 카드를 특정할 수 없으므로 표본 확률로 떨어진다.
+            val values = spec.stats.map { context.baseStats[it] }
+            probabilities[token] = when {
+                values.any { it == null } -> BASE_STAT_THRESHOLD_FALLBACK.getValue(token)
+                else -> gate(values.sumOf { it ?: 0.0 } >= spec.threshold)
+            }
+        }
+    }
+}
+
 private object CardGradeResolver : ConditionResolver {
     override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
         // context.cardType에는 카드 **등급**이 들어온다. 예전 이름으로 들어와도
@@ -409,6 +479,7 @@ private val CONDITION_RESOLVERS = listOf(
     DurationResolver,
     MaestroCumulativeResolver,
     StatComparisonResolver,
+    BaseStatThresholdResolver,
     CardGradeResolver,
     PositionGateResolver,
     HandednessGateResolver,
@@ -425,6 +496,7 @@ private fun buildConditionProbabilities(
     cardType: String?,
     throwHand: Handedness?,
     batHand: Handedness?,
+    baseStats: Map<String, Double>?,
 ): MutableMap<String, Double> {
     val context = ConditionContext(
         normalizedPosition = SkillRules.normalizePosition(position),
@@ -434,6 +506,7 @@ private fun buildConditionProbabilities(
         cardType = cardType,
         throwHand = throwHand ?: Handedness.RIGHT,
         batHand = batHand ?: Handedness.RIGHT,
+        baseStats = baseStats ?: emptyMap(),
     )
     val probabilities = HashMap<String, Double>()
     CONDITION_RESOLVERS.forEach { it.apply(probabilities, context) }
@@ -441,7 +514,7 @@ private fun buildConditionProbabilities(
 }
 
 private val DEFAULT_CONDITION_PROBABILITIES: Map<String, Double> =
-    buildConditionProbabilities("BATTER", null, null, null, null, null)
+    buildConditionProbabilities("BATTER", null, null, null, null, null, null)
 
 @Component
 class ScoreCalculator {
@@ -667,7 +740,10 @@ class ScoreCalculator {
             cardType: String? = null,
             throwHand: Handedness? = null,
             batHand: Handedness? = null,
+            baseStats: Map<String, Double>? = null,
         ): MutableMap<String, Double> =
-            buildConditionProbabilities(position, battingOrder, pitcherSlot, cardType, throwHand, batHand)
+            buildConditionProbabilities(
+                position, battingOrder, pitcherSlot, cardType, throwHand, batHand, baseStats,
+            )
     }
 }

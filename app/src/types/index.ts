@@ -104,6 +104,13 @@ export type ScoreRequest = {
   battingOrder?: number | null;
   pitcherSlot?: number | null;
   userStats?: Record<string, number>;
+  /**
+   * 카드 고유 능력치. 육성·구단 관리를 뺀 값이라 userStats와 다르다.
+   *
+   * "기본 주루+수비 합이 155 이상인 경우"처럼 카드가 타고난 값에 임계를 거는 스킬에만
+   * 쓴다. 비워 두면 서버가 표본 확률로 채점한다.
+   */
+  baseStats?: Record<string, number>;
   throwHand?: Handedness;
   batHand?: Handedness;
 };
@@ -115,6 +122,7 @@ export type ScoreTableRequest = {
   throwHand?: Handedness;
   batHand?: Handedness;
   userStats?: Record<string, number>;
+  baseStats?: Record<string, number>;
 };
 
 export type ScoreTableEntry = {

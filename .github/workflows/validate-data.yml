@@ -1,0 +1,33 @@
+# 스킬 CSV 불변식 검사.
+#
+# 백엔드 로더는 깨진 행을 경고만 남기고 넘어간다(부팅을 죽이지 않으려는 의도).
+# 그래서 잘못된 데이터가 런타임에는 "조용히 틀린 점수"로만 드러난다.
+# 이 워크플로가 그 판정을 머지 전으로 앞당긴다.
+name: Validate skill data
+
+on:
+  push:
+    paths:
+      - 'backend/src/main/resources/*.csv'
+      - 'tools/validate_skill_csv.py'
+      - '.github/workflows/validate-data.yml'
+  pull_request:
+    paths:
+      - 'backend/src/main/resources/*.csv'
+      - 'tools/validate_skill_csv.py'
+      - '.github/workflows/validate-data.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 의존성이 없다. stdlib만 쓰므로 설치 단계가 필요 없다.
+      - name: Validate skill CSVs
+        run: python3 tools/validate_skill_csv.py --warn

@@ -24,7 +24,7 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help ensure-env up up-d down restart logs ps build rebuild clean nuke db-dump tunnel-up tunnel-down backend app
+.PHONY: help ensure-env up up-d down restart logs ps build rebuild clean nuke db-dump tunnel-up tunnel-down backend app validate-data
 
 # --- 환경 파일 --------------------------------------------------------------
 
@@ -129,6 +129,15 @@ backend:
 app:
 	cd app && npm install && npm run web
 
+# --- 데이터 ------------------------------------------------------------------
+
+# 스킬 CSV의 불변식을 본다. 백엔드 로더는 깨진 행을 경고만 남기고 넘어가므로
+# 잘못된 데이터가 런타임에는 "조용히 틀린 점수"로만 드러난다. CSV를 고쳤으면
+# 커밋 전에 한 번 돌린다. CI도 같은 것을 돌린다(validate-data.yml).
+# 파이썬 3.12+ 필요. 의존성은 없다.
+validate-data:
+	python3 tools/validate_skill_csv.py --warn
+
 # --- 도움말 ----------------------------------------------------------------
 
 help:
@@ -151,3 +160,5 @@ help:
 	@echo ""
 	@echo "  make backend       run Spring Boot without docker, needs JDK 17"
 	@echo "  make app           run Expo web without docker, needs Node 20+"
+	@echo ""
+	@echo "  make validate-data check the skill CSVs before committing"

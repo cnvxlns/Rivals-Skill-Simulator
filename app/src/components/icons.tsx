@@ -1,5 +1,4 @@
 // 아이콘 4종. 세트를 도입하지 않고 react-native-svg로 직접 그린다.
-// 원본 스펙: docs/design_handoff_mlb_rival_skill_tool/README.md 의 "아이콘 세트"
 import React from 'react';
 import Svg, { Circle, Path } from 'react-native-svg';
 

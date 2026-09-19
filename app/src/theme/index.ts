@@ -1,6 +1,7 @@
 import type { TextStyle } from 'react-native';
 
-// 디자인 토큰. 원본: docs/design_handoff_mlb_rival_skill_tool/README.md
+// 디자인 토큰. 원본 디자인 핸드오프는 레포에 없다(docs/는 추적하지 않는다).
+// 확정한 결정과 그 이유는 f28b2a4 커밋 메시지에 남아 있다.
 //
 // 인코딩 축을 넷으로 나눠 한 행에 동시에 나와도 충돌하지 않게 한다.
 //   티어 = 색상 / 등급 = 채움과 밝기 / 강조 = 역할(값 vs 인터랙션) / 의미 = 숫자 부호

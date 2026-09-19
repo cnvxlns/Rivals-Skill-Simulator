@@ -91,10 +91,14 @@ Rivals-Skill-Simulator/
 2. 실행:
    ```bash
    cd app
+   echo 'EXPO_PUBLIC_API_URL=http://localhost:8080' > .env.local
    npm install
    npm run web      # 안드로이드는 npm run android
    ```
-3. 기본 포트는 `http://localhost:8081`이며, 백엔드가 8080에서 떠 있어야 API 요청이 성공합니다. 백엔드 주소는 `EXPO_PUBLIC_API_URL`로 지정합니다.
+3. 기본 포트는 `http://localhost:8081`이며, 백엔드가 8080에서 떠 있어야 API 요청이 성공합니다.
+   **`EXPO_PUBLIC_API_URL`을 빼면 API 호출이 실패합니다.** 값이 없으면 앱이 상대경로 `/api`로 요청하는데,
+   개발 서버에는 이를 백엔드로 넘겨 줄 프록시가 없습니다(Docker 스택에서는 nginx가 넘겨 줍니다).
+   안드로이드 에뮬레이터에서는 `http://10.0.2.2:8080`을 씁니다. 자세한 내용은 [app/README.md](app/README.md)에 있습니다.
 4. 웹 프로덕션 빌드:
    ```bash
    npx expo export -p web   # 결과물은 dist/
@@ -160,7 +164,7 @@ make tunnel-up              # 또는 docker compose -f docker-compose.yml -f doc
 | `make db-dump` | `pg_dump`으로 `backups/`에 DB 덤프 |
 | `make tunnel-up` / `make tunnel-down` | 터널 오버레이 기동 / 정지 |
 | `make backend` | 도커 없이 Spring Boot 실행 (JDK 17 필요) |
-| `make app` | 도커 없이 Expo 웹 실행 (Node 20+ 필요) |
+| `make app` | 도커 없이 Expo 웹 실행 (Node 20+ 필요). API는 `localhost:8080`을 보며, `make app API_URL=<주소>`로 바꿉니다 |
 
 윈도우에서는 `make`를 따로 설치해야 합니다(`winget install ezwinports.make`). Makefile이 셸을 `sh`로 고정하므로 PowerShell에서 실행해도 Git Bash에서 실행해도 동작이 같습니다. Git과 함께 설치되는 `sh.exe`가 PATH에 있어야 합니다.
 

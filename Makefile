@@ -126,8 +126,12 @@ backend:
 	cd backend && $(GRADLEW) bootRun
 
 # Node 20+ 필요. 백엔드가 8080에 떠 있어야 API 호출이 성공한다.
+# 백엔드 주소를 꼭 넘겨야 한다. 비워 두면 앱이 상대경로 /api로 요청하는데, 그 경로를
+# 백엔드로 넘겨 주는 건 도커 스택의 nginx뿐이라 개발 서버에서는 전부 실패한다.
+# 다른 백엔드를 보려면 make app API_URL=https://... 로 덮어쓴다.
+API_URL ?= http://localhost:8080
 app:
-	cd app && npm install && npm run web
+	cd app && npm install && EXPO_PUBLIC_API_URL='$(API_URL)' npm run web
 
 # --- 데이터 ------------------------------------------------------------------
 
@@ -160,6 +164,6 @@ help:
 	@echo "  make tunnel-down   stop tunnel stack"
 	@echo ""
 	@echo "  make backend       run Spring Boot without docker, needs JDK 17"
-	@echo "  make app           run Expo web without docker, needs Node 20+"
+	@echo "  make app           run Expo web without docker, needs Node 20+ (API_URL=... to change backend)"
 	@echo ""
 	@echo "  make validate-data check the skill CSVs before committing"

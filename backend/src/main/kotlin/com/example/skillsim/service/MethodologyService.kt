@@ -17,6 +17,8 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "주자3루" to "condition_runner_3rd",
     "OVR열세" to "condition_ovr_inferior",
     "OVR우세" to "condition_ovr_superior",
+    "기본주루수비합155이상" to "condition_base_run_field_155",
+    "기본주루수비합165이상" to "condition_base_run_field_165",
     "좌투상대" to "condition_vs_left_pitcher",
     "우투상대" to "condition_vs_right_pitcher",
     "좌타상대" to "condition_vs_left_batter",
@@ -42,6 +44,8 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "발사각10이상" to "condition_launch_angle_10_plus",
     "발사각14이하" to "condition_launch_angle_14_minus",
     "타순1" to "condition_batting_order_1",
+    "타순2" to "condition_batting_order_2",
+    "타순3" to "condition_batting_order_3",
     "타순1_2" to "condition_batting_order_1_2",
     "타순2_3" to "condition_batting_order_2_3",
     "타순3_4_5" to "condition_batting_order_3_5",
@@ -62,6 +66,7 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "포지션_SP" to "condition_gate_position_sp",
     "포지션_RP_CP" to "condition_gate_position_rp_cp",
     "포지션_DH" to "condition_gate_position_dh",
+    "포지션_2B" to "condition_gate_position_2b",
     "포지션_SS" to "condition_gate_position_ss",
     "포지션_OF" to "condition_gate_position_of",
     "포지션_C" to "condition_gate_position_c",
@@ -71,11 +76,19 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "선발3_4_5" to "condition_gate_slot_sp_3_5",
     "선발4_5" to "condition_gate_slot_sp_4_5",
     "중계3_4_5" to "condition_gate_slot_rp_3_5",
+    "좌완" to "condition_left_handed_throw",
+    "우완" to "condition_right_handed_throw",
+    "좌타" to "condition_left_handed_bat",
+    "우타" to "condition_right_handed_bat",
+    "스위치타" to "condition_switch_hitter",
 )
 
 private val GATE_TOKENS = listOf(
-    "포지션_SP", "포지션_RP_CP", "포지션_DH", "포지션_SS", "포지션_OF", "포지션_C",
+    "포지션_SP", "포지션_RP_CP", "포지션_DH", "포지션_2B", "포지션_SS", "포지션_OF", "포지션_C",
     "선발1", "선발1_2", "선발3_4", "선발3_4_5", "선발4_5", "중계3_4_5",
+    "좌완", "우완", "좌타", "우타", "스위치타",
+    // 카드 고유 능력치 임계. baseStats가 오면 0/1로 확정되므로 게이트로 다룬다.
+    "기본주루수비합155이상", "기본주루수비합165이상",
 )
 
 private val ROLES = listOf("SP", "RP", "CP", "BATTER")

@@ -23,11 +23,11 @@ class MethodologyServiceTest {
         // 2. 스탯 가중치가 로더 값을 그대로 싣는다
         assertThat(response.statWeights).isEqualTo(weights)
 
-        // 3. 정적 확률(홈=0.3, 원정=0.7)
+        // 3. 정적 확률(랭킹대전은 전부 원정이라 홈=0, 원정=1)
         val staticProbabilities = response.conditionProbabilities.staticProbabilities
         assertThat(staticProbabilities).isNotEmpty()
-        assertThat(staticProbabilities.first { it.token == "홈" }.value).isEqualTo(0.3)
-        assertThat(staticProbabilities.first { it.token == "원정" }.value).isEqualTo(0.7)
+        assertThat(staticProbabilities.first { it.token == "홈" }.value).isEqualTo(0.0)
+        assertThat(staticProbabilities.first { it.token == "원정" }.value).isEqualTo(1.0)
 
         // 4. 역할별 확률에 SP/RP/CP/BATTER가 모두 있다
         val roleProbabilities = response.conditionProbabilities.roleProbabilities

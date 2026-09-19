@@ -1,6 +1,7 @@
 import {
   apkButton,
   banner,
+  cardGradeColor,
   colors,
   controlHeight,
   fontFamily,
@@ -25,6 +26,7 @@ export type AppTheme = {
   apkButton: typeof apkButton;
   inactiveRow: typeof inactiveRow;
   tierColor: typeof tierColor;
+  cardGradeColor: typeof cardGradeColor;
   gradeStyle: typeof gradeStyle;
 };
 
@@ -45,6 +47,7 @@ export function useAppTheme(): AppTheme {
     apkButton,
     inactiveRow,
     tierColor,
+    cardGradeColor,
     gradeStyle,
   };
 }

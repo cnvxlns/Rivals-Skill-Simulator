@@ -26,12 +26,34 @@ class ScoreServiceTest {
         `when`(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(listOf(batter, pitcher))
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
-        val options = service.listSkills("normal", "batter")
+        val options = service.listSkills("normal", null, "batter")
 
         assertThat(options).hasSize(1)
         assertThat(options[0].skillId).isEqualTo("S_001")
         assertThat(options[0].maxLevel).isEqualTo(3)
         assertThat(options[0].description).isEqualTo("좌투선호")
+    }
+
+    @Test
+    fun `모먼트 전용 스킬은 첫 칸에서만 채점을 받는다`() {
+        val repository = mock(ScoreSkillRepository::class.java)
+        val gold = scoreSkill("G_001", "NORMAL", "BATTER", "골드", effect("파워", "ALWAYS", "1/2/3"))
+        val moment = scoreSkill("M_001", "MOMENT", "BATTER", "모먼트", effect("파워", "ALWAYS", "1"))
+        `when`(repository.findBySkillKey("G_001")).thenReturn(gold)
+        `when`(repository.findBySkillKey("M_001")).thenReturn(moment)
+        val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
+
+        fun request(vararg ids: String) = ScoreRequest(
+            cardGrade = "MOMENT",
+            position = "C",
+            battingOrder = 1,
+            selections = ids.map { ScoreSelection(it, 1) },
+        )
+
+        assertThat(service.calculate(request("M_001", "G_001")).total).isGreaterThan(0.0)
+        assertThatThrownBy { service.calculate(request("G_001", "M_001")) }
+            .isInstanceOf(ResponseStatusException::class.java)
+            .hasMessageContaining("first slot")
     }
 
     @Test
@@ -43,7 +65,7 @@ class ScoreServiceTest {
         `when`(repository.findByCardTypeIgnoreCase("BLACK")).thenReturn(listOf(black))
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
-        val options = service.listSkills("SIGNATURE_BLACK", "BATTER")
+        val options = service.listSkills("SIGNATURE_BLACK", null, "BATTER")
 
         assertThat(options).hasSize(1)
         assertThat(options[0].maxLevel).isEqualTo(5)
@@ -61,7 +83,7 @@ class ScoreServiceTest {
         `when`(repository.findByCardTypeIgnoreCase("WBC")).thenReturn(listOf(wbc))
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
-        val options = service.listSkills("WBC", "BATTER")
+        val options = service.listSkills("WBC", null, "BATTER")
 
         assertThat(options).extracting("skillId").containsExactly("G_001", "WBC_001")
     }
@@ -81,7 +103,7 @@ class ScoreServiceTest {
         `when`(repository.findByCardTypeIgnoreCase("BLACK")).thenReturn(listOf(black))
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
-        val options = service.listSkills("WBC_SIGNATURE_BLACK", "BATTER")
+        val options = service.listSkills("WBC_SIGNATURE_BLACK", null, "BATTER")
 
         assertThat(options).extracting("skillId").containsExactly("G_001", "WBC_001", "BLACK_001")
     }
@@ -92,14 +114,14 @@ class ScoreServiceTest {
         val gold = scoreSkill(
             "G_001", "NORMAL", "BATTER", "배팅머신", effect("파워", "ALWAYS", "1/2/3/4/5/6/7/8/9"),
         )
-        val moment = scoreSkill("M_009", "MOMENT", "BATTER", "파워 히터", effect("파워", "ALWAYS", "6"))
+        val moment = scoreSkill("M_003", "MOMENT", "BATTER", "슬러거", effect("파워", "ALWAYS", "5"))
         `when`(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(listOf(gold))
         `when`(repository.findByCardTypeIgnoreCase("MOMENT")).thenReturn(listOf(moment))
         val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
 
-        val options = service.listSkills("SUPREME_MOMENT", "BATTER")
+        val options = service.listSkills("SUPREME_MOMENT", null, "BATTER")
 
-        assertThat(options).extracting("skillId").containsExactly("G_001", "M_009")
+        assertThat(options).extracting("skillId").containsExactly("G_001", "M_003")
     }
 
     @Test
@@ -390,6 +412,54 @@ class ScoreServiceTest {
         )
 
         assertThat(response.total).isEqualTo(1.00)
+    }
+
+    @Test
+    fun `라이브와 시즌은 노멀 풀에서만 스킬을 고른다`() {
+        // 전용 스킬이 없고 아이언·브론즈·실버·골드만 가진다. 그 티어 집합이 곧 card_type=NORMAL이다.
+        val service = ScoreService(
+            mock(ScoreSkillRepository::class.java), ScoreCalculator(), mapOf("파워" to 1.0),
+        )
+        for (cardType in listOf("LIVE", "SEASON")) {
+            assertThat(service.skillPoolsFor(cardType, null))
+                .`as`("%s의 스킬 풀", cardType)
+                .containsExactly("NORMAL")
+        }
+    }
+
+    @Test
+    fun `라이브 카드는 노멀 스킬은 받고 상위 티어 스킬은 거부한다`() {
+        val repository = mock(ScoreSkillRepository::class.java)
+        val basic = scoreSkill("G_001", "NORMAL", "BATTER", "골드 스킬", effect("파워", "ALWAYS", "1/2/3"))
+        val hof = scoreSkill("HOF_001", "HOF", "BATTER", "HOF 스킬", effect("파워", "ALWAYS", "1/2/3"))
+        `when`(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(listOf(basic))
+        `when`(repository.findBySkillKey("G_001")).thenReturn(basic)
+        `when`(repository.findBySkillKey("HOF_001")).thenReturn(hof)
+        val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
+
+        // 목록 조회는 NORMAL 풀만 돌려준다.
+        assertThat(service.listSkills("LIVE", null, "BATTER")).hasSize(1)
+
+        // 채점도 통과해야 한다. 상대등급우세 표에 LIVE가 없으면 여기서 500이 났다.
+        val ok = service.calculate(
+            ScoreRequest(
+                cardType = "LIVE", position = "BATTER", battingOrder = 3,
+                selections = listOf(ScoreSelection(skillId = "G_001", level = 1)),
+            ),
+        )
+        assertThat(ok.total).isGreaterThan(0.0)
+
+        // HOF 스킬은 라이브 카드가 가질 수 없다.
+        assertThatThrownBy {
+            service.calculate(
+                ScoreRequest(
+                    cardType = "LIVE", position = "BATTER", battingOrder = 3,
+                    selections = listOf(ScoreSelection(skillId = "HOF_001", level = 1)),
+                ),
+            )
+        }
+            .isInstanceOf(ResponseStatusException::class.java)
+            .hasMessageContaining("does not match requested card grade")
     }
 
     private fun scoreSkill(

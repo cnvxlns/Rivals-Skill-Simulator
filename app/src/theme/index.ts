@@ -1,6 +1,7 @@
 import type { TextStyle } from 'react-native';
 
-// 디자인 토큰. 원본: docs/design_handoff_mlb_rival_skill_tool/README.md
+// 디자인 토큰. 원본 디자인 핸드오프는 레포에 없다(docs/는 추적하지 않는다).
+// 확정한 결정과 그 이유는 f28b2a4 커밋 메시지에 남아 있다.
 //
 // 인코딩 축을 넷으로 나눠 한 행에 동시에 나와도 충돌하지 않게 한다.
 //   티어 = 색상 / 등급 = 채움과 밝기 / 강조 = 역할(값 vs 인터랙션) / 의미 = 숫자 부호
@@ -25,6 +26,11 @@ export type ThemeColors = {
   statOpponent: string;
   error: string;
   disabled: string;
+
+  // 야구장 그림 전용. 값이나 상태를 뜻하지 않으므로 강조색과 섞지 않는다.
+  fieldGrass: string;
+  fieldDirt: string;
+  fieldLine: string;
 };
 
 export const colors: ThemeColors = {
@@ -51,6 +57,11 @@ export const colors: ThemeColors = {
   statOpponent: '#FFB43D',
   error: '#FF4D5E', // 배너와 입력 검증에만. 숫자에는 쓰지 않는다
   disabled: '#5A606C', // 미발동 0점 행. 사유 텍스트가 항상 함께 붙으므로 대비 예외
+
+  // 야구장 그림. 배경이므로 어둡게 깔고 그 위의 칩이 읽히게 한다.
+  fieldGrass: '#13211A',
+  fieldDirt: '#241C15',
+  fieldLine: '#3A4048',
 };
 
 // 게임의 색상 배정 관습만 계승하고 값은 전부 새로 산출했다(원본 색 복제 아님).
@@ -72,6 +83,40 @@ export const tierColors: Record<TierKey, { hex: string; soft: string }> = {
 /** 티어색은 카드 상단 레일과 티어 칩 두 곳에서만 쓴다. 행 안으로 번지게 하지 않는다. */
 export function tierColor(tier: string): { hex: string; soft: string } {
   return tierColors[String(tier).toLowerCase() as TierKey] ?? tierColors.iron;
+}
+
+// 카드 등급색. 스킬 티어색과 축이 다르므로 값을 따로 둔다.
+//
+// 티어는 스킬 한 줄에, 등급은 선수 한 명에 붙는다. 두 축이 한 화면에 같이 나오지 않도록
+// 등급색은 로스터 칩에서만 쓰고 점수표에는 쓰지 않는다. 게임의 배정 관습(모먼트=초록,
+// 블랙=보라, HOF=주황)만 따르고 값은 배경 #101216 대비 4.5:1 이상으로 새로 잡았다.
+export type CardGradeKey =
+  | 'SEASON'
+  | 'LIVE'
+  | 'IMPACT'
+  | 'PRIME'
+  | 'MOMENT'
+  | 'SUPREME_MOMENT'
+  | 'SIGNATURE'
+  | 'SIGNATURE_BLACK'
+  | 'HOF';
+
+export const cardGradeColors: Record<CardGradeKey, { hex: string; soft: string }> = {
+  SEASON: { hex: '#8B94A3', soft: 'rgba(139,148,163,0.14)' },
+  LIVE: { hex: '#5BC8C0', soft: 'rgba(91,200,192,0.14)' },
+  IMPACT: { hex: '#E0685C', soft: 'rgba(224,104,92,0.14)' },
+  PRIME: { hex: '#C89B4A', soft: 'rgba(200,155,74,0.14)' },
+  MOMENT: { hex: '#3EA55C', soft: 'rgba(62,165,92,0.15)' },
+  // 모먼트와 같은 계열이되 한 단계 밝게. 색상까지 갈라 두면 둘이 한 계열임이 지워진다.
+  SUPREME_MOMENT: { hex: '#5FD98A', soft: 'rgba(95,217,138,0.15)' },
+  SIGNATURE: { hex: '#D9DEE8', soft: 'rgba(217,222,232,0.12)' },
+  SIGNATURE_BLACK: { hex: '#9B6BF0', soft: 'rgba(155,107,240,0.16)' },
+  HOF: { hex: '#FF6A2B', soft: 'rgba(255,106,43,0.14)' },
+};
+
+/** 모르는 등급이면 가장 낮은 등급 색으로 떨어뜨린다. 색이 비면 칩 테두리가 사라져서다. */
+export function cardGradeColor(grade: string): { hex: string; soft: string } {
+  return cardGradeColors[String(grade).toUpperCase() as CardGradeKey] ?? cardGradeColors.SEASON;
 }
 
 // 티어가 색상환을 거의 다 쓰므로 등급에는 새 색상을 주지 않는다.

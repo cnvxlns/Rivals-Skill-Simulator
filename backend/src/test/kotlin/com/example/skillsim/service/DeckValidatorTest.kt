@@ -1,0 +1,427 @@
+package com.example.skillsim.service
+
+import com.example.skillsim.dto.DeckSkillRequest
+import com.example.skillsim.enums.Handedness
+import com.example.skillsim.enums.RelieverRole
+import com.example.skillsim.model.DeckRoster
+import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatCode
+import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.junit.jupiter.api.Test
+
+class DeckValidatorTest {
+
+    private val validator = DeckFixtures.validator()
+
+    @Test
+    fun `정상 덱은 26명으로 통과한다`() {
+        val roster = validator.validate(DeckFixtures.deckRequest())
+
+        assertThat(roster.players).hasSize(DeckRoster.ROSTER_SIZE)
+        assertThat(roster.starterCount).isEqualTo(5)
+        assertThat(roster.closerCount).isEqualTo(2)
+        assertThat(roster.relieverCount).isEqualTo(5)
+    }
+
+    @Test
+    fun `중계 정원은 총원 12에서 선발과 마무리를 뺀 값이다`() {
+        // 게임 화면의 "중간 계투(5/5)"가 이 계산 결과다.
+        val cases = listOf(
+            Triple(4, 1, 7), Triple(4, 2, 6), Triple(5, 1, 6),
+            Triple(5, 2, 5), Triple(6, 1, 5), Triple(6, 2, 4),
+        )
+        for ((starters, closers, expected) in cases) {
+            val roster = validator.validate(DeckFixtures.deckRequest(starters, closers))
+            assertThat(roster.relieverCount).`as`("SP%d CP%d", starters, closers).isEqualTo(expected)
+            assertThat(roster.players.count { DeckRules.isPitcher(it.slot) })
+                .isEqualTo(DeckRoster.PITCHER_COUNT)
+        }
+    }
+
+    @Test
+    fun `허용 범위를 벗어난 투수 구성은 거부한다`() {
+        for (starters in listOf(3, 7)) {
+            assertThatThrownBy { validator.validate(DeckFixtures.deckRequest(starterCount = starters)) }
+                .`as`("선발 %d", starters)
+                .hasMessageContaining("Unsupported pitcher staff")
+        }
+        assertThatThrownBy { validator.validate(DeckFixtures.deckRequest(closerCount = 3)) }
+            .hasMessageContaining("Unsupported pitcher staff")
+    }
+
+    @Test
+    fun `셋 중 둘만 주면 나머지를 계산한다`() {
+        // 총원이 12로 고정이라 둘이 정해지면 셋째는 유일하다.
+        val base = DeckFixtures.deckRequest(starterCount = 5, closerCount = 2)
+
+        // 선발 + 마무리 → 중계
+        val byCloser = validator.validate(base.copy(relieverCount = null))
+        assertThat(byCloser.relieverCount).isEqualTo(5)
+
+        // 선발 + 중계 → 마무리
+        val byReliever = validator.validate(base.copy(closerCount = null, relieverCount = 5))
+        assertThat(byReliever.closerCount).isEqualTo(2)
+
+        // 중계 + 마무리 → 선발
+        val byStarter = validator.validate(base.copy(starterCount = null, relieverCount = 5))
+        assertThat(byStarter.starterCount).isEqualTo(5)
+    }
+
+    @Test
+    fun `셋을 다 주면 합이 맞는지 확인한다`() {
+        val base = DeckFixtures.deckRequest(starterCount = 5, closerCount = 2)
+
+        // 5 + 5 + 2 = 12 이므로 통과한다.
+        assertThat(validator.validate(base.copy(relieverCount = 5)).relieverCount).isEqualTo(5)
+
+        // 합이 12가 아니면 거부한다.
+        assertThatThrownBy { validator.validate(base.copy(relieverCount = 6)) }
+            .hasMessageContaining("must add up to 12")
+    }
+
+    @Test
+    fun `하나만 주면 거부한다`() {
+        val base = DeckFixtures.deckRequest()
+
+        assertThatThrownBy {
+            validator.validate(base.copy(closerCount = null, relieverCount = null))
+        }.hasMessageContaining("At least two of starter, reliever and closer counts")
+    }
+
+    @Test
+    fun `유효한 투수 조합은 여섯 가지다`() {
+        // 선발 4~6 x 마무리 1~2. 중계는 4~7로 파생된다.
+        assertThat(DeckRules.VALID_PITCHER_COMBOS).hasSize(6)
+        assertThat(DeckRules.VALID_PITCHER_COMBOS).allSatisfy {
+            assertThat(it.first + it.second + it.third).isEqualTo(DeckRoster.PITCHER_COUNT)
+            assertThat(it.second).isIn(DeckRules.RELIEVER_COUNT_RANGE.toList())
+        }
+    }
+
+    @Test
+    fun `선수 이름을 받아 그대로 보관한다`() {
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            when (it.slot) {
+                "SS" -> it.copy(playerName = "  김하성  ")
+                "CF" -> it.copy(playerName = "   ")
+                else -> it
+            }
+        }
+
+        val roster = validator.validate(request.copy(players = players))
+
+        // 앞뒤 공백은 떼고, 비어 있으면 null로 둔다.
+        assertThat(roster.players.single { it.slot == "SS" }.playerName).isEqualTo("김하성")
+        assertThat(roster.players.single { it.slot == "CF" }.playerName).isNull()
+        assertThat(roster.players.single { it.slot == "1B" }.playerName).isNull()
+    }
+
+    @Test
+    fun `인원이 26명이 아니면 거부한다`() {
+        val request = DeckFixtures.deckRequest()
+        val short = request.copy(players = request.players!!.drop(1))
+
+        assertThatThrownBy { validator.validate(short) }
+            .hasMessageContaining("exactly 26 players, but was 25")
+    }
+
+    @Test
+    fun `자리가 중복되면 거부한다`() {
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.toMutableList()
+        players[1] = players[1].copy(slot = players[0].slot)
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .hasMessageContaining("Duplicate deck slots")
+    }
+
+    @Test
+    fun `자리 이름이 구성과 맞지 않으면 무엇이 빠지고 남는지 알려준다`() {
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "SP1") it.copy(slot = "SP9") else it
+        }
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .hasMessageContaining("Missing: SP1")
+            .hasMessageContaining("Unexpected: SP9")
+    }
+
+    @Test
+    fun `주전 타순은 1부터 9까지 중복 없이 채워야 한다`() {
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "1B") it.copy(battingOrder = 1) else it
+        }
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .hasMessageContaining("each batting order from 1 to 9 exactly once")
+    }
+
+    @Test
+    fun `후보와 투수에는 타순을 붙일 수 없다`() {
+        // 조용히 무시하면 클라이언트 버그가 숨는다.
+        for (slot in listOf("BENCH1", "SP1")) {
+            val request = DeckFixtures.deckRequest()
+            val players = request.players!!.map {
+                if (it.slot == slot) it.copy(battingOrder = 5) else it
+            }
+            assertThatThrownBy { validator.validate(request.copy(players = players)) }
+                .`as`(slot)
+                .hasMessageContaining("Batting order is only for starting batters")
+        }
+    }
+
+    @Test
+    fun `후보는 타자 포지션을 지정해야 한다`() {
+        val request = DeckFixtures.deckRequest()
+        val missing = request.players!!.map {
+            if (it.slot == "BENCH1") it.copy(position = null) else it
+        }
+        assertThatThrownBy { validator.validate(request.copy(players = missing)) }
+            .hasMessageContaining("Bench position is required")
+
+        val pitcherPosition = request.players!!.map {
+            if (it.slot == "BENCH1") it.copy(position = "SP") else it
+        }
+        assertThatThrownBy { validator.validate(request.copy(players = pitcherPosition)) }
+            .hasMessageContaining("must be a batter position")
+    }
+
+    @Test
+    fun `주전과 투수의 포지션은 자리에서 유도한다`() {
+        // 클라이언트가 엉뚱한 포지션을 보내도 자리가 이긴다.
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "SP1") it.copy(position = "CP") else it
+        }
+
+        val roster = validator.validate(request.copy(players = players))
+
+        assertThat(roster.players.single { it.slot == "SP1" }.position).isEqualTo("SP")
+        assertThat(roster.players.single { it.slot == "SS" }.position).isEqualTo("SS")
+    }
+
+    @Test
+    fun `중계 하위 역할은 중계에만 붙는다`() {
+        val request = DeckFixtures.deckRequest()
+
+        val missing = request.players!!.map {
+            if (it.slot == "RP1") it.copy(relieverRole = null) else it
+        }
+        assertThatThrownBy { validator.validate(request.copy(players = missing)) }
+            .hasMessageContaining("Reliever role is required")
+
+        val misplaced = request.players!!.map {
+            if (it.slot == "SP1") it.copy(relieverRole = RelieverRole.WIN) else it
+        }
+        assertThatThrownBy { validator.validate(request.copy(players = misplaced)) }
+            .hasMessageContaining("Reliever role is only for relievers")
+    }
+
+    @Test
+    fun `투수 슬롯 번호는 조건 게이트가 쓰도록 자리에서 뽑는다`() {
+        val roster = validator.validate(DeckFixtures.deckRequest())
+
+        assertThat(roster.players.single { it.slot == "SP3" }.pitcherSlot).isEqualTo(3)
+        assertThat(roster.players.single { it.slot == "RP5" }.pitcherSlot).isEqualTo(5)
+        assertThat(roster.players.single { it.slot == "CP2" }.pitcherSlot).isEqualTo(2)
+        assertThat(roster.players.single { it.slot == "SS" }.pitcherSlot).isNull()
+    }
+
+    @Test
+    fun `스킬 개수는 카드 타입의 슬롯 수와 정확히 같아야 한다`() {
+        // ScoreService.calculate는 미만도 허용하지만 저장되는 덱은 완성품이어야 한다.
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "C") it.copy(skills = it.skills!!.take(2)) else it
+        }
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .hasMessageContaining("must have exactly 3 skills, but had 2")
+    }
+
+    @Test
+    fun `시그니처 블랙은 스킬 칸이 네 개다`() {
+        val request = DeckFixtures.deckRequest()
+        fun withBlackCard(skills: List<String>) = request.copy(
+            players = request.players!!.map {
+                if (it.slot == "C") {
+                    it.copy(
+                        cardGrade = "SIGNATURE_BLACK",
+                        skills = skills.map { id -> DeckSkillRequest(id, 1) },
+                    )
+                } else {
+                    it
+                }
+            },
+        )
+
+        assertThatThrownBy { validator.validate(withBlackCard(listOf("G_001", "G_002", "G_003"))) }
+            .hasMessageContaining("must have exactly 4 skills, but had 3")
+        assertThatCode { validator.validate(withBlackCard(listOf("G_001", "G_002", "G_003", "G_004"))) }
+            .doesNotThrowAnyException()
+    }
+
+    /**
+     * 모먼트 전용은 첫 칸에서만 나온다.
+     *
+     * 롤 엔진이 `momentSlotOneTable`을 slotIndex 0에서만 쓰므로 둘째·셋째 칸의 등장 확률이
+     * 0이다. 0인 조합은 저장도 막는다.
+     */
+    @Test
+    fun `모먼트 전용 스킬은 첫 칸에만 놓을 수 있다`() {
+        val momentValidator = DeckFixtures.validator(
+            DeckFixtures.repository(DeckFixtures.exclusiveSkills),
+            pools = listOf("NORMAL", "MOMENT"),
+        )
+        val request = DeckFixtures.deckRequest()
+        fun withMomentCard(skills: List<String>) = request.copy(
+            players = request.players!!.map {
+                if (it.slot == "C") {
+                    it.copy(cardGrade = "MOMENT", skills = skills.map { id -> DeckSkillRequest(id, 1) })
+                } else {
+                    it
+                }
+            },
+        )
+
+        assertThatCode { momentValidator.validate(withMomentCard(listOf("M_001", "G_001", "G_002"))) }
+            .doesNotThrowAnyException()
+        assertThatThrownBy { momentValidator.validate(withMomentCard(listOf("G_001", "M_001", "G_002"))) }
+            .hasMessageContaining("can only be in the first slot")
+    }
+
+    /** 블랙은 롤이 한 칸만 미리 잡으므로 두 장이 되는 경우가 없다. */
+    @Test
+    fun `블랙 전용 스킬은 카드당 한 장이다`() {
+        val blackValidator = DeckFixtures.validator(
+            DeckFixtures.repository(DeckFixtures.exclusiveSkills),
+            pools = listOf("NORMAL", "BLACK"),
+        )
+        val request = DeckFixtures.deckRequest()
+        fun withBlackCard(skills: List<String>) = request.copy(
+            players = request.players!!.map {
+                if (it.slot == "C") {
+                    it.copy(
+                        cardGrade = "SIGNATURE_BLACK",
+                        skills = skills.map { id -> DeckSkillRequest(id, 1) },
+                    )
+                } else {
+                    it
+                }
+            },
+        )
+
+        assertThatCode {
+            blackValidator.validate(withBlackCard(listOf("BLACK_001", "G_001", "G_002", "G_003")))
+        }.doesNotThrowAnyException()
+        assertThatThrownBy {
+            blackValidator.validate(withBlackCard(listOf("BLACK_001", "BLACK_002", "G_001", "G_002")))
+        }.hasMessageContaining("at most 1 BLACK skill")
+    }
+
+    @Test
+    fun `한 선수가 같은 스킬을 두 번 가질 수 없다`() {
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "C") {
+                it.copy(skills = listOf("G_001", "G_001", "G_002").map { id -> DeckSkillRequest(id, 1) })
+            } else {
+                it
+            }
+        }
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .hasMessageContaining("Duplicate skill G_001")
+    }
+
+    @Test
+    fun `없는 스킬은 404가 아니라 400으로 거부한다`() {
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "C") it.copy(skills = it.skills!!.drop(1) + DeckSkillRequest("NOPE", 1)) else it
+        }
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+            .hasMessageContaining("Unknown skill NOPE")
+    }
+
+    @Test
+    fun `레벨이 스킬의 최대치를 넘으면 거부한다`() {
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "C") it.copy(skills = it.skills!!.map { s -> s.copy(level = 4) }) else it
+        }
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .hasMessageContaining("level must be between 1 and 3")
+    }
+
+    @Test
+    fun `모르는 능력치 이름은 거부한다`() {
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "C") it.copy(stats = mapOf("없는스탯" to 100.0)) else it
+        }
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .hasMessageContaining("Unknown stat 없는스탯")
+    }
+
+    @Test
+    fun `능력치가 유한한 수가 아니면 거부한다`() {
+        // 1e999는 파싱 단계에서 조용히 Infinity가 되어 점수를 오염시킨다.
+        val request = DeckFixtures.deckRequest()
+        for (bad in listOf(Double.POSITIVE_INFINITY, Double.NaN)) {
+            val players = request.players!!.map {
+                if (it.slot == "C") it.copy(stats = mapOf(DeckFixtures.STAT to bad)) else it
+            }
+            assertThatThrownBy { validator.validate(request.copy(players = players)) }
+                .`as`(bad.toString())
+                .hasMessageContaining("must be a finite number")
+        }
+    }
+
+    @Test
+    fun `투구 방향은 스위치가 될 수 없다`() {
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "SP1") it.copy(throwHand = Handedness.SWITCH) else it
+        }
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .hasMessageContaining("Throwing hand cannot be SWITCH")
+
+        // 타격 방향은 스위치가 정상이다.
+        val switchBatter = request.players!!.map {
+            if (it.slot == "SS") it.copy(batHand = Handedness.SWITCH) else it
+        }
+        validator.validate(request.copy(players = switchBatter))
+    }
+
+    @Test
+    fun `지원하지 않는 카드 등급은 어느 자리인지 알려주며 거부한다`() {
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "CF") it.copy(cardGrade = "LEGEND") else it
+        }
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .hasMessageContaining("CF: Unsupported card grade: LEGEND")
+    }
+
+    @Test
+    fun `등급에 없는 변형은 어느 자리인지 알려주며 거부한다`() {
+        // FA·WBC는 프라임·시그니처·시그니처블랙에만 붙는다.
+        val request = DeckFixtures.deckRequest()
+        val players = request.players!!.map {
+            if (it.slot == "CF") it.copy(cardGrade = "HOF", cardVariant = "WBC") else it
+        }
+
+        assertThatThrownBy { validator.validate(request.copy(players = players)) }
+            .hasMessageContaining("CF: HOF cards have no WBC variant")
+    }
+}

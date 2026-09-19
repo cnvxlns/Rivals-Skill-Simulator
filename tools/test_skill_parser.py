@@ -1,10 +1,24 @@
-from pathlib import Path
+import csv
 import unittest
+from pathlib import Path
 
-from convert_xlsx import SkillRow, build_effect_rows, expand_value, read_skill_rows, _condition_for
+from skill_parser import SkillRow, build_effect_rows, expand_value, _condition_for
+
+RESOURCES = Path(__file__).resolve().parent.parent / "backend" / "src" / "main" / "resources"
 
 
-class ConvertXlsxTest(unittest.TestCase):
+def _effects_by_skill() -> dict[str, list[tuple[str, str, str]]]:
+    """커밋된 score_effects.csv를 (스탯, 조건, 값) 튜플로 읽는다."""
+    out: dict[str, list[tuple[str, str, str]]] = {}
+    with (RESOURCES / "score_effects.csv").open(encoding="utf-8-sig", newline="") as fp:
+        for row in csv.DictReader(fp):
+            out.setdefault(row["skill_id"], []).append(
+                (row["stat"].strip(), row["condition"].strip() or "ALWAYS", row["values"].strip())
+            )
+    return out
+
+
+class SkillParserTest(unittest.TestCase):
     def test_expand_x_expressions_to_nine_levels(self):
         self.assertEqual(expand_value("x+1", {}), "2/3/4/5/6/7/8/9/10")
         self.assertEqual(expand_value("3*x", {}), "3/6/9/12/15/18/21/24/27")
@@ -452,8 +466,14 @@ class ConvertXlsxTest(unittest.TestCase):
         self.assertEqual(_condition_for("선발 등판 시"), "포지션_SP")
         self.assertEqual(_condition_for("중계 등판 시"), "포지션_RP_CP")
 
-    def test_r19_conditioned_skill_mappings_from_xlsx(self):
-        rows = {row.skill_id: row for row in read_skill_rows(Path(__file__).resolve().parent / "rivals_skills.xlsx")}
+    def test_r19_conditioned_skill_mappings(self):
+        """조건이 붙은 스킬들의 효과행이 되돌아가지 않게 못을 박는다.
+
+        예전에는 워크북을 파서에 통과시켜 검사했다. 워크북을 퇴역시키면서 커밋된
+        score_effects.csv를 직접 본다. 파서가 무엇을 만들었는지가 아니라 지금
+        서버가 무엇을 읽는지가 중요하므로 검사 대상으로도 이쪽이 맞다.
+        """
+        rows = _effects_by_skill()
 
         expected_rows = {
             "G_026": [
@@ -524,11 +544,13 @@ class ConvertXlsxTest(unittest.TestCase):
                 ("지구력", "상대등급우세", "1"),
                 ("수비", "상대등급우세", "1"),
             ],
+            # 조건 토큰이 '홈런3이상'에서 '상대팀홈런3'으로 바뀌고 사다리도 7칸으로
+            # 늘었다. 워크북에는 옛 값이 남아 있었고 CSV가 갱신된 쪽이다.
             "BLACK_009": [
-                ("파워", "홈런3이상", "2/4/6"),
-                ("정확", "홈런3이상", "2/4/6"),
-                ("선구", "홈런3이상", "2/4/6"),
-                ("인내", "홈런3이상", "2/4/6"),
+                ("파워", "상대팀홈런3", "1/1/1/1/2/4/6"),
+                ("정확", "상대팀홈런3", "1/1/1/1/2/4/6"),
+                ("선구", "상대팀홈런3", "1/1/1/1/2/4/6"),
+                ("인내", "상대팀홈런3", "1/1/1/1/2/4/6"),
             ],
         }
 
@@ -564,26 +586,18 @@ class ConvertXlsxTest(unittest.TestCase):
                 ("선구", "ALWAYS", "1/1/2/2/3/3/4/4/5"),
             ],
             "BLACK_009": [
-                ("구위", "ALWAYS", "4/7/9"),
-                ("변화", "ALWAYS", "4/7/9"),
-                ("제구", "ALWAYS", "4/7/9"),
-                ("구속", "ALWAYS", "4/7/9"),
+                ("구위", "ALWAYS", "2/3/3/4/4/7/9"),
+                ("변화", "ALWAYS", "2/3/3/4/4/7/9"),
+                ("제구", "ALWAYS", "2/3/3/4/4/7/9"),
+                ("구속", "ALWAYS", "2/3/3/4/4/7/9"),
             ],
         }
-
         for skill_id, expected in expected_rows.items():
             if skill_id not in rows:
                 continue
             with self.subTest(skill_id=skill_id):
-                effects, notes = build_effect_rows(rows[skill_id])
-                self.assertEqual(notes, [])
-                actual = [(effect.stat, effect.condition, effect.values) for effect in effects]
+                actual = rows[skill_id]
                 for row in expected:
                     self.assertIn(row, actual)
                 for row in always_rows.get(skill_id, []):
                     self.assertIn(row, actual)
-
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,4 +1,4 @@
-// 공용 UI 프리미티브. 원본 스펙: docs/design_handoff_mlb_rival_skill_tool/README.md
+// 공용 UI 프리미티브. 디자인 근거는 theme/index.ts 머리 주석 참고.
 //
 // 규칙 두 가지를 전 컴포넌트가 지킨다.
 //  1. 그림자를 쓰지 않는다. 면 분리는 외곽선 + 배경 명도차로만 한다(플랫폼별 동작이 달라서).

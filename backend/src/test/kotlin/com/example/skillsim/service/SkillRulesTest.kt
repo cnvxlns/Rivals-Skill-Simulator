@@ -9,20 +9,10 @@ import org.junit.jupiter.api.Test
 
 class SkillRulesTest {
 
-    @Test
-    fun `slot counts match card type rules`() {
-        assertThat(SkillRules.slotCount("SIGNATURE")).isEqualTo(3)
-        assertThat(SkillRules.slotCount("HOF")).isEqualTo(3)
-        assertThat(SkillRules.slotCount("WBC")).isEqualTo(3)
-        assertThat(SkillRules.slotCount("MOMENT")).isEqualTo(3)
-        assertThat(SkillRules.slotCount("SUPREME_MOMENT")).isEqualTo(3)
-        assertThat(SkillRules.slotCount("SIGNATURE_BLACK")).isEqualTo(4)
-        assertThat(SkillRules.slotCount("WBC_SIGNATURE_BLACK")).isEqualTo(4)
-        assertThat(SkillRules.slotCount("BLACK")).isEqualTo(4)
-    }
+    // 슬롯 수는 카드 등급의 축이라 CardRulesTest가 검사한다. 여기는 스킬 풀 축만 본다.
 
     @Test
-    fun `grade ladders match card type rules`() {
+    fun `grade ladders match skill pool rules`() {
         assertThat(SkillRules.gradeLadder("NORMAL")).containsExactly(
             Level.D, Level.C, Level.B, Level.A, Level.S, Level.S1, Level.S2, Level.S3, Level.S4,
         )
@@ -51,10 +41,25 @@ class SkillRulesTest {
     }
 
     @Test
-    fun `normalizeCardType rejects PRIME and keeps WBC signature black distinct`() {
-        assertThatThrownBy { SkillRules.normalizeCardType("PRIME") }
-            .isInstanceOf(IllegalArgumentException::class.java)
-        assertThat(SkillRules.normalizeCardType("WBC_SIGNATURE_BLACK")).isEqualTo("WBC_BLACK")
+    fun `스킬 풀 이름만 받고 카드 등급 이름은 거부한다`() {
+        // 축이 다르다. PRIME은 카드 등급이지 스킬 풀이 아니다.
+        for (notAPool in listOf("PRIME", "IMPACT", "LIVE", "SEASON")) {
+            assertThatThrownBy { SkillRules.normalizeSkillPool(notAPool) }
+                .`as`(notAPool)
+                .isInstanceOf(IllegalArgumentException::class.java)
+        }
+        // WBC 계열 별칭은 모두 WBC 풀로 모인다.
+        assertThat(SkillRules.normalizeSkillPool("WBC_SIGNATURE_BLACK")).isEqualTo("WBC")
+        assertThat(SkillRules.normalizeSkillPool("SIGNATURE")).isEqualTo("NORMAL")
+        assertThat(SkillRules.normalizeSkillPool("SUPREME_MOMENT")).isEqualTo("MOMENT")
+    }
+
+    @Test
+    fun `CSV에 있는 스킬 풀은 전부 사다리를 가진다`() {
+        for (pool in SkillRules.SKILL_POOLS) {
+            assertThat(SkillRules.normalizeSkillPool(pool)).`as`(pool).isEqualTo(pool)
+            assertThat(SkillRules.gradeLadder(pool)).`as`(pool).isNotEmpty()
+        }
     }
 
     @Test
@@ -79,6 +84,15 @@ class SkillRulesTest {
         assertThat(SkillRules.matchesPosition(allAround, "CF")).isTrue()
         assertThat(SkillRules.matchesPosition(allAround, "RF")).isTrue()
         assertThat(SkillRules.matchesPosition(allAround, "DH")).isFalse()
+
+        // WBC_006(아웃필더)의 position이 'LF, CR, RF'로 잘못 적혀 있었다. CR은 포지션이
+        // 아니라서 CF 선수만 이 스킬을 못 받았는데, 목록에서 빠질 뿐 오류가 나지 않아
+        // 드러나지 않았다. 세 자리가 모두 걸리는지 못 박는다.
+        val outfield = "LF, CF, RF"
+        assertThat(SkillRules.matchesPosition(outfield, "LF")).isTrue()
+        assertThat(SkillRules.matchesPosition(outfield, "CF")).isTrue()
+        assertThat(SkillRules.matchesPosition(outfield, "RF")).isTrue()
+        assertThat(SkillRules.matchesPosition(outfield, "1B")).isFalse()
     }
 
     @Test
@@ -107,6 +121,9 @@ class SkillRulesTest {
             .containsExactly("D", "C", "B", "A", "S", "S1", "S2")
         assertThat(SkillRules.levelIndex(Level.S, "BLACK")).isEqualTo(5)
     }
+
+    // 카드 등급의 슬롯 수·스킬 풀·상대등급우세는 CardRulesTest가 검사한다.
+    // 여기에 있던 "모든 카드 타입" 가드는 두 축을 하나로 보던 시절의 것이라 옮겼다.
 
     private fun skill(skillKey: String, cardType: String) = ScoreSkill(
         skillKey = skillKey,

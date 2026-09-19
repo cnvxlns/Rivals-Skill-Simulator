@@ -7,6 +7,7 @@ import com.example.skillsim.dto.ScoreSelection
 import com.example.skillsim.dto.ScoreSkillOption
 import com.example.skillsim.dto.ScoreTableRequest
 import com.example.skillsim.dto.ScoreTableResponse
+import com.example.skillsim.enums.Handedness
 import com.example.skillsim.enums.Level
 import com.example.skillsim.model.ScoreSkill
 import com.example.skillsim.repository.ScoreSkillRepository
@@ -36,11 +37,11 @@ class ScoreService private constructor(
         statWeights: Map<String, Double>,
     ) : this(scoreSkillRepository, scoreCalculator, { statWeights })
 
-    fun listSkills(cardType: String?, position: String?): List<ScoreSkillOption> {
-        val normalizedCardType = normalizeCardTypeOrThrow(cardType)
+    fun listSkills(cardGrade: String?, cardVariant: String?, position: String?): List<ScoreSkillOption> {
+        val card = resolveCard(cardGrade, cardVariant)
         val normalizedPosition = normalizeRequiredOrThrow(position, "Position selection is required.")
 
-        return scoreSkillsForCardType(normalizedCardType)
+        return skillsForCard(card)
             .filter { SkillRules.matchesPosition(it.position, normalizedPosition) }
             .map { it.toOption() }
     }
@@ -50,10 +51,10 @@ class ScoreService private constructor(
             throw badRequest("Score request is required.")
         }
 
-        val normalizedCardType = normalizeCardTypeOrThrow(request.cardType)
+        val card = resolveCard(request.cardGrade ?: request.cardType, request.cardVariant)
         val normalizedPosition = normalizeRequiredOrThrow(request.position, "Position selection is required.")
         val selections = request.selections
-        validateSelections(selections, normalizedCardType)
+        validateSelections(selections, card)
 
         val role = SkillRules.roleForPosition(normalizedPosition)
         val pitcherSlot = request.pitcherSlot
@@ -70,9 +71,10 @@ class ScoreService private constructor(
         }
 
         val seenSkillIds = mutableSetOf<String>()
+        val poolCounts = mutableMapOf<String, Int>()
         val calculatorSelections = mutableListOf<ScoreCalculator.Selection>()
 
-        for (selection in selections.orEmpty()) {
+        selections.orEmpty().forEachIndexed { slotIndex, selection ->
             val skillId = normalizeRequiredOrThrow(selection.skillId, "Skill selection is required.")
             if (!seenSkillIds.add(skillId)) {
                 throw badRequest("Duplicate skill selection is not allowed.")
@@ -80,8 +82,17 @@ class ScoreService private constructor(
 
             val skill = scoreSkillRepository.findBySkillKey(skillId)
                 ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Score skill not found: $skillId")
-            if (normalizeCardTypeOrThrow(skill.cardType) !in allowedSkillCardTypes(normalizedCardType)) {
-                throw badRequest("Selected skill does not match requested card type.")
+            val pool = SkillRules.normalizeSkillPool(skill.cardType)
+            if (pool !in CardRules.skillPools(card.grade, card.variant)) {
+                throw badRequest("Selected skill does not match requested card grade.")
+            }
+            // 등장 확률이 0인 자리는 막는다. 모먼트 전용은 첫 칸에만 나오고 블랙은 카드당 한 장이다.
+            if (!CardRules.allowsPoolInSlot(pool, slotIndex)) {
+                throw badRequest("Moment skills can only be in the first slot.")
+            }
+            poolCounts[pool] = (poolCounts[pool] ?: 0) + 1
+            if (poolCounts.getValue(pool) > CardRules.maxSkillsFromPool(pool)) {
+                throw badRequest("A card can have at most ${CardRules.maxSkillsFromPool(pool)} $pool skill.")
             }
             if (!SkillRules.matchesPosition(skill.position, normalizedPosition)) {
                 throw badRequest("Selected skill does not match requested position.")
@@ -95,24 +106,59 @@ class ScoreService private constructor(
             calculatorSelections += ScoreCalculator.Selection(skill, level)
         }
 
-        val conditionProbabilities = ScoreCalculator.conditionProbabilitiesForPosition(
+        return scoreSelections(
+            selections = calculatorSelections,
             position = normalizedPosition,
+            cardType = card.grade,
             battingOrder = battingOrder,
             pitcherSlot = pitcherSlot,
-            cardType = normalizedCardType,
             throwHand = request.throwHand,
             batHand = request.batHand,
+            userStats = request.userStats,
+            baseStats = request.baseStats,
+        )
+    }
+
+    /**
+     * 검증이 끝난 스킬 선택을 채점한다. [calculate]의 뒷부분이며 덱 채점이 같은 경로를 타도록 뽑아냈다.
+     *
+     * 검증을 하지 않으므로 호출자가 카드 등급·포지션·레벨을 이미 확인했어야 한다.
+     * [cardType]에는 카드 **등급**을 넘긴다(상대등급우세 조건이 이 값을 본다).
+     * [battingOrder]가 null이면 [ScoreCalculator]의 기본 타순이 쓰인다 — 타순이 없는
+     * 후보 선수를 채점할 때 필요하다.
+     */
+    internal fun scoreSelections(
+        selections: List<ScoreCalculator.Selection>,
+        position: String,
+        cardType: String,
+        battingOrder: Int? = null,
+        pitcherSlot: Int? = null,
+        throwHand: Handedness? = null,
+        batHand: Handedness? = null,
+        userStats: Map<String, Double>? = null,
+        baseStats: Map<String, Double>? = null,
+        statBonus: Double = 0.0,
+    ): ScoreResponse {
+        val conditionProbabilities = ScoreCalculator.conditionProbabilitiesForPosition(
+            position = position,
+            battingOrder = battingOrder,
+            pitcherSlot = pitcherSlot,
+            cardType = cardType,
+            throwHand = throwHand,
+            batHand = batHand,
+            baseStats = baseStats,
         )
         val undefinedConditionWarnings =
-            applyUndefinedConditionWarnings(calculatorSelections, conditionProbabilities)
+            applyUndefinedConditionWarnings(selections, conditionProbabilities)
 
         val result = scoreCalculator.calculate(
-            calculatorSelections,
+            selections,
             statWeightsSupplier(),
             conditionProbabilities,
-            request.userStats,
+            userStats,
+            statBonus,
         )
-        return toResponse(result, undefinedConditionWarnings, calculatorSelections)
+        return toResponse(result, undefinedConditionWarnings, selections)
     }
 
     private fun validateBattingOrder(battingOrder: Int?): Int {
@@ -125,12 +171,12 @@ class ScoreService private constructor(
         return battingOrder
     }
 
-    private fun validateSelections(selections: List<ScoreSelection>?, cardType: String) {
+    private fun validateSelections(selections: List<ScoreSelection>?, card: Card) {
         if (selections.isNullOrEmpty()) {
             throw badRequest("At least one skill selection is required.")
         }
-        if (selections.size > SkillRules.slotCount(cardType)) {
-            throw badRequest("Too many skill selections for card type $cardType.")
+        if (selections.size > CardRules.slotCount(card.grade)) {
+            throw badRequest("Too many skill selections for card grade ${card.grade}.")
         }
         val seenSkillIds = mutableSetOf<String>()
         for (selection in selections) {
@@ -158,19 +204,15 @@ class ScoreService private constructor(
         )
     }
 
-    private fun scoreSkillsForCardType(cardType: String): List<ScoreSkill> =
-        allowedSkillCardTypes(cardType).flatMap { scoreSkillRepository.findByCardTypeIgnoreCase(it) }
+    private fun skillsForCard(card: Card): List<ScoreSkill> =
+        CardRules.skillPools(card.grade, card.variant)
+            .flatMap { scoreSkillRepository.findByCardTypeIgnoreCase(it) }
 
-    private fun allowedSkillCardTypes(cardType: String): List<String> =
-        when (cardType) {
-            "BLACK" -> listOf("NORMAL", "BLACK")
-            "WBC" -> listOf("NORMAL", "WBC")
-            "WBC_BLACK" -> listOf("NORMAL", "WBC", "BLACK")
-            "MOMENT" -> listOf("NORMAL", "MOMENT")
-            "SUPREME_MOMENT" -> listOf("NORMAL", "MOMENT")
-            "HOF" -> listOf("NORMAL", "HOF")
-            else -> listOf(cardType)
-        }
+    /** 이 카드가 고를 수 있는 스킬 풀. 등급과 변형 두 축이 정한다([CardRules.skillPools]). */
+    internal fun skillPoolsFor(cardGrade: String?, cardVariant: String?): List<String> {
+        val card = resolveCard(cardGrade, cardVariant)
+        return CardRules.skillPools(card.grade, card.variant)
+    }
 
     private fun applyUndefinedConditionWarnings(
         selections: List<ScoreCalculator.Selection>,
@@ -255,12 +297,22 @@ class ScoreService private constructor(
     private fun Map<String, Double>.toStatScores(): List<ScoreResponse.StatScore> =
         map { (stat, value) -> ScoreResponse.StatScore(stat, value) }
 
-    private fun normalizeCardTypeOrThrow(cardType: String?): String =
-        try {
-            SkillRules.normalizeCardType(cardType)
-        } catch (ex: IllegalArgumentException) {
-            throw badRequest(ex.message ?: "Card type is required.")
+    /** 카드 한 장의 두 축. 예전 단일 cardType으로 들어와도 여기서 풀린다. */
+    internal data class Card(val grade: String, val variant: String)
+
+    private fun resolveCard(cardGrade: String?, cardVariant: String?): Card = try {
+        val grade = CardRules.normalizeGrade(cardGrade)
+        // 변형을 따로 주지 않았는데 등급 자리에 예전 이름(WBC_BLACK 등)이 왔다면 거기서 꺼낸다.
+        val variant = if (cardVariant.isNullOrBlank()) {
+            CardRules.fromLegacyCardType(cardGrade)?.second ?: CardRules.VARIANT_NONE
+        } else {
+            CardRules.normalizeVariant(cardVariant)
         }
+        CardRules.validateCombination(grade, variant)
+        Card(grade, variant)
+    } catch (ex: IllegalArgumentException) {
+        throw badRequest(ex.message ?: "Card grade is required.")
+    }
 
     private fun normalizeRequiredOrThrow(value: String?, message: String): String =
         try {
@@ -294,6 +346,7 @@ class ScoreService private constructor(
             cardType = null,
             throwHand = request.throwHand,
             batHand = request.batHand,
+            baseStats = request.baseStats,
         )
         val statWeights = statWeightsSupplier()
 

@@ -3,7 +3,7 @@
 // 규칙 두 가지를 전 컴포넌트가 지킨다.
 //  1. 그림자를 쓰지 않는다. 면 분리는 외곽선 + 배경 명도차로만 한다(플랫폼별 동작이 달라서).
 //  2. hover에만 의존하는 정보를 두지 않는다. 웹과 앱이 같은 컴포넌트를 공유한다.
-import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import {
   ActivityIndicator,
@@ -425,11 +425,14 @@ export function SearchInput({
   onChangeText,
   placeholder,
   height,
+  inputRef,
 }: {
   value: string;
   onChangeText: (v: string) => void;
   placeholder: string;
   height?: number;
+  /** 열자마자 커서를 넣고 싶은 호출부가 넘긴다. */
+  inputRef?: React.RefObject<TextInput | null>;
 }) {
   const { colors, radius, controlHeight, spacing } = useAppTheme();
   const [focused, setFocused] = useState(false);
@@ -449,6 +452,7 @@ export function SearchInput({
     >
       <SearchIcon size={17} color={focused ? colors.accentAction : colors.muted} />
       <TextInput
+        ref={inputRef}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -505,6 +509,75 @@ export function NumberField({
   );
 }
 
+/**
+ * 일반 텍스트 입력. NumberField와 같은 모양을 쓰되 숫자 전용이 아니다.
+ *
+ * secure를 켜면 비밀번호 입력이 된다.
+ */
+export function TextField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  secure = false,
+  autoComplete,
+  keyboardType,
+  onSubmitEditing,
+  editable = true,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+  secure?: boolean;
+  autoComplete?: 'email' | 'password' | 'new-password' | 'off';
+  keyboardType?: 'default' | 'email-address';
+  onSubmitEditing?: () => void;
+  editable?: boolean;
+}) {
+  const { colors, radius, controlHeight } = useAppTheme();
+  const [focused, setFocused] = useState(false);
+  return (
+    <View style={{ gap: 11 }}>
+      <Text style={{ color: colors.secondaryText, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
+        {label}
+      </Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onSubmitEditing={onSubmitEditing}
+        placeholder={placeholder}
+        placeholderTextColor={colors.muted}
+        secureTextEntry={secure}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete={autoComplete}
+        keyboardType={keyboardType}
+        editable={editable}
+        style={
+          [
+            {
+              height: controlHeight.dropdown,
+              paddingHorizontal: 22,
+              borderRadius: radius.control,
+              backgroundColor: colors.surfaceVariant,
+              borderWidth: 1,
+              borderColor: focused ? colors.accentAction : colors.outline,
+              color: colors.onSurface,
+              fontSize: 18,
+              fontWeight: '600',
+              opacity: editable ? 1 : 0.6,
+            },
+            NO_OUTLINE,
+          ] as never
+        }
+      />
+    </View>
+  );
+}
+
 /** 웹 전용 속성이라 네이티브에서는 무시된다. 포커스 링을 우리가 직접 그리기 위해 끈다. */
 const NO_OUTLINE = { outlineStyle: 'none' } as unknown as ViewStyle;
 
@@ -536,6 +609,19 @@ export function LabeledDropdown<T>({
   const { height: windowHeight } = useWindowDimensions();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const searchRef = useRef<TextInput>(null);
+
+  /*
+    열면 바로 검색창에 커서를 넣는다. 스킬 목록이 200개가 넘어 여는 이유가 대개 검색이다.
+
+    시트가 슬라이드로 올라오는 중에 focus()를 부르면 먹지 않아 한 틱 뒤에 준다.
+    터치 기기는 제외한다. 커서를 넣으면 키보드가 올라와 목록의 절반을 가린다.
+  */
+  useEffect(() => {
+    if (!open || !searchable || Platform.OS !== 'web') return;
+    const timer = setTimeout(() => searchRef.current?.focus(), 80);
+    return () => clearTimeout(timer);
+  }, [open, searchable]);
 
   const selectedLabel = optionLabel(selected);
   const shown = useMemo(() => {
@@ -616,7 +702,13 @@ export function LabeledDropdown<T>({
 
             {searchable ? (
               <View style={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.md }}>
-                <SearchInput value={query} onChangeText={setQuery} placeholder={searchPlaceholder} height={46} />
+                <SearchInput
+                  inputRef={searchRef}
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder={searchPlaceholder}
+                  height={46}
+                />
               </View>
             ) : null}
 
@@ -667,27 +759,55 @@ export function LabeledDropdown<T>({
 
 /* ── 결과 ────────────────────────────────────────────────── */
 
-export function ScoreHero({ label, value }: { label: string; value: number }) {
+/**
+ * @param compact 좌우로 나눠 놓을 때. 여백과 글자를 줄인다. 기본 크기 그대로 반 폭에
+ *   넣으면 numberOfLines={1}에 걸려 숫자가 줄임표로 사라진다.
+ */
+export function ScoreHero({
+  label,
+  value,
+  compact = false,
+}: {
+  label: string;
+  value: number;
+  compact?: boolean;
+}) {
   const { colors, radius, spacing, typography, tabularNums } = useAppTheme();
   return (
     <View
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.lg,
+        gap: compact ? spacing.md : spacing.lg,
         backgroundColor: colors.surfaceVariant,
         borderWidth: 1,
         borderColor: colors.outline,
         borderRadius: radius.input,
-        padding: spacing.xl,
+        padding: compact ? spacing.mdl : spacing.xl,
       }}
     >
-      <View style={{ width: 4, height: 54, borderRadius: 999, backgroundColor: colors.accentValue }} />
-      <View style={{ gap: 4, flex: 1 }}>
+      <View
+        style={{
+          width: 4,
+          height: compact ? 40 : 54,
+          borderRadius: 999,
+          backgroundColor: colors.accentValue,
+        }}
+      />
+      <View style={{ gap: 4, flex: 1, minWidth: 0 }}>
         <Text style={{ color: colors.secondaryText, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
           {label}
         </Text>
-        <Text style={[typography.hero, { color: colors.accentValue }, tabularNums]} numberOfLines={1}>
+        <Text
+          style={[
+            typography.hero,
+            compact ? { fontSize: 30, lineHeight: 36 } : null,
+            { color: colors.accentValue },
+            tabularNums,
+          ]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
           {value.toFixed(2)}
         </Text>
       </View>

@@ -290,14 +290,15 @@ class ScoreCalculatorTest {
     fun `WBC tier matches its non-WBC counterpart as a rebrand not a different grade`() {
         val table = ScoreCalculator.opponentGradeAdvantageProbabilitiesByCardType
 
-        assertThat(table["WBC"]).isEqualTo(table["NORMAL"])
-        assertThat(table["WBC_BLACK"]).isEqualTo(table["BLACK"])
+        // 변형(FA·WBC)은 서열을 바꾸지 않으므로 이 표에 등장하지 않는다.
+        assertThat(table).doesNotContainKeys("WBC", "WBC_BLACK", "NORMAL", "BLACK")
     }
 
     @Test
     fun `opponent grade advantage probabilities are non-increasing up the ladder`() {
         val table = ScoreCalculator.opponentGradeAdvantageProbabilitiesByCardType
-        val lowToHigh = listOf("MOMENT", "SUPREME_MOMENT", "NORMAL", "WBC", "BLACK", "WBC_BLACK", "HOF")
+        // season = live < impact < prime < moment < signature < signature black < hof
+        val lowToHigh = CardRules.GRADES_LOW_TO_HIGH
 
         for (i in 1 until lowToHigh.size) {
             assertThat(table.getValue(lowToHigh[i])).isLessThanOrEqualTo(table.getValue(lowToHigh[i - 1]))
@@ -442,6 +443,161 @@ class ScoreCalculatorTest {
         assertThat(probabilities).containsEntry("타순3_4_5", 1.0)
         assertThat(probabilities).containsEntry("타순4_5", 1.0)
         assertThat(probabilities).containsEntry("타순6_9", 0.0)
+    }
+
+    @Test
+    fun `gates single batting order tokens`() {
+        val third = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 3)
+
+        assertThat(third).containsEntry("타순2", 0.0)
+        assertThat(third).containsEntry("타순3", 1.0)
+
+        val second = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 2)
+
+        assertThat(second).containsEntry("타순2", 1.0)
+        assertThat(second).containsEntry("타순3", 0.0)
+    }
+
+    /**
+     * 카드 고유 능력치 임계는 경기 중 확률이 아니라 카드마다 켜짐/꺼짐이다.
+     * 기본 능력치가 들어오면 확률을 무시하고 0/1로 확정해야 한다.
+     *
+     * 실측 앵커 두 장(fmkorea 야구게임판, 2026-09):
+     * 클레멘테 75+90=165로 두 절 모두 만족, 루스 147로 둘 다 미달.
+     */
+    @Test
+    fun `base stat thresholds resolve from the card's own stats`() {
+        val clemente = ScoreCalculator.conditionProbabilitiesForPosition(
+            "RF", baseStats = mapOf("주루" to 75.0, "수비" to 90.0),
+        )
+        assertThat(clemente).containsEntry("기본주루수비합155이상", 1.0)
+        assertThat(clemente).containsEntry("기본주루수비합165이상", 1.0)
+
+        val ruth = ScoreCalculator.conditionProbabilitiesForPosition(
+            "RF", baseStats = mapOf("주루" to 57.0, "수비" to 90.0),
+        )
+        assertThat(ruth).containsEntry("기본주루수비합155이상", 0.0)
+        assertThat(ruth).containsEntry("기본주루수비합165이상", 0.0)
+
+        // 155는 넘고 165는 못 넘는 중간 카드.
+        val between = ScoreCalculator.conditionProbabilitiesForPosition(
+            "CF", baseStats = mapOf("주루" to 80.0, "수비" to 80.0),
+        )
+        assertThat(between).containsEntry("기본주루수비합155이상", 1.0)
+        assertThat(between).containsEntry("기본주루수비합165이상", 0.0)
+    }
+
+    /**
+     * 기본 능력치가 없으면 표본 비율로 떨어진다. 값 자체는 추정이라 바뀔 수 있지만
+     * 165가 155보다 흔할 수는 없다 — 더 센 조건이므로 부분집합이다.
+     */
+    @Test
+    fun `base stat thresholds fall back to a population rate when stats are missing`() {
+        val unknown = ScoreCalculator.conditionProbabilitiesForPosition("CF")
+        val loose = unknown.getValue("기본주루수비합155이상")
+        val strict = unknown.getValue("기본주루수비합165이상")
+
+        assertThat(loose).isBetween(0.0, 1.0)
+        assertThat(strict).isBetween(0.0, 1.0)
+        assertThat(strict).isLessThanOrEqualTo(loose)
+        // 1.0으로 두면 점수표에서 이 스킬이 상한값으로 보인다. 루스조차 155를 못 넘는다.
+        assertThat(loose).isLessThan(1.0)
+
+        // 스탯이 일부만 오면 카드를 특정할 수 없으므로 표본 비율을 그대로 쓴다.
+        val partial = ScoreCalculator.conditionProbabilitiesForPosition(
+            "CF", baseStats = mapOf("주루" to 90.0),
+        )
+        assertThat(partial).containsEntry("기본주루수비합155이상", loose)
+    }
+
+    @Test
+    fun `gates second base position`() {
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("2B"))
+            .containsEntry("포지션_2B", 1.0)
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("SS"))
+            .containsEntry("포지션_2B", 0.0)
+    }
+
+    /**
+     * 스위치 타자는 좌타 절과 스위치 절을 모두 만족한다. 치퍼(스위치 조건)와
+     * 리틀 빅맨(좌타 조건)이 한 카드에서 동시에 걸릴 수 있어야 한다.
+     */
+    @Test
+    fun `gates switch hitter separately from left handed batter`() {
+        val switch = ScoreCalculator.conditionProbabilitiesForPosition(
+            "2B", batHand = Handedness.SWITCH,
+        )
+        assertThat(switch).containsEntry("스위치타", 1.0)
+        assertThat(switch).containsEntry("좌타", 1.0)
+
+        val left = ScoreCalculator.conditionProbabilitiesForPosition(
+            "2B", batHand = Handedness.LEFT,
+        )
+        assertThat(left).containsEntry("스위치타", 0.0)
+        assertThat(left).containsEntry("좌타", 1.0)
+    }
+
+    /**
+     * 컬렉션 버프는 기준 스탯을 올린다. 다만 floor 때문에 정수 경계를 넘겨야 점수가 움직인다.
+     */
+    @Test
+    fun `stat bonus raises the base stat of proportional effects`() {
+        val skill = scoreSkill("G_057", "하드 트레이닝", proportionalEffect("변화", "ALWAYS", "0.06", "지구력"))
+        val totalWith = { bonus: Double ->
+            ScoreCalculator().calculate(
+                listOf(ScoreCalculator.Selection(skill, 1)),
+                mapOf("변화" to 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("SP"),
+                emptyMap(),
+                bonus,
+            ).perStat.getValue("변화")
+        }
+
+        // 기본 지구력 120 x 0.06 = 7.2 -> 7. +12로는 7.92라 아직 7이다.
+        assertThat(totalWith(0.0)).isEqualTo(7.00)
+        assertThat(totalWith(12.0)).isEqualTo(7.00)
+        // +14면 8.04가 되어 비로소 한 칸 오른다.
+        assertThat(totalWith(14.0)).isEqualTo(8.00)
+    }
+
+    @Test
+    fun `stat bonus applies to each part of a composite base stat`() {
+        val skill = scoreSkill("G_001", "호타준족", proportionalEffect("파워", "ALWAYS", "0.03", "주루+수비"))
+        val value = { bonus: Double ->
+            ScoreCalculator().calculate(
+                listOf(ScoreCalculator.Selection(skill, 1)),
+                mapOf("파워" to 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("BATTER"),
+                emptyMap(),
+                bonus,
+            ).perStat.getValue("파워")
+        }
+
+        // 주루 120 + 수비 120 = 240 -> floor(7.2) = 7.
+        assertThat(value(0.0)).isEqualTo(7.00)
+        // 두 능력치가 각각 오르므로 기준값은 +10이 아니라 +20이 된다. floor(7.8) = 7.
+        assertThat(value(5.0)).isEqualTo(7.00)
+        assertThat(value(10.0)).isEqualTo(7.00)
+        // 260 x 0.03 = 7.8, 280 x 0.03 = 8.4.
+        assertThat(value(20.0)).isEqualTo(8.00)
+    }
+
+    @Test
+    fun `stat bonus does not touch deck score base stats`() {
+        val skill = scoreSkill("G_038", "결속력", proportionalEffect("파워", "ALWAYS", "0.015", "스페셜덱"))
+        val value = { bonus: Double ->
+            ScoreCalculator().calculate(
+                listOf(ScoreCalculator.Selection(skill, 1)),
+                mapOf("파워" to 1.0),
+                ScoreCalculator.conditionProbabilitiesForPosition("BATTER"),
+                emptyMap(),
+                bonus,
+            ).perStat.getValue("파워")
+        }
+
+        // 덱 스코어는 선수 능력치가 아니다. 버프를 아무리 올려도 기준값 500이 그대로다.
+        assertThat(value(0.0)).isEqualTo(7.00)
+        assertThat(value(50.0)).isEqualTo(7.00)
     }
 
     @Test

@@ -20,7 +20,11 @@ class CorsConfig(
     override fun addCorsMappings(registry: CorsRegistry) {
         registry.addMapping("/api/**")
             .allowedOriginPatterns(*allowedOriginPatterns.toTypedArray())
-            .allowedMethods("GET", "POST", "OPTIONS")
+            // 덱 수정과 삭제에 PUT/DELETE가 필요하다.
+            .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+            // Authorization 헤더가 여기에 포함된다.
             .allowedHeaders("*")
+        // allowCredentials는 켜지 않는다. 인증을 쿠키가 아니라 Bearer 헤더로 하므로
+        // 필요 없고, 켜면 와일드카드 출처와 함께 쓸 수 없게 된다.
     }
 }

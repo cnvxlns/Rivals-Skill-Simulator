@@ -17,4 +17,6 @@ data class ScoreTableRequest(
     val throwHand: Handedness? = null,
     val batHand: Handedness? = null,
     val userStats: Map<String, Double>? = null,
+    /** 카드 고유 능력치. [ScoreRequest.baseStats]와 같은 뜻이다. */
+    val baseStats: Map<String, Double>? = null,
 )

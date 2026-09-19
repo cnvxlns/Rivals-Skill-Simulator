@@ -13,11 +13,30 @@ import WakeUpOverlay from '@/components/WakeUpOverlay';
 import ScoreTableView from '@/views/ScoreTableView';
 import CalculatorView from '@/views/CalculatorView';
 import MethodologyView from '@/views/MethodologyView';
+import DeckView from '@/views/DeckView';
 
-type TabKey = 'table' | 'calculator' | 'methodology';
+type TabKey = 'table' | 'calculator' | 'deck' | 'methodology';
+
+/** 안 보이는 탭. 상태는 살려 두고 화면에서만 뺀다. */
+const HIDDEN = { display: 'none' } as const;
 
 export default function HomeScreen() {
   const [tab, setTab] = useState<TabKey>('table');
+  /**
+   * 한 번이라도 연 탭. 여기 담긴 탭은 다시 언마운트하지 않는다.
+   *
+   * 예전에는 비활성 탭을 통째로 지웠는데, 그러면 덱을 편집하다 계산기를 잠깐 보고
+   * 돌아오면 편집하던 내용이 사라졌다. 덱 탭은 마운트될 때마다 목록을 다시 받아서
+   * 토큰이 죽어 있으면 그 요청이 401을 물고 와 로그아웃까지 됐다.
+   *
+   * 처음부터 넷을 다 켜 두지는 않는다. 그러면 첫 화면에서 쓰지도 않을 요청이 세 개
+   * 더 나간다. 열어 본 탭만 남긴다.
+   */
+  const [visited, setVisited] = useState<TabKey[]>(['table']);
+  const openTab = (next: TabKey) => {
+    setTab(next);
+    setVisited((prev) => (prev.includes(next) ? prev : [...prev, next]));
+  };
   const { t } = useTranslation();
   const { status, elapsedSeconds, retry } = useBackendWarmup();
   const { colors, typography, spacing } = useAppTheme();
@@ -30,6 +49,7 @@ export default function HomeScreen() {
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'table', label: t('tab_score_table') },
     { key: 'calculator', label: t('tab_calculator') },
+    { key: 'deck', label: t('tab_deck') },
     { key: 'methodology', label: t('tab_methodology') },
   ];
 
@@ -76,7 +96,7 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <SegmentedTabs tabs={tabs} selected={tab} onSelect={setTab} stretch={!isWide} />
+            <SegmentedTabs tabs={tabs} selected={tab} onSelect={openTab} stretch={!isWide} />
           </View>
 
           <ScrollView
@@ -90,9 +110,30 @@ export default function HomeScreen() {
             }}
             keyboardShouldPersistTaps="handled"
           >
-            {tab === 'table' ? <ScoreTableView /> : null}
-            {tab === 'calculator' ? <CalculatorView onViewMethodology={() => setTab('methodology')} /> : null}
-            {tab === 'methodology' ? <MethodologyView /> : null}
+            {/*
+              열어 본 탭은 지우지 않고 숨긴다. display가 'none'이면 레이아웃에서 빠지므로
+              contentContainerStyle의 gap이 빈 칸으로 남지도 않는다.
+            */}
+            {visited.includes('table') ? (
+              <View style={tab === 'table' ? undefined : HIDDEN}>
+                <ScoreTableView />
+              </View>
+            ) : null}
+            {visited.includes('calculator') ? (
+              <View style={tab === 'calculator' ? undefined : HIDDEN}>
+                <CalculatorView onViewMethodology={() => openTab('methodology')} />
+              </View>
+            ) : null}
+            {visited.includes('deck') ? (
+              <View style={tab === 'deck' ? undefined : HIDDEN}>
+                <DeckView />
+              </View>
+            ) : null}
+            {visited.includes('methodology') ? (
+              <View style={tab === 'methodology' ? undefined : HIDDEN}>
+                <MethodologyView />
+              </View>
+            ) : null}
 
             <View
               style={{

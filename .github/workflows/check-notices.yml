@@ -1,0 +1,35 @@
+# 게임사 공지에 우리 CSV가 모르는 스킬이 있는지 매일 확인한다.
+#
+# 실제로 2026-09-10 공지의 신규 스킬 2종이 나흘 동안 반영되지 않았다. 사람이
+# 공지를 놓치면 데이터가 조용히 밀리는데, 앱은 멀쩡히 돌기 때문에 드러나지 않는다.
+#
+# 누락이 있으면 이 잡이 실패한다. 스케줄 잡 실패는 저장소 소유자에게 메일로 가고,
+# CSV에 실제로 반영해야만 초록으로 돌아온다 — 확인만 하고 넘어가는 것을 막으려는
+# 의도다. 스크립트는 상태를 저장하지 않는다.
+#
+# 감지만 한다. 설명문을 효과행으로 옮기는 것은 사람 몫이다. 파서가 처음 보는
+# 조건 문구에서 조용히 틀린 행을 만들기 때문이다.
+name: Check notices
+
+on:
+  schedule:
+    # 09:00 KST = 00:00 UTC. Live 업데이트는 보통 오전 10시에 올라온다.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+# 외부 사이트를 읽기만 한다.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check for skills missing from the CSV
+        run: python3 tools/check_notices.py --strict

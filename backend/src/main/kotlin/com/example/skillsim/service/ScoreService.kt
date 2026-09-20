@@ -5,6 +5,7 @@ import com.example.skillsim.dto.ScoreRequest
 import com.example.skillsim.dto.ScoreResponse
 import com.example.skillsim.dto.ScoreSelection
 import com.example.skillsim.dto.ScoreSkillOption
+import com.example.skillsim.dto.SkillLevelBonus
 import com.example.skillsim.dto.ScoreTableRequest
 import com.example.skillsim.dto.ScoreTableResponse
 import com.example.skillsim.enums.Handedness
@@ -73,6 +74,7 @@ class ScoreService private constructor(
         val seenSkillIds = mutableSetOf<String>()
         val poolCounts = mutableMapOf<String, Int>()
         val calculatorSelections = mutableListOf<ScoreCalculator.Selection>()
+        val trainingBonuses = resolveTrainingBonuses(request.trainingBonuses, normalizedPosition)
 
         selections.orEmpty().forEachIndexed { slotIndex, selection ->
             val skillId = normalizeRequiredOrThrow(selection.skillId, "Skill selection is required.")
@@ -103,7 +105,7 @@ class ScoreService private constructor(
                 throw badRequest("Skill level must be between 1 and $maxLevel.")
             }
 
-            calculatorSelections += ScoreCalculator.Selection(skill, level)
+            calculatorSelections += ScoreCalculator.Selection(skill, level, trainingBonuses[skillId] ?: 0)
         }
 
         return scoreSelections(
@@ -159,6 +161,20 @@ class ScoreService private constructor(
             statBonus,
         )
         return toResponse(result, undefinedConditionWarnings, selections)
+    }
+
+    /**
+     * 포지션 훈련 보너스를 `스킬 -> 오르는 폭`으로 바꾼다. 규칙 위반은 400이다.
+     *
+     * 규칙 자체는 [PositionTrainingRules]에 있다. 여기서는 HTTP 상태로만 옮긴다.
+     */
+    internal fun resolveTrainingBonuses(
+        bonuses: List<SkillLevelBonus>?,
+        position: String,
+    ): Map<String, Int> = try {
+        PositionTrainingRules.resolve(bonuses, position, scoreSkillRepository::findBySkillKey)
+    } catch (ex: IllegalArgumentException) {
+        throw badRequest(ex.message ?: "Invalid position training bonus.")
     }
 
     private fun validateBattingOrder(battingOrder: Int?): Int {
@@ -269,8 +285,10 @@ class ScoreService private constructor(
                     skillId = skill.skillKey,
                     name = skill.name,
                     resolvedDescription = bySkillKey[skill.skillKey]?.let {
-                        SkillDescriptions.resolve(it.skill, it.level)
+                        SkillDescriptions.resolve(it.skill, it.effectiveLevel)
                     },
+                    levelBonus = bySkillKey[skill.skillKey]?.levelBonus ?: 0,
+                    appliedGrade = bySkillKey[skill.skillKey]?.let { appliedGradeLabel(it) },
                     score = skill.score,
                     perStat = skill.perStat.toStatScores(),
                     breakdown = skill.breakdown.map { it.toEffectBreakdown() },
@@ -388,6 +406,13 @@ class ScoreService private constructor(
             )
         }
         return ScoreTableResponse(tiers)
+    }
+
+    /** 보너스까지 반영한 레벨의 등급 라벨. 화면이 "S -> S2"를 보여 주는 데 쓴다. */
+    private fun appliedGradeLabel(selection: ScoreCalculator.Selection): String? {
+        val skill = selection.skill
+        return SkillRules.gradeLabels(skill.cardType, SkillRules.maxLevel(skill))
+            .getOrNull(selection.effectiveLevel - 1)
     }
 
     /** S레벨. 사다리에서 S 위치가 스킬의 최대 단계를 넘으면 최대 단계로 내린다. */

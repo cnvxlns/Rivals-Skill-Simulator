@@ -544,7 +544,7 @@ class ScoreCalculator {
 
             for (effect in skill.effects) {
                 val weight = statWeights[effect.stat] ?: 0.0
-                val rawValue = valueAt(effect.values, selection.level)
+                val rawValue = valueAt(effect.values, selection.effectiveLevel)
                 var baseStat: String? = null
                 var baseValue: Double? = null
                 var value = rawValue
@@ -654,7 +654,23 @@ class ScoreCalculator {
 
     private fun round(value: Double): Double = roundToCents(value)
 
-    data class Selection(val skill: ScoreSkill, val level: Int)
+    /**
+     * 채점할 스킬 한 칸.
+     *
+     * @param level 포지션 훈련 보너스가 붙기 전 **기본 레벨**. 화면에서 고른 값이고,
+     *   스킬레벨보호권이 지키는 것도 이 레벨이다.
+     * @param levelBonus 포지션 훈련이 슬롯에 붙여 준 레벨 보너스([PositionTrainingRules]).
+     */
+    data class Selection(val skill: ScoreSkill, val level: Int, val levelBonus: Int = 0) {
+        /**
+         * 실제로 채점에 쓰는 레벨. 사다리 끝을 넘으면 끝에서 멈춘다.
+         *
+         * 공지는 포지션 훈련으로 S3까지, (FA)시그니처 블랙 효과로 S4까지 오른다고만 적었고
+         * S5 위는 어디에도 없다. 수치 사다리도 거기서 끝나므로 넘치는 만큼은 버린다.
+         */
+        val effectiveLevel: Int
+            get() = minOf(level + levelBonus, SkillRules.maxLevel(skill))
+    }
 
     data class Result(
         val total: Double,

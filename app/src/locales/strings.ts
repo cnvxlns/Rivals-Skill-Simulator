@@ -263,6 +263,13 @@ export const strings = {
   calculator_set_a: 'A',
   calculator_set_b: 'B',
   calculator_delta: 'A 대비',
+  training_title: '포지션특훈 보너스',
+  training_desc:
+    '포지션특훈이 이 자리에 붙여 준 스킬 레벨 보너스입니다. 위에서 고른 레벨은 보너스가 붙기 전 기본 레벨이며, 변경권으로 새로 뽑힌 스킬도 여기 있으면 레벨이 오릅니다. 아이언~골드 스킬만 대상입니다.',
+  training_slot_label: '보너스',
+  training_bonus_label: '상승 폭',
+  training_none: '없음',
+  training_applied_prefix: '특훈 ',
   ticket_title: '스킬 변경권 기댓값',
   ticket_desc: '지금 A 슬롯을 기준으로, 어떤 변경권을 몇 장쯤 쓰면 지금보다 나아지는지 봅니다.',
   ticket_calculate: '기댓값 계산',
@@ -359,4 +366,20 @@ export const strings = {
   deck_progress_prefix: '',
   deck_progress_middle: ' / ',
   deck_progress_suffix: '명 완료',
+
+  /* ── 포지션 훈련(포훈) ── */
+  deck_training_title: '포지션 훈련',
+  deck_training_desc:
+    '구단의 포지션 훈련은 선수가 아니라 자리에 붙고 모든 라인업에 공통입니다. 게임의 포지션 능력치 탭에서 읽은 증가치를 그대로 적으세요.',
+  deck_training_slot: '자리',
+  deck_training_stats: '능력치 증가',
+  deck_training_skills: '스킬 레벨 보너스',
+  deck_training_save: '포지션 훈련 저장',
+  deck_training_saved: '저장했습니다.',
+  deck_training_error_load: '포지션 훈련을 불러오지 못했습니다.',
+  deck_training_error_save: '포지션 훈련을 저장하지 못했습니다.',
+  deck_training_login: '로그인하면 구단의 포지션 훈련을 저장할 수 있습니다.',
+  deck_stats_slot: '능력치를 적은 자리',
+  deck_stats_slot_hint: '보유 능력치에는 그 자리의 포훈이 이미 들어 있습니다. 다른 자리에 세우면 차이만큼만 보정합니다.',
+  deck_stats_slot_current: '지금 자리',
 } as const;

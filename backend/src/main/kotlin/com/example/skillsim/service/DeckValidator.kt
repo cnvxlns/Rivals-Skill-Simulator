@@ -131,6 +131,7 @@ internal class DeckValidator(
         val relieverRole = resolveRelieverRole(request, slot)
         val skills = resolveSkills(request, slot, cardGrade, cardVariant, position)
         val stats = resolveStats(request, slot)
+        val statsSlot = resolveStatsSlot(request, slot)
         validateHands(request, slot)
 
         return DeckPlayer(
@@ -144,6 +145,7 @@ internal class DeckValidator(
             pitcherSlot = DeckRules.pitcherSlotNumber(slot),
             relieverRole = relieverRole,
             stats = stats,
+            statsSlot = statsSlot,
             throwHand = request.throwHand,
             batHand = request.batHand,
         )
@@ -245,6 +247,23 @@ internal class DeckValidator(
                 require(value.isFinite()) { "$slot: Stat $stat must be a finite number." }
                 require(value >= 0.0) { "$slot: Stat $stat must not be negative." }
             }
+    }
+
+    /**
+     * 능력치를 적을 당시의 자리. 포지션 훈련 차액을 계산하는 기준이다.
+     *
+     * 투수 능력치를 타자 자리에서 적었다고 할 수는 없으므로 같은 쪽 자리만 받는다.
+     */
+    private fun resolveStatsSlot(request: DeckPlayerRequest, slot: String): String? {
+        val recorded = request.statsSlot?.trim()?.uppercase()?.ifEmpty { null } ?: return null
+        if (recorded == slot) {
+            return null
+        }
+        require(recorded in DeckRules.ALL_SLOTS) { "$slot: Unknown stats slot $recorded." }
+        require(DeckRules.isPitcher(recorded) == DeckRules.isPitcher(slot)) {
+            "$slot: Stats slot $recorded is not a slot this player can fill."
+        }
+        return recorded
     }
 
     private fun validateHands(request: DeckPlayerRequest, slot: String) {

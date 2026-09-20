@@ -523,6 +523,8 @@ class ScoreCalculator {
      * @param statBonus 기준 스탯에 더할 값. 덱의 컬렉션 버프처럼 선수 개인이 아니라 덱 전체에
      *   걸리는 보정을 넘긴다. 합산형 기준 스탯(`주루+수비`)은 구성 스탯마다 더해지는데,
      *   실제로 두 능력치가 각각 오르므로 그게 맞다. 덱 스코어 스탯은 능력치가 아니라 제외된다.
+     * @param statDeltas 스탯마다 다른 보정. 포지션 훈련처럼 능력치별로 값이 다른 것을 넘긴다.
+     *   [statBonus]와 달리 적힌 스탯에만 걸리고, 음수일 수 있다(자리를 옮겨 포훈이 줄 때).
      */
     fun calculate(
         selections: List<Selection>,
@@ -530,6 +532,7 @@ class ScoreCalculator {
         conditionProbabilities: Map<String, Double> = DEFAULT_CONDITION_PROBABILITIES,
         userStats: Map<String, Double>? = emptyMap(),
         statBonus: Double = 0.0,
+        statDeltas: Map<String, Double> = emptyMap(),
     ): Result {
         val totalPerStat = LinkedHashMap<String, Double>()
         val perSkill = mutableListOf<SkillScore>()
@@ -544,13 +547,13 @@ class ScoreCalculator {
 
             for (effect in skill.effects) {
                 val weight = statWeights[effect.stat] ?: 0.0
-                val rawValue = valueAt(effect.values, selection.level)
+                val rawValue = valueAt(effect.values, selection.effectiveLevel)
                 var baseStat: String? = null
                 var baseValue: Double? = null
                 var value = rawValue
                 if (!effect.baseStat.isNullOrBlank()) {
                     baseStat = effect.baseStat
-                    baseValue = userStatValue(safeUserStats, effect.baseStat, statBonus)
+                    baseValue = userStatValue(safeUserStats, effect.baseStat, statBonus, statDeltas)
                     value = baseValue * rawValue
                 }
                 value = floor(value)
@@ -631,16 +634,17 @@ class ScoreCalculator {
         userStats: Map<String, Double>,
         stat: String?,
         statBonus: Double = 0.0,
+        statDeltas: Map<String, Double> = emptyMap(),
     ): Double {
         // 합산형 기준 스탯(예: "변화+제구")은 각 구성 스탯 값을 더해 기준값으로 사용한다.
         if (stat != null && stat.contains("+")) {
-            return stat.split("+").sumOf { userStatValue(userStats, it.trim(), statBonus) }
+            return stat.split("+").sumOf { userStatValue(userStats, it.trim(), statBonus, statDeltas) }
         }
         // 덱 스코어는 선수 능력치가 아니라 덱의 누적 지표다. 능력치 보정을 받지 않는다.
         if (isDeckScoreStat(stat)) {
             return userStats[stat] ?: DEFAULT_DECK_SCORE
         }
-        return (userStats[stat] ?: DEFAULT_USER_STAT) + statBonus
+        return (userStats[stat] ?: DEFAULT_USER_STAT) + statBonus + (statDeltas[stat] ?: 0.0)
     }
 
     private fun isDeckScoreStat(stat: String?): Boolean = stat != null && stat.contains("덱")
@@ -654,7 +658,23 @@ class ScoreCalculator {
 
     private fun round(value: Double): Double = roundToCents(value)
 
-    data class Selection(val skill: ScoreSkill, val level: Int)
+    /**
+     * 채점할 스킬 한 칸.
+     *
+     * @param level 포지션 훈련 보너스가 붙기 전 **기본 레벨**. 화면에서 고른 값이고,
+     *   스킬레벨보호권이 지키는 것도 이 레벨이다.
+     * @param levelBonus 포지션 훈련이 슬롯에 붙여 준 레벨 보너스([PositionTrainingRules]).
+     */
+    data class Selection(val skill: ScoreSkill, val level: Int, val levelBonus: Int = 0) {
+        /**
+         * 실제로 채점에 쓰는 레벨. 사다리 끝을 넘으면 끝에서 멈춘다.
+         *
+         * 공지는 포지션 훈련으로 S3까지, (FA)시그니처 블랙 효과로 S4까지 오른다고만 적었고
+         * S5 위는 어디에도 없다. 수치 사다리도 거기서 끝나므로 넘치는 만큼은 버린다.
+         */
+        val effectiveLevel: Int
+            get() = minOf(level + levelBonus, SkillRules.maxLevel(skill))
+    }
 
     data class Result(
         val total: Double,

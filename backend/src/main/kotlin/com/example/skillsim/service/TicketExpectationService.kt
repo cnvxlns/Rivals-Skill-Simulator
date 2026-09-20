@@ -25,6 +25,10 @@ import org.springframework.stereotype.Service
  * 선택지만 늘리는 꼴이었다. 보호가 없으면 뽑을 때마다 레벨이 내려갈 수 있어 같은 카드의
  * 기대 장수가 크게 달라진다.
  *
+ * **포지션 훈련 보너스는 슬롯에 붙는다.** 그래서 지금 끼운 스킬뿐 아니라 새로 뽑힌 스킬도
+ * 보너스 목록에 있으면 레벨이 오른다([PositionTrainingRules]). 레벨 보호가 지키는 것은
+ * 보너스가 붙기 전 기본 레벨이다.
+ *
  * 해석적으로 풀지 않고 몬테카를로로 센다. 한 칸의 결과가 티어 → 레벨 → 스킬로 이어지고 블랙
  * 선추첨과 중복 배제까지 얽혀 있어, 정확한 분포를 접어 올리는 것보다 돌려 보는 편이 단순하다.
  */
@@ -64,11 +68,13 @@ class TicketExpectationService(
             batHand = request.batHand,
             userStats = request.userStats,
             lockSlotOne = request.lockSlotOne,
+            trainingBonuses = scoreService.resolveTrainingBonuses(request.trainingBonuses, position),
         )
     }
 
     /**
      * @param currentSkillKeys 지금 끼워 둔 스킬. 빈 칸이 있으면 그 칸은 0점으로 본다.
+     * @param trainingBonuses 포지션 훈련 보너스. `스킬 -> 오르는 폭`이며 비어 있으면 보너스가 없다.
      * @param seed 테스트에서 결과를 고정하려고 받는다. 운영에서는 null이다.
      */
     fun evaluate(
@@ -83,6 +89,7 @@ class TicketExpectationService(
         batHand: Handedness? = null,
         userStats: Map<String, Double>? = null,
         lockSlotOne: Boolean = false,
+        trainingBonuses: Map<String, Int> = emptyMap(),
         seed: Long? = null,
     ): TicketExpectationResponse {
         val score = { selections: List<ScoreCalculator.Selection> ->
@@ -100,7 +107,11 @@ class TicketExpectationService(
 
         val currentSelections = currentSkillKeys.mapIndexedNotNull { index, key ->
             val skill = scoreSkillRepository.findBySkillKey(key) ?: return@mapIndexedNotNull null
-            ScoreCalculator.Selection(skill, SkillRules.levelIndex(currentLevels.getOrNull(index), skill.cardType))
+            ScoreCalculator.Selection(
+                skill,
+                SkillRules.levelIndex(currentLevels.getOrNull(index), skill.cardType),
+                trainingBonuses[skill.skillKey] ?: 0,
+            )
         }
         val currentTotal = if (currentSelections.isEmpty()) 0.0 else score(currentSelections)
 
@@ -119,7 +130,7 @@ class TicketExpectationService(
         )
 
         val tickets = TicketType.entries.map { ticket ->
-            simulate(input.copy(ticket = ticket), currentTotal, score, seed)
+            simulate(input.copy(ticket = ticket), currentTotal, score, trainingBonuses, seed)
         }
 
         return TicketExpectationResponse(
@@ -133,6 +144,7 @@ class TicketExpectationService(
         input: RollEngine.RollInput,
         currentTotal: Double,
         score: (List<ScoreCalculator.Selection>) -> Double,
+        trainingBonuses: Map<String, Int>,
         seed: Long?,
     ): TicketExpectationResponse.TicketOutcome {
         // 티켓마다 씨드를 달리해야 세 티켓이 같은 난수열을 쓰지 않는다.
@@ -145,7 +157,12 @@ class TicketExpectationService(
             val rolled = rollEngine.roll(input, random)
             val selections = rolled.mapNotNull { slot ->
                 val skill: ScoreSkill = slot.skill ?: return@mapNotNull null
-                ScoreCalculator.Selection(skill, SkillRules.levelIndex(slot.level, skill.cardType))
+                ScoreCalculator.Selection(
+                    skill,
+                    SkillRules.levelIndex(slot.level, skill.cardType),
+                    // 보너스는 슬롯에 붙으므로 새로 뽑힌 스킬도 목록에 있으면 오른다.
+                    trainingBonuses[skill.skillKey] ?: 0,
+                )
             }
             val total = if (selections.isEmpty()) 0.0 else score(selections)
             totalSum += total

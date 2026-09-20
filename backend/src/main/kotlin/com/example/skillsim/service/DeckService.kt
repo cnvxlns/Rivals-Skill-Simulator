@@ -7,7 +7,9 @@ import com.example.skillsim.dto.DeckScoreResponse
 import com.example.skillsim.dto.DeckSummaryResponse
 import com.example.skillsim.model.Deck
 import com.example.skillsim.model.DeckRoster
+import com.example.skillsim.model.PositionTraining
 import com.example.skillsim.repository.DeckRepository
+import com.example.skillsim.repository.PositionTrainingRepository
 import com.example.skillsim.repository.ScoreSkillRepository
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.dao.DuplicateKeyException
@@ -28,7 +30,9 @@ import org.springframework.web.server.ResponseStatusException
 class DeckService private constructor(
     private val deckScoreService: DeckScoreService,
     private val deckRepository: DeckRepository,
+    private val positionTrainingRepository: PositionTrainingRepository?,
     private val validator: DeckValidator,
+    private val trainingValidator: PositionTrainingValidator,
 ) {
 
     @Autowired
@@ -37,15 +41,18 @@ class DeckService private constructor(
         scoreService: ScoreService,
         deckScoreService: DeckScoreService,
         deckRepository: DeckRepository,
+        positionTrainingRepository: PositionTrainingRepository,
         scoreDataLoader: ScoreDataLoader,
     ) : this(
         deckScoreService,
         deckRepository,
+        positionTrainingRepository,
         DeckValidator(
             scoreSkillRepository = scoreSkillRepository,
             skillPoolsFor = scoreService::skillPoolsFor,
             allowedStatNames = { scoreDataLoader.statWeights.keys },
         ),
+        PositionTrainingValidator(scoreSkillRepository, { scoreDataLoader.statWeights.keys }),
     )
 
     internal constructor(
@@ -54,19 +61,27 @@ class DeckService private constructor(
         deckScoreService: DeckScoreService,
         deckRepository: DeckRepository,
         statNames: Set<String>,
+        positionTrainingRepository: PositionTrainingRepository? = null,
     ) : this(
         deckScoreService,
         deckRepository,
+        positionTrainingRepository,
         DeckValidator(
             scoreSkillRepository = scoreSkillRepository,
             skillPoolsFor = scoreService::skillPoolsFor,
             allowedStatNames = { statNames },
         ),
+        PositionTrainingValidator(scoreSkillRepository, { statNames }),
     )
 
-    /** 저장 없이 채점만 한다. 덱을 편집하는 동안 점수를 미리 보는 용도다. */
+    /**
+     * 저장 없이 채점만 한다. 덱을 편집하는 동안 점수를 미리 보는 용도다.
+     *
+     * 인증이 없는 경로라 계정에 저장된 포지션 훈련을 읽을 수 없다. 화면이 들고 있는 값을
+     * 요청에 실어 보내면 그것으로 채점한다.
+     */
     fun score(request: DeckSaveRequest?, includeBreakdown: Boolean = false): DeckScoreResponse =
-        deckScoreService.score(validate(request), includeBreakdown)
+        deckScoreService.score(validate(request), includeBreakdown, validateTraining(request))
 
     fun list(userId: Long): List<DeckSummaryResponse> =
         deckRepository.findSummaries(userId).map {
@@ -81,12 +96,12 @@ class DeckService private constructor(
     fun get(id: Long, userId: Long, includeBreakdown: Boolean = false): DeckDetailResponse {
         val deck = deckRepository.findByIdAndUser(id, userId) ?: throw notFound()
         // 저장된 total_score를 믿지 않고 지금 기준으로 다시 계산한다.
-        return deck.toDetail(deckScoreService.score(deck.roster, includeBreakdown))
+        return deck.toDetail(deckScoreService.score(deck.roster, includeBreakdown, trainingOf(userId)))
     }
 
     fun scoreOf(id: Long, userId: Long, includeBreakdown: Boolean = false): DeckScoreResponse {
         val deck = deckRepository.findByIdAndUser(id, userId) ?: throw notFound()
-        return deckScoreService.score(deck.roster, includeBreakdown)
+        return deckScoreService.score(deck.roster, includeBreakdown, trainingOf(userId))
     }
 
     fun create(request: DeckSaveRequest?, userId: Long): DeckDetailResponse {
@@ -98,7 +113,7 @@ class DeckService private constructor(
                 "You can keep at most ${Deck.MAX_PER_USER} decks.",
             )
         }
-        val score = deckScoreService.score(roster)
+        val score = deckScoreService.score(roster, training = trainingOf(userId))
         val deck = try {
             deckRepository.create(userId, name, roster, score.total)
         } catch (ex: DuplicateKeyException) {
@@ -110,7 +125,7 @@ class DeckService private constructor(
     fun update(id: Long, request: DeckSaveRequest?, userId: Long): DeckDetailResponse {
         val roster = validate(request)
         val name = requireName(request?.name)
-        val score = deckScoreService.score(roster)
+        val score = deckScoreService.score(roster, training = trainingOf(userId))
         val deck = try {
             deckRepository.update(id, userId, name, roster, score.total)
         } catch (ex: DuplicateKeyException) {
@@ -123,6 +138,19 @@ class DeckService private constructor(
         if (!deckRepository.delete(id, userId)) {
             throw notFound()
         }
+    }
+
+    /** 계정에 저장된 포지션 훈련. 저장한 적이 없으면 빈 설정이다. */
+    private fun trainingOf(userId: Long): PositionTraining =
+        positionTrainingRepository?.find(userId) ?: PositionTraining.EMPTY
+
+    private fun validateTraining(request: DeckSaveRequest?): PositionTraining = try {
+        trainingValidator.validate(request?.positionTraining)
+    } catch (ex: IllegalArgumentException) {
+        throw ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            ex.message ?: "Invalid position training.",
+        )
     }
 
     internal fun validate(request: DeckSaveRequest?): DeckRoster {

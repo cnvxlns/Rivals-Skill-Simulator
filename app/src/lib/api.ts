@@ -11,6 +11,7 @@ import {
   ScoreResponse,
   ScoreSkillOption,
   MethodologyResponse,
+  PositionTraining,
   ScoreTableRequest,
   ScoreTableResponse,
   TicketExpectationRequest,
@@ -127,6 +128,18 @@ export async function fetchScoreTable(payload: ScoreTableRequest, topN = 10): Pr
 }
 
 /** 스킬 변경권을 몇 장 쓰면 나아지는지. 저장하지 않으므로 로그인이 필요 없다. */
+/** 구단의 포지션 훈련 현황. 계정당 한 벌이라 식별자가 없다. */
+export async function fetchPositionTraining(): Promise<PositionTraining> {
+  const res = await api.get<PositionTraining>('/api/position-training');
+  return res.data;
+}
+
+/** 통째로 갈아끼운다. 보내지 않은 자리는 훈련이 없는 것이 된다. */
+export async function savePositionTraining(training: PositionTraining): Promise<PositionTraining> {
+  const res = await api.put<PositionTraining>('/api/position-training', training);
+  return res.data;
+}
+
 export async function fetchTicketExpectation(
   payload: TicketExpectationRequest,
 ): Promise<TicketExpectationResponse> {

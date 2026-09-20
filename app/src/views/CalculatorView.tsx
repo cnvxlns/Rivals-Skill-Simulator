@@ -383,6 +383,8 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
         ))}
       </View>
 
+      {renderTrainingBonuses()}
+
       {calc.error ? <InfoBanner text={tk(calc.error)} tone="error" /> : null}
       <PrimaryActionButton
         text={t('score_calculate')}
@@ -413,6 +415,61 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
       {renderTickets()}
     </View>
   );
+
+  /**
+   * 포지션특훈이 이 자리에 붙여 준 스킬 레벨 보너스.
+   *
+   * 보너스는 선수가 아니라 자리에 붙는다. 그래서 A·B가 함께 쓰고, 변경권으로 새로 뽑힌
+   * 스킬도 목록에 있으면 오른다. 위에서 고르는 레벨은 보너스가 붙기 전 기본 레벨이다.
+   */
+  function renderTrainingBonuses() {
+    const chosen = calc.trainingBonuses.filter((entry) => entry.skillId).map((entry) => entry.skillId);
+    return (
+      <SectionCard title={t('training_title')}>
+        <View style={{ gap: spacing.md }}>
+          <Text style={[typography.label, { color: colors.secondaryText }]}>{t('training_desc')}</Text>
+          <View style={controlGrid}>
+            {calc.trainingBonuses.map((entry, index) => (
+              <View key={`training-${index}`} style={[controlField, { gap: spacing.sm }]}>
+                <LabeledDropdown
+                  label={`${t('training_slot_label')} ${index + 1}`}
+                  selected={entry.skillId}
+                  options={[
+                    '',
+                    // 이미 다른 칸에 건 스킬은 빼고 보여 준다. 한 자리에 같은 스킬이 두 번
+                    // 나오지 않는다.
+                    ...calc.trainingSkills
+                      .filter((skill) => skill.skillId === entry.skillId || !chosen.includes(skill.skillId))
+                      .map((skill) => skill.skillId),
+                  ]}
+                  optionLabel={(skillId) =>
+                    calc.trainingSkills.find((skill) => skill.skillId === skillId)?.name ??
+                    (skillId ? skillId : t('training_none'))
+                  }
+                  onSelect={(skillId) =>
+                    skillId
+                      ? calc.updateTrainingBonus(index, { skillId })
+                      : calc.clearTrainingBonus(index)
+                  }
+                  searchable
+                  searchPlaceholder={t('score_table_search_placeholder')}
+                />
+                <LabeledDropdown
+                  label={t('training_bonus_label')}
+                  selected={entry.bonus}
+                  options={[1, 2]}
+                  optionLabel={(bonus) => (entry.skillId ? `+${bonus}` : '')}
+                  placeholder={t('training_none')}
+                  disabled={!entry.skillId}
+                  onSelect={(bonus) => calc.updateTrainingBonus(index, { bonus })}
+                />
+              </View>
+            ))}
+          </View>
+        </View>
+      </SectionCard>
+    );
+  }
 
   /**
    * 스킬 변경권 기댓값.
@@ -576,6 +633,14 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                         {skill.name}
                       </Text>
                     </TooltipTarget>
+                    {/* 특훈으로 오른 칸은 실제로 채점한 등급을 알려 준다. 고른 레벨과 다르다. */}
+                    {skill.levelBonus ? (
+                      <Text style={[typography.label, { color: colors.muted }]} numberOfLines={1}>
+                        {t('training_applied_prefix')}
+                        {`+${skill.levelBonus}`}
+                        {skill.appliedGrade ? ` · ${skill.appliedGrade}` : ''}
+                      </Text>
+                    ) : null}
                     <Text
                       style={[
                         {

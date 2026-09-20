@@ -1,6 +1,7 @@
 package com.example.skillsim.dto
 
 import com.example.skillsim.enums.Handedness
+import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
 
@@ -31,4 +32,12 @@ data class TicketExpectationRequest(
     val throwHand: Handedness? = null,
     val batHand: Handedness? = null,
     val lockSlotOne: Boolean = false,
+    /**
+     * 포지션 훈련이 이 슬롯에 붙여 준 스킬 레벨 보너스.
+     *
+     * 보너스는 선수가 아니라 슬롯에 붙으므로 **새로 뽑힌 스킬에도** 적용된다. 그래서
+     * 지금 점수와 뽑은 점수 양쪽에 같은 목록을 건다.
+     */
+    @field:Valid
+    val trainingBonuses: List<SkillLevelBonus>? = null,
 )

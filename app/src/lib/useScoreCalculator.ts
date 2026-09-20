@@ -13,6 +13,7 @@ import {
   ScoreResponse,
   ScoreSelection,
   ScoreSkillOption,
+  SkillLevelBonus,
   SubPosition,
   TicketExpectationResponse,
 } from '../types';
@@ -85,6 +86,20 @@ const emptySet = (slotCount: number): ScoreSet => ({
 /** A와 B. 비교를 꺼도 두 벌을 그대로 들고 있다가 다시 켜면 이어서 쓴다. */
 export const SET_COUNT = 2;
 
+/**
+ * 포지션특훈 보너스 칸 수. 게임이 레벨 6·12·20에서 하나씩 준다.
+ *
+ * 보너스는 스킬이 아니라 자리에 붙으므로 A·B가 함께 쓴다. 두 벌은 같은 자리에 무엇을
+ * 끼울지 비교하는 것이라 자리의 훈련까지 갈리면 비교가 되지 않는다.
+ */
+export const TRAINING_BONUS_SLOTS = 3;
+
+/** 보너스가 붙을 수 있는 스킬 풀. 모먼트 전용·HOF·블랙·WBC는 대상이 아니다. */
+const TRAINING_BONUS_POOL = 'NORMAL';
+
+const emptyTrainingBonuses = (): SkillLevelBonus[] =>
+  Array.from({ length: TRAINING_BONUS_SLOTS }, () => ({ skillId: '', bonus: 1 }));
+
 export function useScoreCalculator() {
   const [cardGrade, setCardGrade] = useState<CardGrade>(CardGrade.SIGNATURE);
   const [cardVariant, setCardVariant] = useState<CardVariant>(CardVariant.NONE);
@@ -99,6 +114,8 @@ export function useScoreCalculator() {
   const [tickets, setTickets] = useState<TicketExpectationResponse | null>(null);
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [lockSlotOne, setLockSlotOne] = useState(false);
+  // 포지션특훈이 이 자리에 붙여 준 스킬 레벨 보너스. 계정에 저장된 구단 설정과 섞지 않는다.
+  const [trainingBonuses, setTrainingBonuses] = useState<SkillLevelBonus[]>(emptyTrainingBonuses);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,6 +157,18 @@ export function useScoreCalculator() {
     [position],
   );
   const visibleBaseStats = useMemo(() => BASE_STAT_INPUTS[position] ?? [], [position]);
+
+  /** 보너스를 걸 수 있는 스킬. 아이언~골드만 나오므로 일반 풀로 좁힌다. */
+  const trainingSkills = useMemo(
+    () => skills.filter((skill) => skill.cardType === TRAINING_BONUS_POOL),
+    [skills],
+  );
+
+  /** 실제로 채워진 보너스만 보낸다. 빈 칸은 요청에 넣지 않는다. */
+  const activeTrainingBonuses = useMemo(
+    () => trainingBonuses.filter((entry) => entry.skillId),
+    [trainingBonuses],
+  );
 
   /** 벌마다 이미 고른 스킬. 같은 벌 안에서만 중복을 막는다. */
   const selectedSkillIds = useMemo(
@@ -222,6 +251,8 @@ export function useScoreCalculator() {
     if (lastPosition.current === scorePosition) return;
     lastPosition.current = scorePosition;
     setSets((prev) => prev.map(() => emptySet(slotCount)));
+    // 보너스도 그 자리의 것이다. 자리가 바뀌면 남겨 둘 이유가 없고, 서버도 거절한다.
+    setTrainingBonuses(emptyTrainingBonuses());
   }, [scorePosition, slotCount]);
 
   useEffect(() => {
@@ -277,6 +308,29 @@ export function useScoreCalculator() {
       }),
     }));
   }, [patchSet, skills]);
+
+  /**
+   * 보너스 한 칸을 고친다. 같은 스킬을 두 칸에 걸 수 없으므로 겹치면 먼저 있던 칸을 비운다.
+   *
+   * 게임에서도 한 자리의 보너스 셋에 같은 스킬이 나오지 않는다.
+   */
+  const updateTrainingBonus = useCallback((index: number, patch: Partial<SkillLevelBonus>) => {
+    setTrainingBonuses((prev) =>
+      prev.map((entry, idx) => {
+        if (idx === index) return { ...entry, ...patch };
+        if (patch.skillId && entry.skillId === patch.skillId) return { skillId: '', bonus: 1 };
+        return entry;
+      }),
+    );
+    clearResults();
+  }, [clearResults]);
+
+  const clearTrainingBonus = useCallback((index: number) => {
+    setTrainingBonuses((prev) =>
+      prev.map((entry, idx) => (idx === index ? { skillId: '', bonus: 1 } : entry)),
+    );
+    clearResults();
+  }, [clearResults]);
 
   const updateLevel = useCallback((setIndex: number, slotIndex: number, level: number) => {
     patchSet(setIndex, (set) => ({
@@ -340,6 +394,7 @@ export function useScoreCalculator() {
       userStats: stats,
       // 다 채웠을 때만 보낸다. 일부만 오면 서버가 어차피 표본 확률로 떨어진다.
       baseStats: Object.keys(base).length > 0 ? base : undefined,
+      trainingBonuses: activeTrainingBonuses.length ? activeTrainingBonuses : undefined,
     });
 
     // 늦게 온 이전 요청이 나중 결과를 덮지 않게 한다. 스탯을 연달아 고치면
@@ -363,7 +418,7 @@ export function useScoreCalculator() {
     // 방향을 바꾸고 계산을 누르면 이전 방향으로 요청이 나갔다.
   }, [
     battingOrder, pitcherSlot, canCalculate, hasUnavailableSkill, cardGrade, cardVariant,
-    position, scorePosition, activeCount, throwHand, batHand,
+    position, scorePosition, activeCount, throwHand, batHand, activeTrainingBonuses,
   ]);
 
   // 조건이 바뀌면 화면에 남은 결과는 더 이상 그 조건의 결과가 아니다. updatePitcherSlot과
@@ -411,6 +466,8 @@ export function useScoreCalculator() {
           batHand: position === Position.BATTER ? batHand : undefined,
           userStats,
           lockSlotOne,
+          // 보너스는 자리에 붙으므로 새로 뽑힌 스킬에도 걸린다. 서버가 그렇게 센다.
+          trainingBonuses: activeTrainingBonuses.length ? activeTrainingBonuses : undefined,
         }),
       );
     } catch {
@@ -421,7 +478,7 @@ export function useScoreCalculator() {
     }
   }, [
     sets, scorePosition, cardGrade, cardVariant, position, battingOrder,
-    pitcherSlot, throwHand, batHand, userStats, lockSlotOne,
+    pitcherSlot, throwHand, batHand, userStats, lockSlotOne, activeTrainingBonuses,
   ]);
 
   const calculate = useCallback(async () => {
@@ -501,6 +558,10 @@ export function useScoreCalculator() {
     evaluateTickets,
     lockSlotOne,
     setLockSlotOne,
+    trainingBonuses,
+    trainingSkills,
+    updateTrainingBonus,
+    clearTrainingBonus,
     selectedSkillIds,
     visibleStats,
     userStats,

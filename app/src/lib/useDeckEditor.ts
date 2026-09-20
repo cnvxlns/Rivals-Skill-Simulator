@@ -8,9 +8,13 @@ import {
   CardGrade,
   CardVariant,
   DeckDetail,
+  DeckImportWarning,
   DeckPlayer,
   DeckSaveRequest,
+  DeckScoreChoice,
+  DeckScoreLadder,
   DeckScoreResponse,
+  DeckScoreSide,
   LINEUP_SLOTS,
   PITCHER_COUNT,
   PositionTraining,
@@ -82,6 +86,51 @@ export const unavailableSkills = (player: DeckPlayer | undefined): string[] => {
   );
 };
 
+/** 한 자리의 스킬이 게임 규칙을 어기는 방식. 여럿일 수 있다. */
+export type SkillProblem =
+  /** 이 카드에서는 나올 수 없는 스킬. */
+  | { kind: 'UNAVAILABLE'; index: number; skillId: string }
+  /** 같은 스킬을 두 번 들고 있다. */
+  | { kind: 'DUPLICATE'; index: number; skillId: string }
+  /** 이 카드의 칸 수를 넘겼다. */
+  | { kind: 'OVERFLOW'; index: number; skillId: string };
+
+/**
+ * 이 자리의 스킬이 어긴 규칙.
+ *
+ * 워크북은 게임 규칙을 검사하지 않아서 중복이나 칸 초과가 그대로 들어온다(배포된 샘플부터
+ * 전원이 같은 스킬을 네 칸에 들고 있다). 임포트가 조용히 손보지 않으므로 여기서 짚어 준다.
+ */
+export const skillProblemsOf = (player: DeckPlayer | undefined): SkillProblem[] => {
+  if (!player) return [];
+  const ids = player.skills.map((s) => s.skillId);
+  const slotCount = slotCountFor(player.cardGrade);
+  const out: SkillProblem[] = [];
+  ids.forEach((skillId, index) => {
+    if (index >= slotCount) {
+      out.push({ kind: 'OVERFLOW', index, skillId });
+      return;
+    }
+    if (ids.indexOf(skillId) !== index) {
+      out.push({ kind: 'DUPLICATE', index, skillId });
+      return;
+    }
+    const others = ids.filter((_, other) => other !== index);
+    if (
+      !canPlaceSkill(
+        String(player.cardGrade),
+        player.cardVariant ? String(player.cardVariant) : undefined,
+        index,
+        skillId,
+        others,
+      )
+    ) {
+      out.push({ kind: 'UNAVAILABLE', index, skillId });
+    }
+  });
+  return out;
+};
+
 const emptyPlayer = (slot: string, battingOrder?: number): DeckPlayer => ({
   slot,
   cardGrade: CardGrade.SIGNATURE,
@@ -130,6 +179,22 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
     });
     return seed;
   });
+
+  /**
+   * 덱 스코어 보상에서 고른 칸들. 임계값마다 좌·우 중 하나다.
+   *
+   * 키는 `TEAM:200`처럼 사다리와 임계값을 합친 것이다. 맵으로 들고 있으면 같은 칸을 두 번
+   * 고르는 상태가 애초에 만들어지지 않는다.
+   */
+  const [coordination, setCoordination] = useState<Record<string, DeckScoreChoice>>(() => {
+    const seed: Record<string, DeckScoreChoice> = {};
+    initial?.roster.deckScoreChoices?.forEach((choice) => {
+      seed[`${choice.ladder}:${choice.threshold}`] = choice;
+    });
+    return seed;
+  });
+
+  const [importWarnings, setImportWarnings] = useState<DeckImportWarning[]>([]);
 
   const [score, setScore] = useState<DeckScoreResponse | null>(initial?.score ?? null);
   const [scoring, setScoring] = useState(false);
@@ -181,10 +246,16 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
    * 백엔드도 같은 것을 막지만 그쪽 오류는 저장을 눌러야 보인다. 어느 자리가 문제인지
    * 미리 알려 주고 채점·저장을 멈춘다.
    */
-  const brokenSlots = useMemo(
-    () => allSlots.filter((slot) => unavailableSkills(players[slot]).length > 0),
-    [allSlots, players],
-  );
+  const skillProblems = useMemo(() => {
+    const out: Record<string, SkillProblem[]> = {};
+    allSlots.forEach((slot) => {
+      const problems = skillProblemsOf(players[slot]);
+      if (problems.length) out[slot] = problems;
+    });
+    return out;
+  }, [allSlots, players]);
+
+  const brokenSlots = useMemo(() => Object.keys(skillProblems), [skillProblems]);
   // 합이 12가 아니면 자리 수 자체가 26이 아니므로 저장도 채점도 할 수 없다.
   const isComplete =
     completedCount === allSlots.length && isPitcherStaffValid && brokenSlots.length === 0;
@@ -256,11 +327,22 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
           ...(p.statsSlot ? { statsSlot: p.statsSlot } : {}),
           ...(p.throwHand ? { throwHand: p.throwHand } : {}),
           ...(p.batHand ? { batHand: p.batHand } : {}),
+          ...(p.baseStats && Object.keys(p.baseStats).length ? { baseStats: p.baseStats } : {}),
+          ...(p.trainingStats && Object.keys(p.trainingStats).length
+            ? { trainingStats: p.trainingStats }
+            : {}),
+          ...(p.specialTrainingStats && Object.keys(p.specialTrainingStats).length
+            ? { specialTrainingStats: p.specialTrainingStats }
+            : {}),
+          ...(p.transcendenceLevel != null ? { transcendenceLevel: p.transcendenceLevel } : {}),
+          ...(p.enhancementLevel != null ? { enhancementLevel: p.enhancementLevel } : {}),
+          ...(p.year != null ? { year: p.year } : {}),
         };
       }),
       ...(training && Object.keys(training.slots).length ? { positionTraining: training } : {}),
+      ...(Object.keys(coordination).length ? { deckScoreChoices: Object.values(coordination) } : {}),
     }),
-    [allSlots, players, name, starterCount, relieverCount, closerCount, training],
+    [allSlots, players, name, starterCount, relieverCount, closerCount, training, coordination],
   );
 
   // 완성된 덱이면 편집하는 동안 점수를 미리 보여 준다. 저장하지 않는다.
@@ -302,6 +384,63 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
     [toRequest],
   );
 
+  /** 덱 스코어 한 칸을 고른다. 같은 칸을 다시 누르면 해제한다. */
+  const chooseTier = useCallback(
+    (ladder: DeckScoreLadder, threshold: number, side: DeckScoreSide, decadeYear?: number | null) => {
+      const key = `${ladder}:${threshold}`;
+      setCoordination((prev) => {
+        const current = prev[key];
+        if (current && current.side === side && (current.decadeYear ?? null) === (decadeYear ?? null)) {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        }
+        return { ...prev, [key]: { ladder, threshold, side, ...(decadeYear != null ? { decadeYear } : {}) } };
+      });
+    },
+    [],
+  );
+
+  const clearTier = useCallback((ladder: DeckScoreLadder, threshold: number) => {
+    setCoordination((prev) => {
+      const next = { ...prev };
+      delete next[`${ladder}:${threshold}`];
+      return next;
+    });
+  }, []);
+
+  /**
+   * 워크북에서 읽은 초안을 편집기에 붓는다.
+   *
+   * 워크북에는 18명뿐이라 **덮어쓰는 자리만** 손댄다. 이미 채워 둔 나머지 자리는 그대로 둔다.
+   * 덱 이름은 비어 있을 때만 채운다 — 올린 사람이 이름을 이미 정했을 수 있다.
+   */
+  const applyImport = useCallback((draft: DeckSaveRequest, warnings: DeckImportWarning[]) => {
+    setImportWarnings(warnings);
+    if (draft.starterCount) setStarters(draft.starterCount);
+    if (draft.closerCount) setClosers(draft.closerCount);
+    if (draft.starterCount && draft.closerCount) {
+      setRelievers(PITCHER_COUNT - draft.starterCount - draft.closerCount);
+    }
+    setPlayers((prev) => {
+      const next = { ...prev };
+      draft.players.forEach((player) => {
+        const slot = player.slot;
+        if (!next[slot]) return;
+        next[slot] = { ...next[slot], ...player, slot };
+      });
+      return next;
+    });
+    if (draft.deckScoreChoices?.length) {
+      const seed: Record<string, DeckScoreChoice> = {};
+      draft.deckScoreChoices.forEach((choice) => {
+        seed[`${choice.ladder}:${choice.threshold}`] = choice;
+      });
+      setCoordination(seed);
+    }
+    setName((prev) => prev || draft.name?.trim() || '');
+  }, []);
+
   const reload = useCallback(async (deckId: number) => {
     try {
       return await fetchDeck(deckId);
@@ -329,7 +468,13 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
     pitcherSlots,
     completedCount,
     brokenSlots,
+    skillProblems,
     isComplete,
+    coordination,
+    chooseTier,
+    clearTier,
+    importWarnings,
+    applyImport,
     score,
     scoring,
     saving,

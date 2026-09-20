@@ -103,6 +103,27 @@ internal object DeckRules {
     fun pitcherSlotNumber(slot: String): Int? =
         if (isPitcher(slot)) slot.dropWhile { it.isLetter() }.toIntOrNull() else null
 
+    /**
+     * 파트 평균에 곱하는 수. 워크북의 `AVERAGE(...)*10`에서 왔다.
+     *
+     * 평균을 쓰기 때문에 선발 4~6·중계 4~7·마무리 1~2로 인원이 달라져도 공식이 그대로 성립한다.
+     */
+    const val PART_SCALE = 10.0
+
+    /**
+     * 종합 점수에서 파트가 갖는 몫. 워크북의 `총점 = 선발×0.4 + 계투×0.1 + 타자×0.5`다.
+     *
+     * 후보를 0으로 적어 둔 것은 빠뜨려서가 아니다. 워크북에는 후보 자리가 아예 없고,
+     * 게임의 랭킹 대전 공격도 후보를 세우지 않는다. 0을 눈에 보이게 두어 "왜 안 세는지"를
+     * 값으로 남긴다.
+     */
+    val PART_WEIGHTS: Map<DeckPart, Double> = mapOf(
+        DeckPart.ROTATION to 0.4,
+        DeckPart.BULLPEN to 0.1,
+        DeckPart.LINEUP to 0.5,
+        DeckPart.BENCH to 0.0,
+    )
+
     /** 점수 소계를 나누는 파트. */
     fun partOf(slot: String): DeckPart = when {
         isLineup(slot) -> DeckPart.LINEUP

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   InfoBanner,
@@ -27,12 +27,17 @@ import {
   CardVariant,
   DeckDetail,
   DeckPlayer,
+  DeckRules,
   LINEUP_FIELD_POSITIONS,
 } from '../types';
 import BaseballField, { fieldRatio } from '../components/BaseballField';
 import BattingOrderLane from '../components/BattingOrderLane';
+import DeckImportCard from './DeckImportCard';
 import DeckPlayerEditor from './DeckPlayerEditor';
+import DeckScoreTierSection from './DeckScoreTierSection';
+import DeckTeamBuffCard from './DeckTeamBuffCard';
 import DeckTrainingEditor from './DeckTrainingEditor';
+import { fetchDeckRules } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePositionTraining } from '../lib/usePositionTraining';
 
@@ -117,6 +122,20 @@ export default function DeckEditorView({
   // 포지션 훈련은 덱이 아니라 구단에 붙는다. 덱 편집과 따로 읽고 쓰되 채점에는 함께 싣는다.
   const training = usePositionTraining(!!user);
   const editor = useDeckEditor(initial, training.training);
+  // 덱 스코어 사다리와 카드별 성장 상한. 상수라 한 번만 받아 둔다.
+  const [rules, setRules] = useState<DeckRules | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchDeckRules()
+      .then((result) => {
+        if (alive) setRules(result);
+      })
+      // 규칙을 못 받아도 편집은 된다. 덱 스코어 섹션만 비어 보인다.
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [editing, setEditing] = useState<string | null>(null);
   // 야구장 칸의 실제 크기. 칩을 픽셀로 놓아야 가장자리에서 칸 밖으로 삐져나가지 않는다.
   const [fieldBox, setFieldBox] = useState({ width: 0, height: 0 });
@@ -395,6 +414,25 @@ export default function DeckEditorView({
         </View>
       </SectionCard>
 
+      <DeckImportCard onApply={editor.applyImport} onApplyTraining={training.mergeSlots} />
+
+      <DeckScoreTierSection
+        ladder="TEAM"
+        rules={rules}
+        chosen={editor.coordination}
+        onChoose={editor.chooseTier}
+        onClear={editor.clearTier}
+      />
+      <DeckScoreTierSection
+        ladder="SPECIAL"
+        rules={rules}
+        chosen={editor.coordination}
+        onChoose={editor.chooseTier}
+        onClear={editor.clearTier}
+      />
+
+      <DeckTeamBuffCard buffs={editor.score?.teamBuffs ?? []} />
+
       <DeckTrainingEditor slots={editor.allSlots} state={training} signedIn={!!user} />
 
       <SectionCard title={t('deck_score_title')}>
@@ -417,11 +455,27 @@ export default function DeckEditorView({
                     <Text style={{ ...typography.body, color: colors.secondaryText }}>
                       {t(PART_LABEL_KEYS[part.part as keyof typeof PART_LABEL_KEYS] ?? 'deck_score_title')}
                     </Text>
-                    <Text style={{ ...typography.body, color: colors.onSurface }}>
-                      {part.total.toFixed(2)}
+                    <Text
+                      style={{
+                        ...typography.body,
+                        color: part.weight === 0 ? colors.muted : colors.onSurface,
+                      }}
+                    >
+                      {part.average.toFixed(2)} × 10 × {part.weight} = {part.weighted.toFixed(2)}
                     </Text>
                   </View>
                 ))}
+                <Text style={{ ...typography.caption, color: colors.muted }}>
+                  {t('deck_bench_excluded')}
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ ...typography.body, color: colors.secondaryText }}>
+                    {t('deck_score_stat')} · {t('deck_score_skill')}
+                  </Text>
+                  <Text style={{ ...typography.body, color: colors.onSurface }}>
+                    {editor.score.statTotal.toFixed(2)} · {editor.score.skillTotal.toFixed(2)}
+                  </Text>
+                </View>
               </View>
 
               {/*
@@ -505,6 +559,7 @@ export default function DeckEditorView({
                   slot={editing}
                   player={editor.players[editing]}
                   slots={editor.allSlots}
+                  rules={rules}
                   onChange={(patch) => editor.updatePlayer(editing, patch)}
                   onChangeBattingOrder={(order) => editor.moveBattingOrder(editing, order)}
                 />

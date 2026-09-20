@@ -105,6 +105,23 @@ export function usePositionTraining(enabled: boolean) {
     [patchSlot],
   );
 
+  /**
+   * 워크북에서 읽은 자리별 훈련을 얹는다.
+   *
+   * **구단 전체에 걸리는 설정이라** 저장은 사용자가 따로 누른다. 여기서는 화면 상태만
+   * 바꾸고, 덮어쓰는 자리만 손댄다 — 워크북에 없는 자리(후보·RP4~7)는 그대로 둔다.
+   */
+  const mergeSlots = useCallback((incoming: PositionTraining) => {
+    setSaved(false);
+    setTraining((prev) => {
+      const slots = { ...prev.slots };
+      Object.entries(incoming.slots ?? {}).forEach(([slot, value]) => {
+        slots[slot] = { ...(slots[slot] ?? {}), ...value };
+      });
+      return { slots };
+    });
+  }, []);
+
   const clearBonus = useCallback(
     (slot: string, index: number) => {
       patchSlot(slot, (current) => {
@@ -148,6 +165,7 @@ export function usePositionTraining(enabled: boolean) {
     updateStat,
     updateBonus,
     clearBonus,
+    mergeSlots,
     loading,
     saving,
     saved,

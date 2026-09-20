@@ -57,14 +57,14 @@ backend/simulator.db
 
 # ===========================
 # Working docs / internal assets (planning notes, recordings)
-# 데이터 원천과 변환기는 추적한다. CSV는 파생물이라 원본이 없으면 복구가 불가능하다
-# (블랙 스킬 레벨은 화면 녹화 판독으로 복원해야 했다). 나머지 docs/는 계속 제외.
+#
+# 변환기는 tools/에 추적하고, 원천 워크북과 참고 이미지는 추적하지 않는다. 그래서 파생
+# CSV가 곧 원천이다 — 커밋된 CSV를 잃으면 워크북을 다시 구해 와야 복구된다.
+# 그 값을 지키는 것이 tools/validate_deck_data.py와 validate_skill_csv.py다.
+# 워크북이 손에 있으면 `deck_workbook.py --check`로 커밋된 CSV와 대조할 수 있다.
 # ===========================
 docs/*
 !docs/skillsim_logics.json
-!docs/rivals_skills.xlsx
-!docs/convert_xlsx.py
-!docs/test_convert_xlsx.py
 !docs/score_effects_manual_review.csv
 
 # ===========================

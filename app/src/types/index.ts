@@ -174,6 +174,12 @@ export type ScoreSkillBreakdown = {
   resolvedDescription?: string | null;
   /** 포지션 훈련이 이 스킬에 얹어 준 레벨. 없으면 0이다. */
   levelBonus?: number;
+  /** 점수의 출처. 덱은 워크북 점수표(EXCEL)를, 계산기는 엔진(ENGINE)을 쓴다. */
+  source?: 'ENGINE' | 'EXCEL';
+  /** 워크북 점수표에서 고른 옵션 변형. */
+  option?: string | null;
+  /** 변형이 여럿인데 상황으로 판정할 수 없어 사용자가 골라야 하는가. */
+  optionNeeded?: boolean;
   /** 보너스까지 반영해 실제로 채점한 등급 라벨(S2 등). */
   appliedGrade?: string | null;
   score: number;
@@ -319,6 +325,77 @@ export const ROSTER_SIZE = 26;
 export type DeckSkillSelection = {
   skillId: string;
   level: number;
+  /**
+   * 워크북 점수표의 옵션 변형을 직접 고른 것.
+   *
+   * 비우면 선수 상황(타순·포지션·능력치)으로 서버가 판정한다. 엑셀에서 가져온 덱은
+   * 워크북이 적어 둔 변형을 그대로 들고 오므로, 나중에 타순을 바꿔도 따라가지 않는다.
+   */
+  option?: string | null;
+};
+
+/** 덱 스코어 보상의 두 사다리. 게임 화면의 `팀 덱 스코어` / `스페셜 덱 스코어`다. */
+export type DeckScoreLadder = 'TEAM' | 'SPECIAL';
+
+export type DeckScoreSide = 'LEFT' | 'RIGHT';
+
+/**
+ * 덱 스코어에서 고른 한 칸.
+ *
+ * @param decadeYear 연대 보상(스페셜 615·645·680)에서 고른 연대. 그 카드의 연도가
+ *   `[decadeYear, decadeYear + 9]` 안이면 보상을 받는다.
+ */
+export type DeckScoreChoice = {
+  ladder: DeckScoreLadder;
+  threshold: number;
+  side: DeckScoreSide;
+  decadeYear?: number | null;
+};
+
+/** 덱 편집기가 화면을 그리는 데 쓰는 규칙. 서버가 CSV에서 만들어 준다. */
+export type DeckRules = {
+  ladders: {
+    ladder: DeckScoreLadder;
+    tiers: {
+      threshold: number;
+      /** 연대를 골라야 하는 칸인가. */
+      decade: boolean;
+      left: DeckRuleEffect[];
+      right: DeckRuleEffect[];
+    }[];
+  }[];
+  decadeYears: number[];
+  growth: {
+    track: 'TRANSCENDENCE' | 'ENHANCEMENT';
+    cardGrade: string;
+    cardVariant: string;
+    maxLevel: number;
+  }[];
+  partWeights: Record<string, number>;
+  partScale: number;
+};
+
+export type DeckRuleEffect = {
+  /** `BATTER_ALL` 같은 그룹 이름이거나 `1B|3B` 같은 자리 목록. */
+  target: string;
+  stat: string;
+  amount: number;
+  condition: string;
+};
+
+/** 워크북 업로드 결과. 저장하지 않고 편집기에 부어 넣는다. */
+export type DeckImportResponse = {
+  deck: DeckSaveRequest;
+  positionTraining?: PositionTraining | null;
+  warnings: DeckImportWarning[];
+};
+
+export type DeckImportWarning = {
+  /** 문제가 된 워크북 셀. 사용자가 엑셀에서 바로 찾아갈 수 있게 한다. */
+  cell?: string | null;
+  slot?: string | null;
+  code: string;
+  message: string;
 };
 
 /**
@@ -359,6 +436,22 @@ export type DeckPlayer = {
   statsSlot?: string | null;
   throwHand?: Handedness | null;
   batHand?: Handedness | null;
+  /**
+   * 카드 고유 능력치. 육성을 하나도 하지 않은 값이라 stats와 다르다.
+   *
+   * **이 값을 적은 스탯은 성분을 쌓아 최종 능력치를 만든다**(기본 + 훈련 + 특훈 + 초월 +
+   * 강화 + 포지션 훈련 + 덱 스코어 보상). 적지 않은 스탯은 stats를 최종값으로 그대로 쓴다.
+   */
+  baseStats?: Record<string, number>;
+  trainingStats?: Record<string, number>;
+  /** 특훈. 라이브 픽업(라픽)으로 오른 값도 여기 포함한다. */
+  specialTrainingStats?: Record<string, number>;
+  /** 초월 레벨. 카드마다 상한이 다르다(시그니처·프라임 계열은 9). */
+  transcendenceLevel?: number | null;
+  /** 강화 레벨. 블랙 계열은 10에서 멈춘다. */
+  enhancementLevel?: number | null;
+  /** 카드 연도. 스페셜 덱 스코어의 연대 보상이 이 값을 본다. */
+  year?: number | null;
 };
 
 export type DeckSaveRequest = {
@@ -370,12 +463,16 @@ export type DeckSaveRequest = {
   players: DeckPlayer[];
   /** 저장 없이 채점만 할 때 쓴다. 저장된 덱은 서버가 계정 설정을 읽는다. */
   positionTraining?: PositionTraining;
+  /** 덱 스코어 보상에서 고른 칸들. 임계값마다 좌·우 중 하나다. */
+  deckScoreChoices?: DeckScoreChoice[];
 };
 
 export type DeckRoster = {
   starterCount: number;
   closerCount: number;
   players: DeckPlayer[];
+  /** 덱 스코어 보상에서 고른 칸들. 임계값마다 좌·우 중 하나다. */
+  deckScoreChoices?: DeckScoreChoice[];
 };
 
 export type DeckPartScore = {
@@ -383,6 +480,42 @@ export type DeckPartScore = {
   part: string;
   total: number;
   playerCount: number;
+  average: number;
+  /** 종합 점수에서의 몫. 후보는 0이다. */
+  weight: number;
+  /** average × 10 × weight. 이 값들을 더하면 종합 점수가 된다. */
+  weighted: number;
+};
+
+/** 능력치 한 칸이 어디서 왔는지. */
+export type DeckStatSource = {
+  stat: string;
+  /** BASE | TRAINING | SPECIAL_TRAINING | TRANSCENDENCE | ENHANCEMENT |
+   *  POSITION_TRAINING | DECK_SCORE | COLLECTION | DIRECT */
+  kind: string;
+  amount: number;
+};
+
+/** 능력치 점수의 스탯별 내역. */
+export type DeckStatScoreEntry = {
+  stat: string;
+  value: number;
+  teamBuff: number;
+  weight: number;
+  contribution: number;
+};
+
+export type DeckStatAmount = { stat: string; amount: number };
+
+/** 라인업 전체를 올려 주는 스킬 한 건. 덱의 스킬에서 유도한다. */
+export type DeckTeamBuff = {
+  slot: string;
+  skillId: string;
+  skillName: string;
+  level: number;
+  /** BATTER | PITCHER */
+  scope: string;
+  stats: DeckStatAmount[];
 };
 
 export type DeckPlayerScore = {
@@ -397,6 +530,14 @@ export type DeckPlayerScore = {
   perSkill: ScoreSkillBreakdown[];
   perStat: ScoreStatBreakdown[];
   warnings: string[];
+  /** 능력치 점수. 워크북의 J열이다. */
+  statScore: number;
+  /** 스킬 점수. 워크북의 O열이다. score는 둘의 합이다. */
+  skillScore: number;
+  finalStats: DeckStatAmount[];
+  teamBuff: DeckStatAmount[];
+  statSources: DeckStatSource[];
+  statEntries: DeckStatScoreEntry[];
 };
 
 /** 카드 계열을 모아서 받는 능력치 보정. 채점에 이미 반영돼 있다. */
@@ -417,11 +558,15 @@ export type CollectionBuffInfo = {
 };
 
 export type DeckScoreResponse = {
+  /** 파트별 평균에 가중치를 매긴 종합 점수. 26명 점수의 단순 합이 아니다. */
   total: number;
+  statTotal: number;
+  skillTotal: number;
   parts: DeckPartScore[];
   players: DeckPlayerScore[];
   warnings: string[];
   collectionBuff: CollectionBuffInfo;
+  teamBuffs: DeckTeamBuff[];
 };
 
 /** 스킬 변경권 세 종류. 백엔드 TicketType과 같은 이름을 쓴다. */

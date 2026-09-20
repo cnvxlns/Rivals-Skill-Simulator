@@ -3,6 +3,8 @@ import axios from 'axios';
 import {
   AuthResponse,
   DeckDetail,
+  DeckImportResponse,
+  DeckRules,
   DeckSaveRequest,
   DeckScoreResponse,
   DeckSummary,
@@ -169,6 +171,30 @@ export async function fetchMe(): Promise<AuthUser> {
 /** 저장하지 않고 채점만 한다. 편집 중 미리보기용이라 로그인이 필요 없다. */
 export async function scoreDeck(payload: DeckSaveRequest): Promise<DeckScoreResponse> {
   const res = await api.post<DeckScoreResponse>('/api/decks/score', payload);
+  return res.data;
+}
+
+/**
+ * 덱 편집기가 화면을 그리는 데 쓰는 규칙. 사다리 54칸과 카드별 성장 상한이다.
+ *
+ * 앱이 이 표를 복제하지 않게 서버에서 받는다. 복제하면 게임이 바뀔 때 두 곳을 고쳐야 하고,
+ * 한쪽만 고치면 화면과 채점이 조용히 어긋난다.
+ */
+export async function fetchDeckRules(): Promise<DeckRules> {
+  const res = await api.get<DeckRules>('/api/decks/rules');
+  return res.data;
+}
+
+/**
+ * 덱 관리 워크북을 올려 편집기 초안을 받는다. 저장하지 않는다.
+ *
+ * Content-Type을 직접 지정하지 않는다. multipart는 경계 문자열(boundary)이 헤더에 들어가야
+ * 하는데, 손으로 적으면 그 값이 빠져 서버가 본문을 가른다.
+ */
+export async function importDeckWorkbook(file: Blob, fileName: string): Promise<DeckImportResponse> {
+  const form = new FormData();
+  form.append('file', file, fileName);
+  const res = await api.post<DeckImportResponse>('/api/decks/import', form);
   return res.data;
 }
 

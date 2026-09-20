@@ -160,6 +160,55 @@ export function SectionCard({
   );
 }
 
+/**
+ * 접었다 펼 수 있는 섹션.
+ *
+ * 덱 편집기가 길어져서 넣었다. 덱 스코어 사다리만 54줄이라 늘 펼쳐 두면 야구장과 점수
+ * 카드가 화면 밖으로 밀린다.
+ *
+ * 접힌 상태에서도 뜻이 남아야 한다. 하우스 룰이 "hover에만 의존하는 정보를 두지 않는다"인
+ * 것과 같은 이유로, 여기서는 [summary]를 머리글에 적어 둔다 — 펼치지 않아도 "팀 12/25"를
+ * 읽을 수 있어야 고를 이유가 생긴다. 화살표 방향만으로는 안에 무엇이 있는지 알 수 없다.
+ */
+export function CollapsibleSection({
+  title,
+  summary,
+  defaultOpen = false,
+  children,
+}: PropsWithChildren<{ title: string; summary?: string; defaultOpen?: boolean }>) {
+  const { colors, spacing, typography } = useAppTheme();
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <SectionCard>
+      <Pressable
+        onPress={() => setOpen((prev) => !prev)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: spacing.md,
+        }}
+      >
+        <Text style={[typography.card, { color: colors.onSurface, flexShrink: 1 }]}>{title}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          {summary ? (
+            <Text style={[typography.label, { color: colors.secondaryText }]}>{summary}</Text>
+          ) : null}
+          {/* 접힘 상태를 글자로도 남긴다. 화살표 회전만으로는 스크린리더가 읽지 못한다. */}
+          <Text style={[typography.label, { color: colors.muted }]}>{open ? '접기' : '펼치기'}</Text>
+          <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
+            <CaretDown color={colors.muted} />
+          </View>
+        </View>
+      </Pressable>
+      {open ? children : null}
+    </SectionCard>
+  );
+}
+
 /* ── 칩 ──────────────────────────────────────────────────── */
 
 export function TierChip({ tier, label }: { tier: string; label: string }) {

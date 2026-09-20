@@ -5,6 +5,7 @@ import { Text, View } from 'react-native';
 import {
   InfoBanner,
   LabeledDropdown,
+  LinkAction,
   LoadingState,
   NumberField,
   SectionCard,
@@ -19,6 +20,7 @@ import { TRAINING_BATTER_STATS, TRAINING_PITCHER_STATS } from '../lib/usePositio
 import { useAppTheme } from '../theme/useTheme';
 import {
   CARD_GRADES_LOW_TO_HIGH,
+  DeckRules,
   CardGrade,
   CardVariant,
   DeckPlayer,
@@ -56,6 +58,7 @@ export default function DeckPlayerEditor({
   slot,
   player,
   slots: deckSlots,
+  rules,
   onChange,
   onChangeBattingOrder,
 }: {
@@ -63,6 +66,8 @@ export default function DeckPlayerEditor({
   player: DeckPlayer;
   /** 덱의 자리 전체. 능력치를 적은 자리를 고르는 데 쓴다. */
   slots: string[];
+  /** 카드별 성장 상한. 없는 레벨을 고르지 못하게 한다. */
+  rules: DeckRules | null;
   onChange: (patch: Partial<DeckPlayer>) => void;
   /** 타순은 다른 자리까지 밀어야 해서 별도로 받는다. 주전에만 쓰인다. */
   onChangeBattingOrder: (order: number) => void;
@@ -119,12 +124,29 @@ export default function DeckPlayerEditor({
     [slotCount, player.skills],
   );
 
+  /**
+   * 칸에 담긴 스킬을 저장한다.
+   *
+   * 칸 수를 넘는 스킬은 **버리지 않고 뒤에 그대로 붙인다.** 워크북에서 가져온 덱은 3칸
+   * 카드에 스킬이 넷일 수 있는데(배포된 샘플이 그렇다), 첫 편집에서 조용히 잘리면 무엇이
+   * 사라졌는지 아무도 모른다. 아래 "칸을 넘은 스킬"에서 눈으로 보고 지우게 한다.
+   */
   const commit = useCallback(
     (next: (DeckSkillSelection | null)[]) => {
-      onChange({ skills: next.filter((s): s is DeckSkillSelection => !!s) });
+      const kept = next.filter((s): s is DeckSkillSelection => !!s);
+      onChange({ skills: [...kept, ...player.skills.slice(slotCount)] });
     },
-    [onChange],
+    [onChange, player.skills, slotCount],
   );
+
+  /** 칸 수를 넘겨 들어온 스킬. 워크북은 게임 규칙을 검사하지 않는다. */
+  const overflowSkills = player.skills.slice(slotCount);
+
+  const removeOverflow = (index: number) => {
+    const next = [...player.skills];
+    next.splice(slotCount + index, 1);
+    onChange({ skills: next });
+  };
 
   const setSkillAt = (index: number, skillId: string) => {
     const next = [...slots];
@@ -169,6 +191,46 @@ export default function DeckPlayerEditor({
    * 빈 값은 "지금 자리"라는 뜻이고, 그때는 포훈 보정이 걸리지 않는다.
    */
   const statsSlotOptions = ['', ...deckSlots.filter((each) => isPitcher(each) === isPitcher(slot))];
+
+  /** 능력치 점수에 들어가는 스탯. 성분을 쌓는 칸은 이것만 받는다. */
+  const growthStats = isPitcher(slot) ? ['변화', '구위'] : ['파워', '정확', '선구'];
+
+  type GrowthField = 'baseStats' | 'trainingStats' | 'specialTrainingStats';
+
+  /** 비우면 그 스탯을 지운다. 0과 "적지 않음"을 같게 둔다. */
+  const setGrowthStat = (field: GrowthField, stat: string, raw: string) => {
+    const next = { ...(player[field] ?? {}) };
+    const value = parseFloat(raw);
+    if (raw.trim() === '' || Number.isNaN(value)) delete next[stat];
+    else next[stat] = value;
+    onChange({ [field]: next });
+  };
+
+  /**
+   * 이 카드가 고를 수 있는 레벨.
+   *
+   * 카드마다 상한이 다르다 — 시그니처의 초월은 9, 블랙의 강화는 10에서 끝난다. 표에 아예
+   * 없는 등급(라이브·시즌·임팩트)은 목록이 비어 드롭다운이 잠긴다.
+   */
+  const levelsFor = (track: 'TRANSCENDENCE' | 'ENHANCEMENT'): number[] => {
+    const limit = rules?.growth.find(
+      (entry) =>
+        entry.track === track &&
+        entry.cardGrade === String(player.cardGrade) &&
+        entry.cardVariant === String(player.cardVariant ?? CardVariant.NONE),
+    ) ?? rules?.growth.find(
+      (entry) =>
+        entry.track === track &&
+        entry.cardGrade === String(player.cardGrade) &&
+        entry.cardVariant === 'NONE',
+    );
+    if (!limit) return [];
+    const first = track === 'TRANSCENDENCE' ? 0 : 1;
+    return Array.from({ length: limit.maxLevel - first + 1 }, (_, i) => first + i);
+  };
+
+  const transcendenceLevels = levelsFor('TRANSCENDENCE');
+  const enhancementLevels = levelsFor('ENHANCEMENT');
 
   return (
     <View style={{ gap: spacing.lg }}>
@@ -273,6 +335,79 @@ export default function DeckPlayerEditor({
         </View>
       </SectionCard>
 
+      {/*
+        성분으로 쌓는 길. 기본 능력치를 적은 스탯만 여기 값을 더해 최종 능력치를 만든다.
+        비워 두면 위의 보유 능력치를 그대로 쓴다. 스탯 단위로 갈리므로 파워만 성분으로,
+        나머지는 보유 값으로 두는 것도 된다.
+      */}
+      <SectionCard title={t('deck_base_stats')}>
+        <View style={{ gap: spacing.lg }}>
+          <Text style={{ ...typography.label, color: colors.muted }}>
+            {t('deck_base_stats_hint')}
+          </Text>
+          {(
+            [
+              ['baseStats', t('deck_base_stats')],
+              ['trainingStats', t('deck_stats_training')],
+              ['specialTrainingStats', t('deck_stats_special')],
+            ] as const
+          ).map(([field, label]) => (
+            <View key={field} style={{ gap: spacing.sm }}>
+              <Text style={{ ...typography.label, color: colors.secondaryText }}>{label}</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+                {growthStats.map((stat) => (
+                  <View key={stat} style={{ flexGrow: 1, flexBasis: 120, maxWidth: 200 }}>
+                    <NumberField
+                      label={stat}
+                      value={player[field]?.[stat] != null ? String(player[field]![stat]) : ''}
+                      onChangeText={(raw) => setGrowthStat(field, stat, raw)}
+                    />
+                  </View>
+                ))}
+              </View>
+            </View>
+          ))}
+
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+            <View style={{ flexGrow: 1, flexBasis: 120, maxWidth: 200 }}>
+              <NumberField
+                label={t('deck_player_year')}
+                value={player.year != null ? String(player.year) : ''}
+                onChangeText={(raw) => {
+                  const value = parseInt(raw, 10);
+                  onChange({ year: Number.isNaN(value) ? null : value });
+                }}
+              />
+            </View>
+            <View style={{ flexGrow: 1, flexBasis: 140, maxWidth: 220 }}>
+              <LabeledDropdown
+                label={t('deck_player_transcendence')}
+                selected={player.transcendenceLevel ?? -1}
+                options={[-1, ...transcendenceLevels]}
+                optionLabel={(level) => (level < 0 ? '—' : String(level))}
+                onSelect={(level) => onChange({ transcendenceLevel: level < 0 ? null : level })}
+                disabled={transcendenceLevels.length === 0}
+              />
+            </View>
+            <View style={{ flexGrow: 1, flexBasis: 140, maxWidth: 220 }}>
+              <LabeledDropdown
+                label={t('deck_player_enhancement')}
+                selected={player.enhancementLevel ?? -1}
+                options={[-1, ...enhancementLevels]}
+                optionLabel={(level) => (level < 0 ? '—' : String(level))}
+                onSelect={(level) => onChange({ enhancementLevel: level < 0 ? null : level })}
+                disabled={enhancementLevels.length === 0}
+              />
+            </View>
+          </View>
+          {transcendenceLevels.length === 0 || enhancementLevels.length === 0 ? (
+            <Text style={{ ...typography.label, color: colors.muted }}>
+              {t('deck_player_growth_none')}
+            </Text>
+          ) : null}
+        </View>
+      </SectionCard>
+
       <SectionCard title={t('score_select_skills')}>
         {loading ? (
           <LoadingState />
@@ -322,6 +457,28 @@ export default function DeckPlayerEditor({
                 </View>
               );
             })}
+
+            {/*
+              칸을 넘겨 들어온 스킬. 워크북에서 가져온 덱에만 생긴다 — 워크북은 게임 규칙을
+              검사하지 않아서 3칸 카드에 스킬이 넷 적혀 있을 수 있다. 조용히 자르지 않고
+              여기 세워 두면 무엇을 버리는지 보고 지울 수 있다.
+            */}
+            {overflowSkills.length > 0 ? (
+              <View style={{ gap: spacing.sm }}>
+                <InfoBanner text={t('deck_skill_problem_overflow')} tone="error" />
+                {overflowSkills.map((selection, index) => (
+                  <View
+                    key={`${selection.skillId}-${index}`}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+                  >
+                    <Text style={{ ...typography.body, color: colors.onSurface, flex: 1 }}>
+                      {byId.get(selection.skillId)?.name ?? selection.skillId}
+                    </Text>
+                    <LinkAction text={t('score_clear_slot')} onPress={() => removeOverflow(index)} />
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </View>
         )}
       </SectionCard>

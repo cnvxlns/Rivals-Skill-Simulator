@@ -382,4 +382,58 @@ export const strings = {
   deck_stats_slot: '능력치를 적은 자리',
   deck_stats_slot_hint: '보유 능력치에는 그 자리의 포훈이 이미 들어 있습니다. 다른 자리에 세우면 차이만큼만 보정합니다.',
   deck_stats_slot_current: '지금 자리',
+
+  /* ── 워크북 업로드 ── */
+  deck_import_title: '엑셀에서 가져오기',
+  deck_import_hint:
+    '덱 관리 워크북(.xlsx)을 올리면 라인업 18자리와 덱 스코어 선택이 그대로 들어옵니다. 저장하지는 않으니 남은 자리를 채운 뒤 저장하세요.',
+  deck_import_button: '워크북 올리기',
+  deck_import_web_only: '파일 올리기는 웹에서만 됩니다. 브라우저로 접속해 주세요.',
+  deck_import_failed: '워크북을 읽지 못했습니다.',
+  deck_import_done: '{n}자리를 채웠습니다.',
+  deck_import_warnings: '넘어간 것 {n}건',
+  deck_import_training_found:
+    '워크북에 포지션 훈련이 적혀 있습니다. 구단 전체에 걸리는 설정이라 다른 덱의 점수도 함께 움직입니다.',
+  deck_import_training_apply: '포지션 훈련도 가져오기',
+
+  /* ── 덱 스코어 보상 ── */
+  deck_coord_team: '팀 덱 스코어',
+  deck_coord_special: '스페셜 덱 스코어',
+  deck_coord_hint: '임계값마다 좌·우 중 하나를 고릅니다. 같은 칸을 다시 누르면 해제됩니다.',
+  deck_coord_left: '좌',
+  deck_coord_right: '우',
+  deck_coord_clear: '해제',
+  deck_coord_decade: '연대',
+
+  /* ── 팀 버프 ── */
+  deck_team_buff_title: '팀 버프',
+  deck_team_buff_hint:
+    '라인업 전체를 올려 주는 스킬입니다. 덱에 있는 스킬에서 자동으로 찾으므로 따로 고르지 않습니다.',
+  deck_team_buff_none: '해당하는 스킬이 덱에 없습니다.',
+  deck_team_buff_batters: '주전 타자 전체',
+  deck_team_buff_pitchers: '투수 전체',
+
+  /* ── 능력치와 점수 ── */
+  deck_player_year: '연도',
+  deck_player_transcendence: '초월',
+  deck_player_enhancement: '강화',
+  deck_player_growth_none: '이 카드는 표가 없습니다',
+  deck_base_stats: '기본 능력치 (카드 고유)',
+  deck_base_stats_hint:
+    '적으면 그 스탯은 성분을 쌓아 최종 능력치를 만듭니다. 비우면 위의 보유 능력치를 그대로 씁니다.',
+  deck_stats_training: '훈련',
+  deck_stats_special: '특훈 (라픽 포함)',
+  deck_score_stat: '능력치 점수',
+  deck_score_skill: '스킬 점수',
+  deck_score_final: '최종 점수',
+  deck_part_weight: '가중치',
+  deck_part_average: '평균',
+  deck_part_formula: '평균 × 10 × 가중치',
+  deck_bench_excluded: '후보는 종합 점수에 들어가지 않습니다.',
+  deck_skill_source_excel: '워크북 점수표',
+  deck_skill_source_engine: '계산기 기준',
+  deck_skill_option_needed: '옵션을 고르면 워크북 점수를 씁니다',
+  deck_skill_problem_duplicate: '같은 스킬이 중복입니다',
+  deck_skill_problem_overflow: '이 카드의 칸 수를 넘었습니다',
+  deck_skill_problem_unavailable: '이 카드에서는 나오지 않는 스킬입니다',
 } as const;

@@ -504,6 +504,7 @@ export default function DeckEditorView({
                 <DeckPlayerEditor
                   slot={editing}
                   player={editor.players[editing]}
+                  slots={editor.allSlots}
                   onChange={(patch) => editor.updatePlayer(editing, patch)}
                   onChangeBattingOrder={(order) => editor.moveBattingOrder(editing, order)}
                 />

@@ -1,13 +1,21 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
-import { InfoBanner, LabeledDropdown, LoadingState, SectionCard, TextField } from '../components/ui';
+import { Text, View } from 'react-native';
+import {
+  InfoBanner,
+  LabeledDropdown,
+  LoadingState,
+  NumberField,
+  SectionCard,
+  TextField,
+} from '../components/ui';
 import { fetchScoreSkills } from '../lib/api';
 import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
 import { canPlaceSkill, slotCountFor } from '../lib/cardRules';
-import { isBench, isLineup, isReliever, positionForSlot } from '../lib/useDeckEditor';
+import { isBench, isLineup, isPitcher, isReliever, positionForSlot } from '../lib/useDeckEditor';
+import { TRAINING_BATTER_STATS, TRAINING_PITCHER_STATS } from '../lib/usePositionTraining';
 import { useAppTheme } from '../theme/useTheme';
 import {
   CARD_GRADES_LOW_TO_HIGH,
@@ -24,6 +32,14 @@ const BATTING_ORDERS = Array.from({ length: 9 }, (_, i) => i + 1);
 
 const BENCH_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
 
+/**
+ * 선수의 보유 능력치로 받는 스탯.
+ *
+ * 계산기와 같은 묶음이다. 덱 스코어(스페셜덱·팀덱)는 선수의 값이 아니라 덱 전체의
+ * 지표라 여기서 받지 않고 서버 기본값을 쓴다.
+ */
+const PLAYER_STATS = { batter: TRAINING_BATTER_STATS, pitcher: TRAINING_PITCHER_STATS };
+
 const RELIEVER_ROLE_KEYS = {
   [RelieverRole.WIN]: 'deck_reliever_win',
   [RelieverRole.CHASE]: 'deck_reliever_chase',
@@ -39,17 +55,20 @@ const RELIEVER_ROLE_KEYS = {
 export default function DeckPlayerEditor({
   slot,
   player,
+  slots: deckSlots,
   onChange,
   onChangeBattingOrder,
 }: {
   slot: string;
   player: DeckPlayer;
+  /** 덱의 자리 전체. 능력치를 적은 자리를 고르는 데 쓴다. */
+  slots: string[];
   onChange: (patch: Partial<DeckPlayer>) => void;
   /** 타순은 다른 자리까지 밀어야 해서 별도로 받는다. 주전에만 쓰인다. */
   onChangeBattingOrder: (order: number) => void;
 }) {
   const { t } = useTranslation();
-  const { spacing } = useAppTheme();
+  const { colors, spacing, typography } = useAppTheme();
   const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -132,6 +151,25 @@ export default function DeckPlayerEditor({
   // 같은 선수가 같은 스킬을 두 번 가질 수 없다. 이미 고른 것은 목록에서 뺀다.
   const chosen = new Set(slots.filter(Boolean).map((s) => s!.skillId));
 
+  const statNames = isPitcher(slot) ? PLAYER_STATS.pitcher : PLAYER_STATS.batter;
+  const playerStats = player.stats ?? {};
+
+  /** 비우면 그 스탯을 지운다. 값이 없으면 서버 기본값으로 채점된다. */
+  const setStat = (stat: string, raw: string) => {
+    const next = { ...playerStats };
+    const value = parseFloat(raw);
+    if (raw.trim() === '' || Number.isNaN(value)) delete next[stat];
+    else next[stat] = value;
+    onChange({ stats: next });
+  };
+
+  /**
+   * 능력치를 적을 수 있는 자리. 투수 값을 타자 자리에서 적었다고 할 수는 없다.
+   *
+   * 빈 값은 "지금 자리"라는 뜻이고, 그때는 포훈 보정이 걸리지 않는다.
+   */
+  const statsSlotOptions = ['', ...deckSlots.filter((each) => isPitcher(each) === isPitcher(slot))];
+
   return (
     <View style={{ gap: spacing.lg }}>
       <SectionCard title={`${slot} · ${t('deck_player_title')}`}>
@@ -203,6 +241,35 @@ export default function DeckPlayerEditor({
               onSelect={(value) => onChange({ relieverRole: value })}
             />
           ) : null}
+        </View>
+      </SectionCard>
+
+      <SectionCard title={t('score_user_stats')}>
+        <View style={{ gap: spacing.lg }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+            {statNames.map((stat) => (
+              <View key={stat} style={{ flexGrow: 1, flexBasis: 120, maxWidth: 200 }}>
+                <NumberField
+                  label={stat}
+                  value={playerStats[stat] != null ? String(playerStats[stat]) : ''}
+                  onChangeText={(raw) => setStat(stat, raw)}
+                />
+              </View>
+            ))}
+          </View>
+
+          {/*
+            보유 능력치에는 적을 당시 자리의 포훈이 이미 들어 있다. 그래서 값을 다시 더하지
+            않고, 다른 자리에 세웠을 때만 두 자리의 차이를 보정한다.
+          */}
+          <LabeledDropdown
+            label={t('deck_stats_slot')}
+            selected={player.statsSlot ?? ''}
+            options={statsSlotOptions}
+            optionLabel={(value) => value || t('deck_stats_slot_current')}
+            onSelect={(value) => onChange({ statsSlot: value || null })}
+          />
+          <Text style={{ ...typography.label, color: colors.muted }}>{t('deck_stats_slot_hint')}</Text>
         </View>
       </SectionCard>
 

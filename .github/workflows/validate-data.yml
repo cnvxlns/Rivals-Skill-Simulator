@@ -32,6 +32,10 @@ jobs:
       - name: Validate skill CSVs
         run: python3 tools/validate_skill_csv.py --warn
 
+      # 덱 계산 CSV 5종. 원천 워크북은 추적하지 않으므로 여기가 유일한 방어선이다.
+      - name: Validate deck data CSVs
+        run: python3 tools/validate_deck_data.py --warn
+
       # 설명문 파서의 회귀 테스트. 커밋된 CSV의 효과행도 함께 검사한다.
       - name: Parser tests
         working-directory: tools

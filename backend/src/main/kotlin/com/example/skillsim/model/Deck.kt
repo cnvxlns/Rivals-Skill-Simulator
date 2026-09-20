@@ -24,7 +24,7 @@ data class Deck(
          * 로스터 모양을 바꿀 때 올린다. 필드를 더하는 것은 기본값을 주면 하위 호환이지만,
          * 이름을 바꾸거나 없애면 기존 행을 읽을 수 없어 이 값으로 분기해야 한다.
          */
-        const val BODY_VERSION = 1
+        const val BODY_VERSION = 2
 
         /** 한 사용자가 만들 수 있는 덱 수. 공개 서버의 무한 생성을 막는다. */
         const val MAX_PER_USER = 20

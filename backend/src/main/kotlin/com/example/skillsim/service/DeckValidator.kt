@@ -5,6 +5,9 @@ import com.example.skillsim.dto.DeckSaveRequest
 import com.example.skillsim.enums.Handedness
 import com.example.skillsim.model.DeckPlayer
 import com.example.skillsim.model.DeckRoster
+import com.example.skillsim.model.DeckScoreChoice
+import com.example.skillsim.model.DeckScoreLadder
+import com.example.skillsim.model.DeckScoreSide
 import com.example.skillsim.model.DeckSkillSelection
 import com.example.skillsim.repository.ScoreSkillRepository
 
@@ -55,8 +58,51 @@ internal class DeckValidator(
         }
         validateBattingOrders(players)
 
-        return DeckRoster(starterCount = starterCount, closerCount = closerCount, players = players)
+        return DeckRoster(
+            starterCount = starterCount,
+            closerCount = closerCount,
+            players = players,
+            deckScoreChoices = resolveDeckScoreChoices(request),
+        )
     }
+
+    /**
+     * 덱 스코어 보상에서 고른 칸들.
+     *
+     * 임계값마다 하나만 고를 수 있다. 연대 보상(스페셜 615·645·680)에만 연대를 붙일 수 있고,
+     * 나머지 칸에 연대가 오면 거절한다 — 조용히 무시하면 화면이 고른 값을 잃는다.
+     */
+    private fun resolveDeckScoreChoices(request: DeckSaveRequest): List<DeckScoreChoice> {
+        val requested = request.deckScoreChoices.orEmpty()
+        if (requested.isEmpty()) return emptyList()
+        val seen = mutableSetOf<Pair<DeckScoreLadder, Int>>()
+        return requested.map { choice ->
+            val ladder = DeckScoreLadder.entries.firstOrNull { it.name == choice.ladder?.trim()?.uppercase() }
+                ?: throw IllegalArgumentException("Unknown deck score ladder ${choice.ladder}.")
+            val side = DeckScoreSide.entries.firstOrNull { it.name == choice.side?.trim()?.uppercase() }
+                ?: throw IllegalArgumentException("Unknown deck score side ${choice.side}.")
+            val threshold = choice.threshold
+                ?: throw IllegalArgumentException("Deck score choice needs a threshold.")
+            require(threshold in thresholdsOf(ladder)) {
+                "Unknown $ladder deck score threshold $threshold."
+            }
+            require(seen.add(ladder to threshold)) {
+                "Deck score threshold $threshold is chosen twice on $ladder."
+            }
+            val decade = choice.decadeYear
+            if (DeckScoreRules.isDecadeTier(ladder, threshold)) {
+                require(decade != null && decade in DeckScoreRules.DECADE_YEARS) {
+                    "$ladder $threshold needs a decade from " +
+                        "${DeckScoreRules.DECADE_YEARS.first()} to ${DeckScoreRules.DECADE_YEARS.last()}."
+                }
+            } else {
+                require(decade == null) { "$ladder $threshold does not take a decade." }
+            }
+            DeckScoreChoice(ladder, threshold, side, decade)
+        }
+    }
+
+    private fun thresholdsOf(ladder: DeckScoreLadder): List<Int> = DeckScoreRules.thresholdsOf(ladder)
 
     /**
      * 선발·중계·마무리 중 둘만 받아 나머지를 계산한다.
@@ -130,9 +176,10 @@ internal class DeckValidator(
         val battingOrder = resolveBattingOrder(request, slot)
         val relieverRole = resolveRelieverRole(request, slot)
         val skills = resolveSkills(request, slot, cardGrade, cardVariant, position)
-        val stats = resolveStats(request, slot)
+        val stats = resolveStats(request.stats, slot)
         val statsSlot = resolveStatsSlot(request, slot)
         validateHands(request, slot)
+        validateGrowth(request, slot)
 
         return DeckPlayer(
             slot = slot,
@@ -148,7 +195,42 @@ internal class DeckValidator(
             statsSlot = statsSlot,
             throwHand = request.throwHand,
             batHand = request.batHand,
+            baseStats = resolveStats(request.baseStats, slot, "Base stat"),
+            trainingStats = resolveStats(request.trainingStats, slot, "Training stat"),
+            specialTrainingStats = resolveStats(request.specialTrainingStats, slot, "Special training stat"),
+            transcendenceLevel = request.transcendenceLevel,
+            enhancementLevel = request.enhancementLevel,
+            year = request.year,
         )
+    }
+
+    /**
+     * 성장 수치의 범위.
+     *
+     * 카드마다 실제 상한이 다르지만(강화는 블랙만 10, 초월은 시그니처·프라임 계열이 9) 그
+     * 판단은 표를 들고 있는 [StatResolver]가 한다. 여기서는 사다리 자체의 범위만 본다.
+     */
+    private fun validateGrowth(request: DeckPlayerRequest, slot: String) {
+        request.transcendenceLevel?.let {
+            require(it in DeckScoreRules.TRANSCENDENCE_LEVELS) {
+                "$slot: Transcendence level must be between " +
+                    "${DeckScoreRules.TRANSCENDENCE_LEVELS.first} and " +
+                    "${DeckScoreRules.TRANSCENDENCE_LEVELS.last}."
+            }
+        }
+        request.enhancementLevel?.let {
+            require(it in DeckScoreRules.ENHANCEMENT_LEVELS) {
+                "$slot: Enhancement level must be between " +
+                    "${DeckScoreRules.ENHANCEMENT_LEVELS.first} and " +
+                    "${DeckScoreRules.ENHANCEMENT_LEVELS.last}."
+            }
+        }
+        request.year?.let {
+            require(it in DeckScoreRules.CARD_YEARS) {
+                "$slot: Card year must be between " +
+                    "${DeckScoreRules.CARD_YEARS.first} and ${DeckScoreRules.CARD_YEARS.last}."
+            }
+        }
     }
 
     /** 주전·투수는 자리에서 유도하고 후보만 받는다. 불일치를 만들 여지를 없앤다. */
@@ -233,19 +315,33 @@ internal class DeckValidator(
             require(level != null && level in 1..maxLevel) {
                 "$slot: Skill $skillId level must be between 1 and $maxLevel."
             }
-            DeckSkillSelection(skillId = skillId, level = level)
+            DeckSkillSelection(
+                skillId = skillId,
+                level = level,
+                option = selection.option?.trim()?.ifEmpty { null },
+            )
         }
     }
 
-    private fun resolveStats(request: DeckPlayerRequest, slot: String): Map<String, Double> {
-        val stats = request.stats ?: return emptyMap()
+    /**
+     * 능력치 맵 하나를 검사한다.
+     *
+     * 보유·기본·훈련·특훈 넷이 같은 규칙을 따른다. [label]은 어느 칸이 틀렸는지 메시지에
+     * 남기려고 받는다.
+     */
+    private fun resolveStats(
+        stats: Map<String, Double>?,
+        slot: String,
+        label: String = "Stat",
+    ): Map<String, Double> {
+        if (stats == null) return emptyMap()
         val allowed = allowedStatNames()
         return stats.mapKeys { (stat, _) -> stat.trim() }
             .onEach { (stat, value) ->
                 require(stat in allowed) { "$slot: Unknown stat $stat." }
                 // 1e999는 파싱 단계에서 조용히 Infinity가 되어 점수를 오염시킨다.
-                require(value.isFinite()) { "$slot: Stat $stat must be a finite number." }
-                require(value >= 0.0) { "$slot: Stat $stat must not be negative." }
+                require(value.isFinite()) { "$slot: $label $stat must be a finite number." }
+                require(value >= 0.0) { "$slot: $label $stat must not be negative." }
             }
     }
 

@@ -1,5 +1,6 @@
 package com.example.skillsim.service
 
+import com.example.skillsim.config.DeckDataLoader
 import com.example.skillsim.enums.RelieverRole
 import com.example.skillsim.model.DeckRoster
 import org.assertj.core.api.Assertions.assertThat
@@ -12,19 +13,81 @@ class DeckScoreServiceTest {
     private val scoreService = ScoreService(
         repository, ScoreCalculator(), mapOf(DeckFixtures.STAT to 1.0),
     )
-    private val deckScoreService = DeckScoreService(repository, scoreService)
+    private val deckScoreService = DeckScoreService(repository, scoreService, DeckDataLoader(), mapOf(DeckFixtures.STAT to 1.0))
     private val validator = DeckFixtures.validator(repository)
 
     private fun roster(): DeckRoster = validator.validate(DeckFixtures.deckRequest())
 
     @Test
-    fun `파트별 소계를 더하면 종합 점수가 된다`() {
+    fun `파트별 가중 소계를 더하면 종합 점수가 된다`() {
+        // 예전에는 26명 점수를 그냥 더했다. 이제는 파트 평균에 가중치를 매긴다.
         val result = deckScoreService.score(roster())
 
         assertThat(result.players).hasSize(DeckRoster.ROSTER_SIZE)
-        assertThat(result.parts.sumOf { it.total })
+        assertThat(result.parts.sumOf { it.weighted })
             .isCloseTo(result.total, within(0.01))
         assertThat(result.parts.sumOf { it.playerCount }).isEqualTo(DeckRoster.ROSTER_SIZE)
+        // 단순 합은 더 이상 종합 점수가 아니다.
+        assertThat(result.parts.sumOf { it.total }).isNotEqualTo(result.total)
+    }
+
+    @Test
+    fun `파트 가중치는 선발 04 계투 01 타자 05이고 후보는 0이다`() {
+        val result = deckScoreService.score(roster())
+        val byPart = result.parts.associateBy { it.part }
+
+        assertThat(byPart.getValue("ROTATION").weight).isEqualTo(0.4)
+        assertThat(byPart.getValue("BULLPEN").weight).isEqualTo(0.1)
+        assertThat(byPart.getValue("LINEUP").weight).isEqualTo(0.5)
+        assertThat(byPart.getValue("BENCH").weight).isEqualTo(0.0)
+        assertThat(byPart.getValue("BENCH").weighted).isEqualTo(0.0)
+    }
+
+    @Test
+    fun `파트 점수는 평균에 10을 곱한 값이다`() {
+        val result = deckScoreService.score(roster())
+        val rotation = result.parts.first { it.part == "ROTATION" }
+
+        assertThat(rotation.average)
+            .isCloseTo(rotation.total / rotation.playerCount, within(0.01))
+        assertThat(rotation.weighted)
+            .isCloseTo(rotation.average * 10.0 * 0.4, within(0.01))
+    }
+
+    @Test
+    fun `후보를 아무리 채워도 종합 점수가 오르지 않는다`() {
+        // 가중치 0의 실행 가능한 증명이다. 워크북에는 후보 자리가 아예 없다.
+        val base = roster()
+        val boosted = base.copy(
+            players = base.players.map { player ->
+                if (DeckRules.isBench(player.slot)) {
+                    player.copy(skills = player.skills.map { it.copy(level = 3) })
+                } else {
+                    player
+                }
+            },
+        )
+
+        assertThat(deckScoreService.score(boosted).total)
+            .isEqualTo(deckScoreService.score(base).total)
+    }
+
+    @Test
+    fun `선수 점수는 능력치 점수와 스킬 점수의 합이다`() {
+        // 워크북의 J + O = P다.
+        val players = deckScoreService.score(roster()).players
+
+        assertThat(players).allSatisfy {
+            assertThat(it.score).isCloseTo(it.statScore + it.skillScore, within(0.01))
+        }
+    }
+
+    @Test
+    fun `능력치를 적지 않으면 능력치 점수가 0이다`() {
+        // 워크북의 빈 칸과 같다. 엔진의 기본값 120은 비례 효과 채점에만 남는다.
+        val players = deckScoreService.score(roster()).players
+
+        assertThat(players).allSatisfy { assertThat(it.statScore).isEqualTo(0.0) }
     }
 
     @Test

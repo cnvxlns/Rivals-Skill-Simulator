@@ -36,6 +36,15 @@ data class DeckSaveRequest(
     @field:Valid
     @field:NotEmpty
     val players: List<DeckPlayerRequest>? = null,
+    /**
+     * 구단의 포지션 훈련 현황. **저장 없이 채점만 할 때만 쓴다.**
+     *
+     * 훈련은 계정당 한 벌이라 덱에 저장하지 않는다. 저장된 덱을 채점할 때는 서버가
+     * 계정에 저장된 설정을 읽고, 여기 온 값은 무시한다
+     * ([com.example.skillsim.controller.PositionTrainingController]).
+     */
+    @field:Valid
+    val positionTraining: PositionTrainingRequest? = null,
 )
 
 data class DeckPlayerRequest(
@@ -59,6 +68,9 @@ data class DeckPlayerRequest(
     /** 중계에만 허용한다. 나머지 자리에 오면 거부한다. */
     val relieverRole: RelieverRole? = null,
     val stats: Map<String, Double>? = null,
+    /** [stats]를 적을 당시 서 있던 자리. 비우면 지금 자리에서 적은 것으로 본다. */
+    @field:Size(max = 10)
+    val statsSlot: String? = null,
     val throwHand: Handedness? = null,
     val batHand: Handedness? = null,
 )

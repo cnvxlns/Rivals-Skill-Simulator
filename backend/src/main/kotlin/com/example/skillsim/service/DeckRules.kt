@@ -9,6 +9,10 @@ import com.example.skillsim.model.DeckRoster
  */
 internal object DeckRules {
 
+    private const val STARTER_PREFIX = "SP"
+    private const val RELIEVER_PREFIX = "RP"
+    private const val CLOSER_PREFIX = "CP"
+
     /** 주전 타자 자리. 순서가 곧 화면 표시 순서다. */
     val LINEUP_SLOTS = listOf("C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH")
 
@@ -45,10 +49,6 @@ internal object DeckRules {
     /** 타순에 쓸 수 있는 값. 주전 9명이 이 집합을 정확히 한 번씩 채운다. */
     val BATTING_ORDERS = 1..9
 
-    private const val STARTER_PREFIX = "SP"
-    private const val RELIEVER_PREFIX = "RP"
-    private const val CLOSER_PREFIX = "CP"
-
     /**
      * 투수 슬롯 이름 전체. 선발·마무리를 정하면 중계 정원이 따라 정해지므로
      * 이 목록도 두 값만으로 결정된다.
@@ -61,6 +61,17 @@ internal object DeckRules {
             (1..closerCount).forEach { add("$CLOSER_PREFIX$it") }
         }
     }
+
+    /**
+     * 있을 수 있는 자리 전체.
+     *
+     * 한 덱이 실제로 쓰는 자리는 26개지만 선발·마무리 수에 따라 어느 투수 자리를 쓰는지가
+     * 달라진다. 덱과 무관하게 구단 단위로 저장하는 포지션 훈련은 이 목록을 기준으로 받는다.
+     */
+    val ALL_SLOTS: List<String> = LINEUP_SLOTS + BENCH_SLOTS +
+        (1..STARTER_COUNT_RANGE.last).map { "$STARTER_PREFIX$it" } +
+        (1..RELIEVER_COUNT_RANGE.last).map { "$RELIEVER_PREFIX$it" } +
+        (1..CLOSER_COUNT_RANGE.last).map { "$CLOSER_PREFIX$it" }
 
     /** 이 덱에 있어야 할 자리 전체. 26개다. */
     fun expectedSlots(starterCount: Int, closerCount: Int): List<String> =

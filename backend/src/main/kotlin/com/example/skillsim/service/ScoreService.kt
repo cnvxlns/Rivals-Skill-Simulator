@@ -140,6 +140,7 @@ class ScoreService private constructor(
         userStats: Map<String, Double>? = null,
         baseStats: Map<String, Double>? = null,
         statBonus: Double = 0.0,
+        statDeltas: Map<String, Double> = emptyMap(),
     ): ScoreResponse {
         val conditionProbabilities = ScoreCalculator.conditionProbabilitiesForPosition(
             position = position,
@@ -159,6 +160,7 @@ class ScoreService private constructor(
             conditionProbabilities,
             userStats,
             statBonus,
+            statDeltas,
         )
         return toResponse(result, undefinedConditionWarnings, selections)
     }

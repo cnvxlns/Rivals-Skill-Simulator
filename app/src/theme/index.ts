@@ -104,8 +104,9 @@ export type CardGradeKey =
 export const cardGradeColors: Record<CardGradeKey, { hex: string; soft: string }> = {
   SEASON: { hex: '#8B94A3', soft: 'rgba(139,148,163,0.14)' },
   LIVE: { hex: '#5BC8C0', soft: 'rgba(91,200,192,0.14)' },
-  IMPACT: { hex: '#E0685C', soft: 'rgba(224,104,92,0.14)' },
-  PRIME: { hex: '#C89B4A', soft: 'rgba(200,155,74,0.14)' },
+  IMPACT: { hex: '#C8A27C', soft: 'rgba(200,162,124,0.14)' },
+  // 4.5:1을 지키는 선에서 가장 진한 청록. 라이브와 같은 계열이라 밝기로 가른다.
+  PRIME: { hex: '#149184', soft: 'rgba(20,145,132,0.14)' },
   MOMENT: { hex: '#3EA55C', soft: 'rgba(62,165,92,0.15)' },
   // 모먼트와 같은 계열이되 한 단계 밝게. 색상까지 갈라 두면 둘이 한 계열임이 지워진다.
   SUPREME_MOMENT: { hex: '#5FD98A', soft: 'rgba(95,217,138,0.15)' },

@@ -19,7 +19,21 @@ data class ScoreResponse(
         val perStat: List<StatScore>,
         val breakdown: List<EffectBreakdown>,
         val warnings: List<String>,
+        /**
+         * 이 점수가 어디서 왔는가. `ENGINE`이 기본이고, 덱 채점에서 워크북 점수표를 쓰면
+         * `EXCEL`이다. 표에 없는 스킬·레벨은 `ENGINE`으로 떨어진다.
+         */
+        val source: String = SOURCE_ENGINE,
+        /** 워크북 점수표에서 고른 옵션 변형. 표를 쓰지 않았으면 null이다. */
+        val option: String? = null,
+        /** 변형이 여럿인데 상황으로 판정할 수 없어 사용자가 골라야 하는가. */
+        val optionNeeded: Boolean = false,
     )
+
+    companion object {
+        const val SOURCE_ENGINE = "ENGINE"
+        const val SOURCE_EXCEL = "EXCEL"
+    }
 
     data class StatScore(
         val stat: String,

@@ -45,6 +45,27 @@ data class DeckSaveRequest(
      */
     @field:Valid
     val positionTraining: PositionTrainingRequest? = null,
+    /**
+     * 덱 스코어 보상에서 고른 칸들. 임계값마다 좌·우 중 하나다.
+     *
+     * 게임은 총합으로 자동 해금해 주지만 그 총합이 무엇의 합인지 확인되지 않아, 워크북과
+     * 같이 직접 고르는 값으로 둔다.
+     */
+    @field:Valid
+    val deckScoreChoices: List<DeckScoreChoiceRequest>? = null,
+)
+
+data class DeckScoreChoiceRequest(
+    /** `TEAM` 또는 `SPECIAL`. */
+    @field:NotBlank
+    val ladder: String? = null,
+    @field:NotNull
+    val threshold: Int? = null,
+    /** `LEFT` 또는 `RIGHT`. */
+    @field:NotBlank
+    val side: String? = null,
+    /** 연대 보상(스페셜 615·645·680)에서 고른 연대. 나머지 칸에는 오면 안 된다. */
+    val decadeYear: Int? = null,
 )
 
 data class DeckPlayerRequest(
@@ -73,6 +94,28 @@ data class DeckPlayerRequest(
     val statsSlot: String? = null,
     val throwHand: Handedness? = null,
     val batHand: Handedness? = null,
+    /**
+     * 카드 고유 능력치. 육성을 하나도 하지 않은 값이라 [stats]와 다르다.
+     *
+     * **이 값을 적은 스탯은 성분을 쌓아 최종 능력치를 만든다**(기본 + 훈련 + 특훈 + 초월 +
+     * 강화 + 포지션 훈련 + 덱 스코어 보상). 적지 않은 스탯은 [stats]를 최종값으로 그대로 쓴다.
+     */
+    val baseStats: Map<String, Double>? = null,
+    val trainingStats: Map<String, Double>? = null,
+    /** 특훈. 라이브 픽업(라픽)으로 오른 값도 여기 포함한다. */
+    val specialTrainingStats: Map<String, Double>? = null,
+    /** 초월 레벨. 카드마다 상한이 다르다(시그니처·프라임 계열은 9). */
+    @field:Min(0)
+    @field:Max(15)
+    val transcendenceLevel: Int? = null,
+    /** 강화 레벨. 블랙 계열은 10에서 멈춘다. */
+    @field:Min(1)
+    @field:Max(20)
+    val enhancementLevel: Int? = null,
+    /** 카드 연도. 스페셜 덱 스코어의 연대 보상이 이 값을 본다. */
+    @field:Min(1870)
+    @field:Max(2100)
+    val year: Int? = null,
 )
 
 data class DeckSkillRequest(
@@ -82,4 +125,12 @@ data class DeckSkillRequest(
     @field:Min(1)
     @field:Max(9)
     val level: Int? = null,
+    /**
+     * 워크북 점수표의 옵션 변형을 직접 고른 것.
+     *
+     * 비우면 선수 상황으로 판정한다. 엑셀에서 가져온 덱은 워크북이 적어 둔 변형을 그대로
+     * 들고 오므로, 나중에 타순을 바꿔도 자동으로 따라가지 않는다.
+     */
+    @field:Size(max = 60)
+    val option: String? = null,
 )

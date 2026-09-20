@@ -1,5 +1,6 @@
 package com.example.skillsim.service
 
+import com.example.skillsim.config.DeckDataLoader
 import com.example.skillsim.dto.DeckPlayerRequest
 import com.example.skillsim.dto.DeckSkillRequest
 import com.example.skillsim.dto.PositionTrainingRequest
@@ -44,7 +45,7 @@ class PositionTrainingDeckTest {
 
     private val repository = DeckFixtures.repository(listOf(proportional))
     private val scoreService = ScoreService(repository, ScoreCalculator(), mapOf(DeckFixtures.STAT to 1.0))
-    private val deckScoreService = DeckScoreService(repository, scoreService)
+    private val deckScoreService = DeckScoreService(repository, scoreService, DeckDataLoader(), mapOf(DeckFixtures.STAT to 1.0))
     private val validator = DeckFixtures.validator(repository)
     private val trainingValidator = PositionTrainingValidator(repository, { setOf(DeckFixtures.STAT) })
 

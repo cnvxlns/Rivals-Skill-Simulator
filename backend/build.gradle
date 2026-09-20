@@ -58,4 +58,15 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+
+    // 덱 관리 워크북은 추적하지 않는다(docs 아래를 .gitignore가 통째로 뺀다). 손에 있을 때만
+    // 진짜 파일로 한 번 더 훑어 보는 테스트가 있어서, 경로를 테스트 JVM으로 넘겨 준다.
+    //
+    //     ./gradlew test -Dworkbook=/경로/워크북.xlsx
+    //
+    // 그래들의 -D는 빌드 JVM에만 붙고 테스트 JVM으로는 가지 않는다. 여기서 옮기지 않으면
+    // 테스트가 조용히 건너뛰어 "통과했다"고 말한다.
+    if (System.getProperty('workbook')) {
+        systemProperty 'workbook', System.getProperty('workbook')
+    }
 }

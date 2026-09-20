@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.server.ResponseStatusException
 
 /**
@@ -38,6 +39,26 @@ class ApiExceptionHandler {
                 status = ex.statusCode.value(),
                 error = ex.statusCode.toString().substringAfter(' ').ifBlank { "Error" },
                 message = ex.reason.orEmpty(),
+                path = request.requestURI,
+            ),
+        )
+
+    /**
+     * 업로드가 multipart 상한을 넘은 경우.
+     *
+     * 이 예외는 컨트롤러에 닿기 전에 터진다. 잡지 않으면 앱이 까닭 없는 500을 받는다.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException::class)
+    fun handleUploadTooLarge(
+        ex: MaxUploadSizeExceededException,
+        request: HttpServletRequest,
+    ): ResponseEntity<Map<String, Any?>> = ResponseEntity
+        .status(HttpStatus.PAYLOAD_TOO_LARGE)
+        .body(
+            body(
+                status = HttpStatus.PAYLOAD_TOO_LARGE.value(),
+                error = "Payload Too Large",
+                message = "업로드 파일이 너무 큽니다.",
                 path = request.requestURI,
             ),
         )

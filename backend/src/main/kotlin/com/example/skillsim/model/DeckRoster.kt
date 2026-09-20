@@ -18,6 +18,13 @@ data class DeckRoster(
     val closerCount: Int,
     /** 26명 전원. 순서는 의미가 없고 [DeckPlayer.slot]이 자리를 정한다. */
     val players: List<DeckPlayer>,
+    /**
+     * 덱 스코어 보상에서 고른 것들. 임계값마다 좌·우 중 하나를 고른다.
+     *
+     * 게임이 총합으로 자동 해금해 주지만 그 총합이 무엇의 합인지가 확인되지 않아, 워크북과
+     * 같이 **직접 고르는** 값으로 둔다.
+     */
+    val deckScoreChoices: List<DeckScoreChoice> = emptyList(),
 ) {
     /**
      * 중계 인원. 총원이 고정이라 선발·마무리에서 자동으로 정해진다.
@@ -54,6 +61,12 @@ data class DeckRoster(
  * @param statsSlot [stats]를 적을 당시 이 선수가 서 있던 자리. 보유 능력치에는 그 자리의
  *   포지션 훈련이 이미 들어 있으므로, 다른 자리에 세우면 두 자리의 차이만큼 보정한다.
  *   비어 있으면 지금 자리에서 적은 것으로 보고 보정하지 않는다.
+ * @param baseStats 카드 고유 능력치. 육성을 하나도 하지 않은 값이며 [stats]와 다르다.
+ *   **이 값이 있는 스탯은 성분을 쌓아 최종 능력치를 만든다**(기본 + 훈련 + 특훈 + 초월 +
+ *   강화 + 포훈 + 덱 스코어 보상 + 컬렉션 버프). 없으면 [stats]를 최종값으로 그대로 쓴다.
+ *   `기본주루수비합155이상` 같은 조건도 이 값을 보므로 폴백 확률 대신 확정값으로 채점된다.
+ * @param trainingStats 훈련으로 올린 값. @param specialTrainingStats 특훈(라픽 포함)으로 올린 값.
+ * @param year 카드 연도. 스페셜 덱 스코어의 연대 보상이 이 값을 본다.
  */
 data class DeckPlayer(
     val slot: String,
@@ -72,10 +85,37 @@ data class DeckPlayer(
     val statsSlot: String? = null,
     val throwHand: Handedness? = null,
     val batHand: Handedness? = null,
+    val baseStats: Map<String, Double> = emptyMap(),
+    val trainingStats: Map<String, Double> = emptyMap(),
+    val specialTrainingStats: Map<String, Double> = emptyMap(),
+    /** 초월 레벨. 0~15이되 카드마다 상한이 다르다. */
+    val transcendenceLevel: Int? = null,
+    /** 강화 레벨. 1~20이되 블랙 계열은 10에서 멈춘다. */
+    val enhancementLevel: Int? = null,
+    val year: Int? = null,
 )
 
-/** 선수가 가진 스킬 하나와 그 레벨. */
+/**
+ * 선수가 가진 스킬 하나와 그 레벨.
+ *
+ * @param option 워크북 점수표의 옵션 변형을 직접 고른 것. 비우면 선수 상황으로 판정한다.
+ *   엑셀에서 가져온 덱은 워크북이 적어 둔 변형을 그대로 들고 온다("그대로 반영").
+ */
 data class DeckSkillSelection(
     val skillId: String,
     val level: Int,
+    val option: String? = null,
+)
+
+/**
+ * 덱 스코어 보상에서 고른 한 칸.
+ *
+ * @param decadeYear 연대 보상(스페셜 615·645·680)에서 고른 연대. 그 카드의 연도가
+ *   `[decadeYear, decadeYear + 9]` 안이면 보상을 받는다.
+ */
+data class DeckScoreChoice(
+    val ladder: DeckScoreLadder,
+    val threshold: Int,
+    val side: DeckScoreSide,
+    val decadeYear: Int? = null,
 )

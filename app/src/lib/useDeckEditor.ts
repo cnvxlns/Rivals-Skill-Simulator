@@ -13,6 +13,7 @@ import {
   DeckScoreResponse,
   LINEUP_SLOTS,
   PITCHER_COUNT,
+  PositionTraining,
   RelieverRole,
 } from '../types';
 
@@ -98,7 +99,11 @@ const emptyPlayer = (slot: string, battingOrder?: number): DeckPlayer => ({
  * 바꾸면 투수 자리 이름이 통째로 달라지는데, 맵이면 남는 자리만 버리고 이미 채운 자리는
  * 그대로 살릴 수 있다.
  */
-export function useDeckEditor(initial?: DeckDetail) {
+/**
+ * @param training 구단의 포지션 훈련. 미리보기 채점은 인증이 없어 계정 설정을 읽을 수
+ *   없으므로 화면이 들고 있는 값을 실어 보낸다. 저장된 덱은 서버가 직접 읽는다.
+ */
+export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining) {
   const [name, setName] = useState(initial?.name ?? '');
   // 셋을 각자 독립된 상태로 둔다. 서로 강제하지 않고 합이 맞는지만 화면이 알려 준다.
   const [starterCount, setStarters] = useState(initial?.roster.starterCount ?? 5);
@@ -248,12 +253,14 @@ export function useDeckEditor(initial?: DeckDetail) {
           ...(isBench(slot) ? { position: p.position || 'C' } : {}),
           ...(isReliever(slot) ? { relieverRole: p.relieverRole ?? RelieverRole.LONG } : {}),
           ...(p.stats && Object.keys(p.stats).length ? { stats: p.stats } : {}),
+          ...(p.statsSlot ? { statsSlot: p.statsSlot } : {}),
           ...(p.throwHand ? { throwHand: p.throwHand } : {}),
           ...(p.batHand ? { batHand: p.batHand } : {}),
         };
       }),
+      ...(training && Object.keys(training.slots).length ? { positionTraining: training } : {}),
     }),
-    [allSlots, players, name, starterCount, relieverCount, closerCount],
+    [allSlots, players, name, starterCount, relieverCount, closerCount, training],
   );
 
   // 완성된 덱이면 편집하는 동안 점수를 미리 보여 준다. 저장하지 않는다.

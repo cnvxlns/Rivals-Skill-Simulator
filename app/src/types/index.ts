@@ -96,6 +96,17 @@ export enum Handedness {
   SWITCH = 'SWITCH',
 }
 
+/**
+ * 포지션 훈련(포훈)이 자리에 붙여 준 스킬 레벨 보너스 한 건.
+ *
+ * 게임은 레벨 6·12·20에서 하나씩, 자리마다 최대 셋을 준다. 오르는 폭은 1 아니면 2다.
+ * 아이언~골드 티어 스킬에만 붙고, 모먼트 전용·HOF 티어에는 붙지 않는다.
+ */
+export type SkillLevelBonus = {
+  skillId: string;
+  bonus: number;
+};
+
 export type ScoreRequest = {
   cardGrade: CardGrade | string;
   cardVariant?: CardVariant | string;
@@ -113,6 +124,12 @@ export type ScoreRequest = {
   baseStats?: Record<string, number>;
   throwHand?: Handedness;
   batHand?: Handedness;
+  /**
+   * 포지션 훈련 보너스. selections의 level은 보너스가 붙기 전 기본 레벨이다.
+   *
+   * 계산기는 저장된 구단 설정과 섞지 않고 화면에서 받은 값만 보낸다.
+   */
+  trainingBonuses?: SkillLevelBonus[];
 };
 
 export type ScoreTableRequest = {
@@ -153,8 +170,12 @@ export type ScoreStatBreakdown = {
 export type ScoreSkillBreakdown = {
   skillId: string;
   name: string;
-  /** 설명의 x·y·z를 선택한 레벨 기준 수치로 바꾼 것. 치환 불가 시 원문과 같다. */
+  /** 설명의 x·y·z를 채점에 쓴 레벨 기준 수치로 바꾼 것. 치환 불가 시 원문과 같다. */
   resolvedDescription?: string | null;
+  /** 포지션 훈련이 이 스킬에 얹어 준 레벨. 없으면 0이다. */
+  levelBonus?: number;
+  /** 보너스까지 반영해 실제로 채점한 등급 라벨(S2 등). */
+  appliedGrade?: string | null;
   score: number;
   perStat: ScoreStatBreakdown[];
   breakdown?: ScoreEffectBreakdown[];
@@ -300,6 +321,22 @@ export type DeckSkillSelection = {
   level: number;
 };
 
+/**
+ * 자리 한 칸의 포지션 훈련 결과.
+ *
+ * 능력치는 레벨이 아니라 게임 화면에서 읽은 증가치 그대로다. 레벨별 수치표가 공개된 적이
+ * 없어 우리가 표를 흉내 내면 틀린 값을 퍼뜨리게 된다.
+ */
+export type SlotTraining = {
+  stats?: Record<string, number>;
+  skills?: SkillLevelBonus[];
+};
+
+/** 구단의 포지션 훈련 현황. 자리에 붙고 모든 덱에 공통이라 계정당 한 벌이다. */
+export type PositionTraining = {
+  slots: Record<string, SlotTraining>;
+};
+
 export type DeckPlayer = {
   slot: string;
   /** 선수 이름. 표시용이며 점수에는 영향이 없다. */
@@ -313,6 +350,13 @@ export type DeckPlayer = {
   pitcherSlot?: number | null;
   relieverRole?: RelieverRole | null;
   stats?: Record<string, number>;
+  /**
+   * stats를 적을 당시 이 선수가 서 있던 자리.
+   *
+   * 보유 능력치에는 그 자리의 포훈이 이미 들어 있다. 다른 자리에 세우면 두 자리의
+   * 차이만큼 보정된다. 비우면 지금 자리에서 적은 것으로 본다.
+   */
+  statsSlot?: string | null;
   throwHand?: Handedness | null;
   batHand?: Handedness | null;
 };
@@ -324,6 +368,8 @@ export type DeckSaveRequest = {
   relieverCount?: number;
   closerCount?: number;
   players: DeckPlayer[];
+  /** 저장 없이 채점만 할 때 쓴다. 저장된 덱은 서버가 계정 설정을 읽는다. */
+  positionTraining?: PositionTraining;
 };
 
 export type DeckRoster = {
@@ -413,6 +459,8 @@ export type TicketExpectationRequest = {
   throwHand?: Handedness;
   batHand?: Handedness;
   lockSlotOne?: boolean;
+  /** 자리에 붙은 보너스. 새로 뽑힌 스킬도 목록에 있으면 오른다. */
+  trainingBonuses?: SkillLevelBonus[];
 };
 
 export type DeckSummary = {

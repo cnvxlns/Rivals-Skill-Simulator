@@ -51,6 +51,9 @@ data class DeckRoster(
  * @param pitcherSlot 투수 슬롯 번호. [slot]의 숫자 부분이며 조건 게이트(`선발1_2` 등)가 이 값을 본다.
  * @param relieverRole 중계 하위 역할. 중계에만 있고 나머지는 null이다. 점수에는 쓰이지 않는다.
  * @param stats 보유 능력치. 키는 stat_weights.csv의 이름만 허용한다.
+ * @param statsSlot [stats]를 적을 당시 이 선수가 서 있던 자리. 보유 능력치에는 그 자리의
+ *   포지션 훈련이 이미 들어 있으므로, 다른 자리에 세우면 두 자리의 차이만큼 보정한다.
+ *   비어 있으면 지금 자리에서 적은 것으로 보고 보정하지 않는다.
  */
 data class DeckPlayer(
     val slot: String,
@@ -66,6 +69,7 @@ data class DeckPlayer(
     val pitcherSlot: Int? = null,
     val relieverRole: RelieverRole? = null,
     val stats: Map<String, Double> = emptyMap(),
+    val statsSlot: String? = null,
     val throwHand: Handedness? = null,
     val batHand: Handedness? = null,
 )

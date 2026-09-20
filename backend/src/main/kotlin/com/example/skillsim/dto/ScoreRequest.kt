@@ -35,4 +35,12 @@ data class ScoreRequest(
     val throwHand: Handedness? = null,
     /** 선수 본인의 타격 방향. 미지정 시 우타로 간주한다. */
     val batHand: Handedness? = null,
+    /**
+     * 포지션 훈련이 이 슬롯에 붙여 준 스킬 레벨 보너스. 최대 3개다.
+     *
+     * [selections]의 `level`은 **보너스가 붙기 전 기본 레벨**이다. 여기 적힌 스킬을 골랐다면
+     * 그만큼 올려서 채점한다([com.example.skillsim.service.PositionTrainingRules]).
+     */
+    @field:Valid
+    val trainingBonuses: List<SkillLevelBonus>? = null,
 )

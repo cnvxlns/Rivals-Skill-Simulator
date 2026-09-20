@@ -4,6 +4,7 @@ import com.example.skillsim.dto.DeckScoreResponse
 import com.example.skillsim.dto.ScoreResponse
 import com.example.skillsim.model.DeckPlayer
 import com.example.skillsim.model.DeckRoster
+import com.example.skillsim.model.PositionTraining
 import com.example.skillsim.repository.ScoreSkillRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -17,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException
  *
  * @param includeBreakdown 효과 단위 계산 근거까지 담을지. 26명 × 3~4스킬 × 여러 효과면
  *   중첩 객체가 수백 개가 되어 응답이 수백 KB로 불어난다. 기본은 담지 않는다.
+ * @param training 구단의 포지션 훈련 현황. 자리에 붙은 스킬 레벨 보너스와 능력치가 여기서 온다.
  */
 @Service
 class DeckScoreService(
@@ -24,9 +26,13 @@ class DeckScoreService(
     private val scoreService: ScoreService,
 ) {
 
-    fun score(roster: DeckRoster, includeBreakdown: Boolean = false): DeckScoreResponse {
+    fun score(
+        roster: DeckRoster,
+        includeBreakdown: Boolean = false,
+        training: PositionTraining = PositionTraining.EMPTY,
+    ): DeckScoreResponse {
         val buff = CollectionBuff.of(roster.players.map { it.cardGrade })
-        val scored = roster.players.map { player -> player to scorePlayer(player, buff) }
+        val scored = roster.players.map { player -> player to scorePlayer(player, buff, training) }
 
         val parts = DeckPart.entries.map { part ->
             val inPart = scored.filter { (player, _) -> DeckRules.partOf(player.slot) == part }
@@ -64,14 +70,20 @@ class DeckScoreService(
             pitcherBonus = buff.pitcherBonus,
         )
 
-    private fun scorePlayer(player: DeckPlayer, buff: CollectionBuff.Result): ScoreResponse {
+    private fun scorePlayer(
+        player: DeckPlayer,
+        buff: CollectionBuff.Result,
+        training: PositionTraining,
+    ): ScoreResponse {
+        // 포지션 훈련은 선수가 아니라 자리에 붙는다. 그 자리에 선 선수가 보너스를 받는다.
+        val levelBonuses = training.skillBonusesFor(player.slot)
         val selections = player.skills.map { selection ->
             val skill = scoreSkillRepository.findBySkillKey(selection.skillId)
                 ?: throw ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "Stored deck references unknown skill ${selection.skillId}.",
                 )
-            ScoreCalculator.Selection(skill, selection.level)
+            ScoreCalculator.Selection(skill, selection.level, levelBonuses[selection.skillId] ?: 0)
         }
         return scoreService.scoreSelections(
             selections = selections,
@@ -87,6 +99,8 @@ class DeckScoreService(
             // 컬렉션 버프는 개인 스탯이 아니라 덱 전체에 걸리므로 따로 넘긴다. 여기서 더하지
             // 않고 넘기는 이유는, 스탯 맵에 없는 능력치도 기본값(120) 위에서 올라야 하기 때문이다.
             statBonus = buff.bonusFor(DeckRules.isPitcher(player.slot)).toDouble(),
+            // 보유 능력치에는 적을 당시 자리의 포훈이 이미 들어 있다. 자리를 옮겼다면 차이만 더한다.
+            statDeltas = training.statDelta(player.slot, player.statsSlot),
         )
     }
 

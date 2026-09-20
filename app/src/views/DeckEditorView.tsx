@@ -32,6 +32,9 @@ import {
 import BaseballField, { fieldRatio } from '../components/BaseballField';
 import BattingOrderLane from '../components/BattingOrderLane';
 import DeckPlayerEditor from './DeckPlayerEditor';
+import DeckTrainingEditor from './DeckTrainingEditor';
+import { useAuth } from '../lib/auth';
+import { usePositionTraining } from '../lib/usePositionTraining';
 
 /** 변형이 있으면 등급 뒤에 붙여 보여 준다. 예: Signature Black · WBC */
 const cardLabel = (player: DeckPlayer) => {
@@ -110,7 +113,10 @@ export default function DeckEditorView({
   const { colors, typography, spacing, radius, cardGradeColor } = useAppTheme();
   const { width } = useResponsive();
   const sideBySide = width >= LINEUP_SPLIT;
-  const editor = useDeckEditor(initial);
+  const { user } = useAuth();
+  // 포지션 훈련은 덱이 아니라 구단에 붙는다. 덱 편집과 따로 읽고 쓰되 채점에는 함께 싣는다.
+  const training = usePositionTraining(!!user);
+  const editor = useDeckEditor(initial, training.training);
   const [editing, setEditing] = useState<string | null>(null);
   // 야구장 칸의 실제 크기. 칩을 픽셀로 놓아야 가장자리에서 칸 밖으로 삐져나가지 않는다.
   const [fieldBox, setFieldBox] = useState({ width: 0, height: 0 });
@@ -389,6 +395,8 @@ export default function DeckEditorView({
         </View>
       </SectionCard>
 
+      <DeckTrainingEditor slots={editor.allSlots} state={training} signedIn={!!user} />
+
       <SectionCard title={t('deck_score_title')}>
         <View style={{ gap: spacing.md }}>
           <Text style={{ ...typography.body, color: colors.secondaryText }}>
@@ -496,6 +504,7 @@ export default function DeckEditorView({
                 <DeckPlayerEditor
                   slot={editing}
                   player={editor.players[editing]}
+                  slots={editor.allSlots}
                   onChange={(patch) => editor.updatePlayer(editing, patch)}
                   onChangeBattingOrder={(order) => editor.moveBattingOrder(editing, order)}
                 />

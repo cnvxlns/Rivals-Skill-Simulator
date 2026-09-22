@@ -1,0 +1,74 @@
+# 백엔드 이미지를 만들어 NCP Container Registry에 올린다.
+#
+# NCP Micro 서버(1vCPU/1GB)에서는 이미지를 직접 빌드할 수 없다. backend/Dockerfile이
+# 빌드 중에 Gradle 의존성 다운로드 + 코틀린 컴파일 + 전체 테스트(Spring 컨텍스트 기동)까지
+# 돌리는데 여기에 최소 1.5~2GB가 필요하다. 1GB에서는 OOM Killer가 끼어들어 Gradle 에러
+# 대신 "Killed" 한 줄만 남기고 죽는다. 그래서 빌드는 여기(amd64 러너)에서 하고
+# 서버는 pull만 한다.
+#
+# 서버 쪽에서 이 이미지를 받는 곳은 docker-compose.ncp.yml의 BACKEND_IMAGE다.
+#
+# 필요한 저장소 시크릿 셋:
+#   NCP_REGISTRY    레지스트리 퍼블릭 엔드포인트. 예: myreg.kr.ncr.ntruss.com
+#   NCP_ACCESS_KEY  마이페이지 > 계정 관리 > 인증키 관리의 Access Key ID
+#   NCP_SECRET_KEY  같은 화면의 Secret Key
+#
+# NCR은 별도 레지스트리 계정을 만들지 않는다. API 인증키가 그대로 docker login의
+# 아이디/비밀번호다.
+name: Backend image
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-image.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 커밋 태그를 짧게 쓴다. latest만 두면 되돌릴 지점이 남지 않는다.
+      - id: meta
+        run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.NCP_REGISTRY }}
+          username: ${{ secrets.NCP_ACCESS_KEY }}
+          password: ${{ secrets.NCP_SECRET_KEY }}
+
+      # 서버는 amd64다. 맥(arm64)에서 빌드하면 QEMU 에뮬레이션이 강제되어 테스트까지
+      # 도는 이 Dockerfile은 수십 분이 걸린다. 이 러너는 amd64 네이티브라 그냥 빠르다.
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ secrets.NCP_REGISTRY }}/skillsim-backend:latest
+            ${{ secrets.NCP_REGISTRY }}/skillsim-backend:${{ steps.meta.outputs.tag }}
+          # Dockerfile의 --mount=type=cache는 러너 밖으로 나가지 않는다.
+          # 의존성 레이어를 살리는 건 이쪽 레이어 캐시다.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # NCR 자체는 관리비가 없지만 연동된 Object Storage 사용량으로 과금된다.
+      # 커밋 태그가 쌓이면 가끔 콘솔에서 오래된 것을 지운다.
+      - name: Print deploy command
+        run: |
+          {
+            echo "### 서버에서 배포"
+            echo '```bash'
+            echo "cd ~/rivals"
+            echo "docker compose -f docker-compose.yml -f docker-compose.ncp.yml pull backend"
+            echo "docker compose -f docker-compose.yml -f docker-compose.ncp.yml up -d"
+            echo '```'
+            echo ""
+            echo "이번 태그: \`${{ steps.meta.outputs.tag }}\` — 되돌릴 때는 .env의 BACKEND_IMAGE를 이 태그로 바꾼다."
+          } >> "$GITHUB_STEP_SUMMARY"

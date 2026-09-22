@@ -1,0 +1,22 @@
+# NCP 서버에서 백엔드 앞단의 TLS를 종단한다. docker-compose.ncp.yml이 읽어 간다.
+#
+# {$API_DOMAIN}과 {$ACME_EMAIL}은 .env의 값이 compose를 거쳐 환경변수로 들어온다.
+# 도메인의 A레코드가 이 서버의 공인 IP를 가리키고 ACG에 80이 열려 있어야
+# Let's Encrypt 검증이 통과한다.
+
+{
+	# 인증서 만료 경고를 받을 주소.
+	email {$ACME_EMAIL}
+}
+
+{$API_DOMAIN} {
+	encode gzip
+
+	# 앱은 /api/... 경로로 부른다(app/src/lib/api.ts). 경로를 그대로 넘긴다.
+	# EXPO_PUBLIC_API_URL에는 https://이-도메인 까지만 넣고 /api는 붙이지 않는다.
+	#
+	# 타임아웃을 따로 걸지 않는다. nginx.conf가 proxy_read_timeout 120s를 둔 건
+	# nginx 기본값이 60s라서였고, Caddy는 응답 대기에 기본 제한이 없다.
+	# 점수표처럼 오래 걸리는 응답이 중간에 끊기지 않는다.
+	reverse_proxy backend:8080
+}

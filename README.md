@@ -65,7 +65,7 @@ Rivals-Skill-Simulator/
 ├── tools      # 데이터 도구 — CSV 검증기 둘, 설명문 파서, 워크북 추출기 (파이썬, 의존성 없음)
 ├── docs       # 참고 자료 (비스탯효과 목록, 채점 로직 메모). 원천 워크북·이미지는 추적하지 않는다
 ├── .github    # EAS APK 빌드 / OTA 업데이트 / 데이터 검증 워크플로
-├── docker-compose.yml         # db + backend + app 실행 스택 (+ .override / .tunnel)
+├── docker-compose.yml         # db + backend + app 실행 스택 (+ .override / .tunnel / .ngrok)
 ├── Makefile   # docker compose / gradlew / npm 을 감싼 단축 명령 (make up)
 └── README.md  # 본 문서
 ```
@@ -141,11 +141,14 @@ cp .env.example .env        # TUNNEL_TOKEN 채우기
 make tunnel-up              # 또는 docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
 ```
 
+Cloudflare에 연결된 도메인이 없으면 ngrok 무료 고정 도메인을 씁니다. `.env`에 `NGROK_AUTHTOKEN`과 `NGROK_DOMAIN`을 채우고 `make ngrok-up`을 실행합니다. 웹(Vercel)은 이 도메인을 `EXPO_PUBLIC_API_URL`로 받아 빌드하므로 오리진이 달라집니다. 서버 `.env`의 `APP_CORS_ALLOWED_ORIGINS`에 Vercel 주소를 넣어야 합니다.
+
 | 파일 | 역할 |
 |---|---|
 | `docker-compose.yml` | db + backend + app 기본 스택. 포트를 호스트에 열지 않습니다 |
 | `docker-compose.override.yml` | 로컬 개발용. compose가 자동으로 얹어 8081(앱)·8080(API)을 엽니다 |
 | `docker-compose.tunnel.yml` | 개인 서버용 cloudflared. app을 터널로 노출합니다 |
+| `docker-compose.ngrok.yml` | 개인 서버용 ngrok. 도메인이 없을 때 app을 무료 고정 도메인으로 노출합니다 |
 
 스킬 데이터는 클래스패스 CSV가 원천이지만, **계정과 덱, 포지션 훈련은 `pgdata` 볼륨에 남습니다.** 이 프로젝트에서 잃으면 복구할 수 없는 유일한 데이터입니다.
 
@@ -168,6 +171,7 @@ make tunnel-up              # 또는 docker compose -f docker-compose.yml -f doc
 | `make nuke` | `clean` + DB 볼륨 삭제. 계정과 덱이 사라집니다(확인 입력 필요) |
 | `make db-dump` | `pg_dump`으로 `backups/`에 DB 덤프 |
 | `make tunnel-up` / `make tunnel-down` | 터널 오버레이 기동 / 정지 |
+| `make ngrok-up` / `make ngrok-down` | ngrok 오버레이 기동 / 정지 |
 | `make backend` | 도커 없이 Spring Boot 실행 (JDK 17 필요) |
 | `make app` | 도커 없이 Expo 웹 실행 (Node 20+ 필요). API는 `localhost:8080`을 보며, `make app API_URL=<주소>`로 바꿉니다 |
 

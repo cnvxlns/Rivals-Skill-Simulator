@@ -146,7 +146,6 @@ make tunnel-up              # 또는 docker compose -f docker-compose.yml -f doc
 | `docker-compose.yml` | db + backend + app 기본 스택. 포트를 호스트에 열지 않습니다 |
 | `docker-compose.override.yml` | 로컬 개발용. compose가 자동으로 얹어 8081(앱)·8080(API)을 엽니다 |
 | `docker-compose.tunnel.yml` | 개인 서버용 cloudflared. app을 터널로 노출합니다 |
-| `docker-compose.ncp.yml` | NCP 서버용. 백엔드만 올리고 Caddy가 TLS를 종단합니다. 이미지는 GitHub Actions가 빌드해 NCR에 올립니다 |
 
 스킬 데이터는 클래스패스 CSV가 원천이지만, **계정과 덱, 포지션 훈련은 `pgdata` 볼륨에 남습니다.** 이 프로젝트에서 잃으면 복구할 수 없는 유일한 데이터입니다.
 

@@ -1,0 +1,16 @@
+# ngrok 오버레이. 개인 서버 운영용(Cloudflare 도메인이 없을 때의 대안).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ngrok.yml up -d
+#
+# 무료 계정의 고정 dev 도메인으로 app(nginx)을 노출한다. /api 프록시가 app 안에 있으므로
+# 대상은 backend가 아니라 app이다. 서버에서 바깥으로 나가는 연결만 쓰므로 포트를 열지 않는다.
+services:
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: unless-stopped
+    command: http app:80 --url=${NGROK_DOMAIN:?NGROK_DOMAIN 환경변수가 필요합니다} --log=stdout
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?NGROK_AUTHTOKEN 환경변수가 필요합니다}
+    depends_on:
+      app:
+        condition: service_healthy

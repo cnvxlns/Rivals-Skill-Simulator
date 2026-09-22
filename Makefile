@@ -14,6 +14,7 @@ SHELL := sh
 
 COMPOSE := docker compose
 TUNNEL  := docker compose -f docker-compose.yml -f docker-compose.tunnel.yml
+NGROK   := docker compose -f docker-compose.yml -f docker-compose.ngrok.yml
 
 # 윈도우에서는 ./gradlew(셸 스크립트)가 아니라 gradlew.bat을 써야 한다.
 ifeq ($(OS),Windows_NT)
@@ -24,7 +25,7 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help ensure-env up up-d down restart logs ps build rebuild clean nuke db-dump tunnel-up tunnel-down backend app validate-data
+.PHONY: help ensure-env up up-d down restart logs ps build rebuild clean nuke db-dump tunnel-up tunnel-down ngrok-up ngrok-down backend app validate-data
 
 # --- 환경 파일 --------------------------------------------------------------
 
@@ -119,6 +120,15 @@ tunnel-up:
 tunnel-down:
 	$(TUNNEL) down --remove-orphans
 
+# --- 개인 서버 (ngrok) ------------------------------------------------------
+
+# Cloudflare 도메인이 없을 때. .env에 NGROK_AUTHTOKEN과 NGROK_DOMAIN이 있어야 한다.
+ngrok-up:
+	$(NGROK) up -d --build
+
+ngrok-down:
+	$(NGROK) down --remove-orphans
+
 # --- 도커 없이 직접 ---------------------------------------------------------
 
 # JDK 17 필요.
@@ -163,6 +173,8 @@ help:
 	@echo ""
 	@echo "  make tunnel-up     cloudflare tunnel stack, needs TUNNEL_TOKEN in .env"
 	@echo "  make tunnel-down   stop tunnel stack"
+	@echo "  make ngrok-up      ngrok stack, needs NGROK_AUTHTOKEN and NGROK_DOMAIN in .env"
+	@echo "  make ngrok-down    stop ngrok stack"
 	@echo ""
 	@echo "  make backend       run Spring Boot without docker, needs JDK 17"
 	@echo "  make app           run Expo web without docker, needs Node 20+ (API_URL=... to change backend)"

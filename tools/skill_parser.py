@@ -27,10 +27,6 @@ SPECIAL_EFFECT_CONDITIONS = {
     ("HOF_036", "정확", "1/2/3/4/5/6"): "제구>선구",
 }
 
-SPECIAL_EFFECT_VALUES = {
-    ("G_028", "파워", "4"): "-4",
-}
-
 CARD_TYPES = {
     "normal": "NORMAL",
     "moment": "MOMENT",
@@ -148,13 +144,15 @@ def build_effect_rows(row: SkillRow) -> tuple[list[EffectRow], list[ReviewNote]]
             clean_sentence = _remove_proportional_clause(sentence)
             if clean_sentence.strip():
                 sentence_effects = _extract_effects(clean_sentence, row)
-                for stat, value_expr in sentence_effects:
+                for stat, value_expr, own_decrease in sentence_effects:
                     try:
                         values = expand_value(value_expr, row.variables)
                     except ValueError as exc:
                         notes.append(ReviewNote(row.skill_id, "값전개필요", f"{clean_sentence} ({exc})"))
                         continue
-                    effect_condition, effect_values = _effect_condition_and_values(row, stat, values, condition)
+                    effect_condition, effect_values = _effect_condition_and_values(
+                        row, stat, values, condition, own_decrease
+                    )
                     key = (row.skill_id, stat, effect_condition, effect_values)
                     if key not in seen:
                         seen.add(key)
@@ -166,13 +164,15 @@ def build_effect_rows(row: SkillRow) -> tuple[list[EffectRow], list[ReviewNote]]
                 notes.append(ReviewNote(row.skill_id, _review_reason(clean_sentence), clean_sentence))
         else:
             sentence_effects = _extract_effects(sentence, row)
-            for stat, value_expr in sentence_effects:
+            for stat, value_expr, own_decrease in sentence_effects:
                 try:
                     values = expand_value(value_expr, row.variables)
                 except ValueError as exc:
                     notes.append(ReviewNote(row.skill_id, "값전개필요", f"{sentence} ({exc})"))
                     continue
-                effect_condition, effect_values = _effect_condition_and_values(row, stat, values, condition)
+                effect_condition, effect_values = _effect_condition_and_values(
+                    row, stat, values, condition, own_decrease
+                )
                 key = (row.skill_id, stat, effect_condition, effect_values)
                 if key not in seen:
                     seen.add(key)
@@ -415,9 +415,16 @@ def _condition_for_effect(row: SkillRow, stat: str, values: str, default_conditi
     return SPECIAL_EFFECT_CONDITIONS.get((row.skill_id, stat, values), default_condition)
 
 
-def _effect_condition_and_values(row: SkillRow, stat: str, values: str, default_condition: str) -> tuple[str, str]:
-    key = (row.skill_id, stat, values)
-    return SPECIAL_EFFECT_CONDITIONS.get(key, default_condition), SPECIAL_EFFECT_VALUES.get(key, values)
+def _effect_condition_and_values(
+    row: SkillRow, stat: str, values: str, default_condition: str, own_decrease: bool = False
+) -> tuple[str, str]:
+    # 특수 조건표는 설명문에 적힌 양의 크기로 찾는다. 부호는 그 다음에 붙인다.
+    condition = SPECIAL_EFFECT_CONDITIONS.get((row.skill_id, stat, values), default_condition)
+    return condition, _negate(values) if own_decrease else values
+
+
+def _negate(values: str) -> str:
+    return "/".join(_format_number(-float(value)) if float(value) else value for value in values.split("/"))
 
 
 
@@ -544,16 +551,59 @@ def _condition_for(sentence: str) -> str:
     return "+".join(conditions) if conditions else "ALWAYS"
 
 
-def _extract_effects(sentence: str, row: SkillRow) -> list[tuple[str, str]]:
-    effects: list[tuple[str, str]] = []
+def _extract_effects(sentence: str, row: SkillRow) -> list[tuple[str, str, bool]]:
+    """(스탯, 값 표현, 자기감소 여부)를 뽑는다.
+
+    자기감소는 부호가 뒤집힌다. 상대 능력치를 깎는 것은 내 이득이라 양수로 두지만,
+    "파워 능력치가 3 감소합니다"처럼 내 능력치가 깎이는 절은 점수에서 빠져야 한다.
+    """
+    effects: list[tuple[str, str, bool]] = []
     for match in VALUE_RE.finditer(sentence):
         value_expr = match.group(0)
         if not _looks_like_effect_value(sentence, match):
             continue
-        stats = _stats_before_value(sentence[: match.start()], row)
+        before = sentence[: match.start()]
+        decreases = _effect_verb(sentence, match) == "감소"
+        stats = _stats_before_value(before, row)
         for stat in stats:
-            effects.append((stat, value_expr))
+            effects.append((stat, value_expr, decreases and _is_own_decrease(stat, row, before)))
     return effects
+
+
+def _effect_verb(sentence: str, match: re.Match[str]) -> str | None:
+    """값 뒤에 처음 나오는 효과 동사. 한 문장에 증가절과 감소절이 같이 오기 때문이다."""
+    found = re.search(r"증가|감소|상승", sentence[match.end() :])
+    return found.group(0) if found else None
+
+
+def _is_own_decrease(stat: str, row: SkillRow, before: str) -> bool:
+    """감소 절이 선수 자신의 이 스탯을 깎는지.
+
+    감소 절 안에 스탯이 직접 적혀 있고 '상대'가 없을 때만 그렇다고 본다.
+    [_stats_before_value]는 절에 스탯이 없으면 앞 절에서 끌어오는데("정확 능력치가 a
+    증가하고 상대 투수의 변화 능력치를 추가로 a 감소"의 정확), 그걸 자기 감소로 읽으면
+    멀쩡한 증가를 음수로 뒤집는다.
+    """
+    own, opponent = _stat_sides(row)
+    if stat in opponent and stat not in own:
+        # 타자에게 구위는 상대 것이다. 깎이면 이득이다.
+        return False
+    clause = re.split(r"하고|하며|시키고|경우|때", before)[-1]
+    named = stat in clause or "모든 능력치" in clause
+    return named and "상대" not in clause
+
+
+def _stat_sides(row: SkillRow) -> tuple[list[str], list[str]]:
+    """(자기 쪽 스탯, 상대 쪽 스탯)."""
+    if _is_pitcher(row):
+        return PITCHER_STATS, BATTER_STATS
+    return BATTER_STATS, PITCHER_STATS
+
+
+def _is_pitcher(row: SkillRow) -> bool:
+    # 포지션은 "SP, RP"처럼 여럿이 올 수 있고 "SP. RP" 같은 오타도 있다.
+    atoms = {atom.strip() for atom in re.split(r"[,.]", row.position.upper())}
+    return bool(atoms & {"PITCHER", "SP", "RP", "CP"})
 
 
 def _looks_like_effect_value(sentence: str, match: re.Match[str]) -> bool:
@@ -590,16 +640,23 @@ def _stats_before_value(before: str, row: SkillRow) -> list[str]:
 
 
 def _all_stats_for(row: SkillRow, text: str) -> list[str]:
-    if "상대 투수" in text:
+    """'모든 능력치'가 누구의 것인지 바로 앞 주어로 가른다.
+
+    문장 어디엔가 '상대 투수'가 있는지로 보면 안 된다. "상대 투수의 OVR이 더 높은 경우
+    모든 능력치가 5 증가"는 제 능력치가 오르는 절인데 상대 스탯으로 뒤집힌다.
+    """
+    own, opponent = _stat_sides(row)
+    subject = text[: text.rfind("모든 능력치")] if "모든 능력치" in text else ""
+    if re.search(r"상대\s*투수\s*의?\s*$", subject):
         return PITCHER_STATS
-    if "상대 타자" in text or "타자의" in text:
+    if re.search(r"상대\s*타자\s*의?\s*$", subject):
         return BATTER_STATS
-    if row.position in {"PITCHER", "SP", "RP", "CP", "RP, CP", "SP. RP"}:
-        return PITCHER_STATS
-    return BATTER_STATS
+    if re.search(r"상대\s*의?\s*$", subject):
+        return opponent
+    return own
 
 
-def _needs_review(sentence: str, sentence_effects: list[tuple[str, str]]) -> bool:
+def _needs_review(sentence: str, sentence_effects: list[tuple[str, str, bool]]) -> bool:
     if not sentence_effects:
         return True
     if any(token in sentence for token in ["덱 스코어가 더 높", "스페셜 덱 스코어가 더 높", "나보다 높은 등급", "홈런이 3개 이상"]):

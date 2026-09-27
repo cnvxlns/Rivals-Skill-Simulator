@@ -99,7 +99,7 @@ BASE_STATS = frozenset(
 # 1 = 레벨과 무관한 고정값.
 LADDER_LENGTHS = frozenset([1, 3, 6, 7, 9])
 
-# 값 범위. 실측(7,707개)은 전부 [-4, 17] 안에 있다. 넉넉히 잡아도
+# 값 범위. 실측(7,799개)은 전부 [-5, 17] 안에 있다(음수는 내 능력치가 깎이는 절). 넉넉히 잡아도
 # 30을 넘는 능력치 증감은 데이터 오류로 보는 게 맞다 — 설명문의 조건 수치
 # (예: "합이 155 이상인 경우")를 효과값으로 잘못 읽으면 여기에 걸린다.
 VALUE_ERROR_ABS = 30.0
@@ -180,7 +180,6 @@ def check(skills: list[dict], effects: list[dict], weights: list[dict]) -> list[
         for atom in (c.strip() for c in cond.split("+")):
             if atom and atom not in CONDITIONS:
                 err("BAD_CONDITION", at, f"{sid}: 모르는 조건 '{atom}' (condition='{cond}')")
-
         base = (row.get("base_stat") or "").strip()
         if base and base not in BASE_STATS:
             err("BAD_BASE_STAT", at, f"{sid}: 모르는 base_stat '{base}'")

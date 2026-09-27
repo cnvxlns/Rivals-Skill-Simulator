@@ -10,13 +10,6 @@ private const val DEFAULT_USER_STAT = 120.0
 private const val DEFAULT_DECK_SCORE = 500.0
 private const val BATTER_OFFENSE_OVER_DEFENSE_CONDITION = "파워정확합>주루수비합"
 
-private val INNING_WEIGHTS_BY_ROLE = mapOf(
-    "SP" to doubleArrayOf(0.190, 0.180, 0.170, 0.130, 0.110, 0.100, 0.060, 0.040, 0.020),
-    "BATTER" to doubleArrayOf(0.150, 0.140, 0.130, 0.120, 0.110, 0.100, 0.090, 0.080, 0.080),
-    "RP" to doubleArrayOf(0.000, 0.000, 0.000, 0.000, 0.030, 0.180, 0.340, 0.350, 0.100),
-    "CP" to doubleArrayOf(0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.100, 0.900),
-)
-
 private val STATIC_CONDITION_PROBABILITIES = mapOf(
     "ALWAYS" to 1.0,
     // 랭킹대전은 전부 원정으로 치러진다. 홈 조건은 발동하지 않고 원정 조건은 늘 발동한다.
@@ -72,6 +65,43 @@ private val GAME_STATE_PROBABILITIES = mapOf(
     "리드아님" to 0.63,
     "비김또는리드" to 0.63,
     "비김또는열세" to 0.63,
+)
+
+/**
+ * 원정 중계 투수가 9회에 올라왔을 때 9회 말이 실제로 열릴 확률.
+ *
+ * 원정 팀은 9회 말을 수비한다. 9회 초가 끝났을 때 홈 팀이 앞서 있으면 9회 말은 없다.
+ * 앞선 9회는 마무리가 맡으므로 중계가 9회에 오르는 경우는 동점이거나 뒤질 때이고,
+ * 그중 동점일 때만 9회 말이 열린다. 경기 상황 확률로 P(동점 | 동점 또는 열세)를 쓴다.
+ */
+private val AWAY_RELIEVER_BOTTOM_NINTH_PLAYED = GAME_STATE_PROBABILITIES.let {
+    (it.getValue("비김또는리드") - it.getValue("리드")) / it.getValue("비김또는열세")
+}
+
+/** 9회 비중에 [factor]를 곱하고 합이 1이 되게 다시 나눈다. */
+private fun scaleNinthInning(weights: DoubleArray, factor: Double): DoubleArray {
+    val scaled = weights.copyOf().also { it[8] *= factor }
+    val total = scaled.sum()
+    return DoubleArray(scaled.size) { scaled[it] / total }
+}
+
+/**
+ * 역할별 회별 노출 비중. 합이 1이다. 랭킹대전은 전부 원정이라는 전제로 정한다.
+ *
+ * - 타자: 앞 회로 갈수록 무거운 기존 값을 그대로 쓴다. 원정이라면 회마다 고르게(1/9)
+ *   돌아가야 할 것 같지만, 앞쪽에 몰린 까닭(조기 종료 등)이 확인되지 않아 손대지 않았다.
+ * - 선발·마무리: 9회에 던지는 건 대개 앞설 때라 9회 말이 늘 열린다. 원정이어도 그대로다.
+ * - 중계: 9회 등판은 동점·열세 상황이라 열세면 9회 말이 사라진다
+ *   ([AWAY_RELIEVER_BOTTOM_NINTH_PLAYED]). 사라진 몫만큼 앞 회의 비중이 커진다.
+ */
+private val INNING_WEIGHTS_BY_ROLE = mapOf(
+    "SP" to doubleArrayOf(0.190, 0.180, 0.170, 0.130, 0.110, 0.100, 0.060, 0.040, 0.020),
+    "BATTER" to doubleArrayOf(0.150, 0.140, 0.130, 0.120, 0.110, 0.100, 0.090, 0.080, 0.080),
+    "RP" to scaleNinthInning(
+        doubleArrayOf(0.000, 0.000, 0.000, 0.000, 0.030, 0.180, 0.340, 0.350, 0.100),
+        AWAY_RELIEVER_BOTTOM_NINTH_PLAYED,
+    ),
+    "CP" to doubleArrayOf(0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.100, 0.900),
 )
 
 private val MODE_PROBABILITIES = mapOf(

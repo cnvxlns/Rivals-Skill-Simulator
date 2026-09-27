@@ -77,7 +77,7 @@ class ScoreCalculatorTest {
 
         assertThat(totalForRole(skill, "파워", "BATTER")).isEqualTo(2.50)
         assertThat(totalForRole(skill, "파워", "SP")).isEqualTo(1.20)
-        assertThat(totalForRole(skill, "파워", "RP")).isEqualTo(7.90)
+        assertThat(totalForRole(skill, "파워", "RP")).isEqualTo(7.80)
         assertThat(totalForRole(skill, "파워", "CP")).isEqualTo(10.00)
     }
 
@@ -92,7 +92,7 @@ class ScoreCalculatorTest {
         assertThat(starter).containsEntry("6회까지", 0.88)
         assertThat(starter).containsEntry("7회까지", 0.94)
         assertThat(reliever).containsEntry("1_3회", 0.00)
-        assertThat(reliever).containsEntry("7_9회", 0.79)
+        assertThat(reliever).containsEntry("7_9회", 0.78)
     }
 
     @Test

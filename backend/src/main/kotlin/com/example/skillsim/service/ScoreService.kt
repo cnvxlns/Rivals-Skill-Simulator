@@ -216,7 +216,8 @@ class ScoreService private constructor(
             cardType = cardType,
             position = position,
             name = name,
-            description = description,
+            // 목록에는 등급이 없으니 점수표와 같은 S 기준으로 x·y·z를 채워 둔다. 글자가 남은 원문을 보이지 않게.
+            description = SkillDescriptions.resolve(this, appliedLevel(this)),
             maxLevel = maxLevel,
             levelLabels = SkillRules.gradeLabels(cardType, maxLevel),
         )

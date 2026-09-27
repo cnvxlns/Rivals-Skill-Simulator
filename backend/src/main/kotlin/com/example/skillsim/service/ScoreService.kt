@@ -13,6 +13,7 @@ import com.example.skillsim.enums.Level
 import com.example.skillsim.model.ScoreSkill
 import com.example.skillsim.repository.ScoreSkillRepository
 import java.util.EnumMap
+import kotlin.math.roundToLong
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -356,6 +357,12 @@ class ScoreService private constructor(
      * 실제 적용된 등급을 함께 반환한다. 효과 행이 없는 스킬은 0점으로 포함한다 —
      * 능력치가 아니라 확률을 바꾸는 효과라 현재 모델로 측정할 수 없을 뿐이다.
      *
+     * 카드·라인업을 정하면 결정되는 조건(기본 능력치, 능력치 비교, 타순, 선발 순번)을 쓰는 스킬은
+     * 경우마다 한 줄씩 나눈다([ScoreTableVariants]).
+     *
+     * 요청에 조건이 있으면 그 조건을 발동/미발동으로 못박은 확률표로 채점하고
+     * ([ConditionScenario]), 원래 기댓값 점수는 [ScoreTableResponse.Entry.expectedScore]에 싣는다.
+     *
      * @param topN 티어별 상위 몇 개까지 담을지. 0 이하면 전부 담는다.
      */
     fun buildScoreTable(request: ScoreTableRequest, topN: Int): ScoreTableResponse {
@@ -369,29 +376,65 @@ class ScoreService private constructor(
             batHand = request.batHand,
             baseStats = request.baseStats,
         )
+        val scenarioProbabilities = request.condition?.trim()?.takeIf { it.isNotEmpty() }?.let { token ->
+            if (!conditionProbabilities.containsKey(token)) {
+                throw badRequest("Unknown condition: $token")
+            }
+            HashMap(conditionProbabilities).also {
+                ConditionScenario.apply(
+                    it,
+                    token,
+                    request.conditionActive,
+                    SkillRules.roleForPosition(normalizedPosition),
+                    request.battingOrder,
+                )
+            }
+        }
         val statWeights = statWeightsSupplier()
+        val role = SkillRules.roleForPosition(normalizedPosition)
 
         val grouped = EnumMap<SkillTier, MutableList<ScoreTableResponse.Entry>>(SkillTier::class.java)
+        val scoredSkills = mutableListOf<ScoreSkill>()
         for (skill in scoreSkillRepository.findAll()) {
             val tier = SkillTier.of(skill)
             if (tier == null || !SkillRules.matchesPosition(skill.position, normalizedPosition)) {
                 continue
             }
+            scoredSkills += skill
             val level = appliedLevel(skill)
-            val result = scoreCalculator.calculate(
-                listOf(ScoreCalculator.Selection(skill, level)),
-                statWeights,
-                conditionProbabilities,
-                request.userStats,
+            val selections = listOf(ScoreCalculator.Selection(skill, level))
+            val variants = ScoreTableVariants.variants(
+                skill = skill,
+                level = level,
+                role = role,
+                battingOrder = request.battingOrder,
+                pitcherSlot = request.pitcherSlot,
+                batHand = request.batHand,
+                throwHand = request.throwHand,
+                probabilities = conditionProbabilities,
             )
-            grouped.getOrPut(tier) { mutableListOf() } += ScoreTableResponse.Entry(
-                skillId = skill.skillKey,
-                name = skill.name,
-                description = skill.description,
-                resolvedDescription = SkillDescriptions.resolve(skill, level),
-                score = result.total,
-                appliedGrade = SkillRules.gradeLabels(skill.cardType, SkillRules.maxLevel(skill))[level - 1],
-            )
+            for ((variant, overrides, stats) in variants) {
+                val userStats = request.userStats.orEmpty() + stats
+                val expected = scoreCalculator.calculate(
+                    selections,
+                    statWeights,
+                    conditionProbabilities + overrides,
+                    userStats,
+                )
+                val scenario = scenarioProbabilities?.let {
+                    scoreCalculator.calculate(selections, statWeights, it + overrides, userStats)
+                }
+                grouped.getOrPut(tier) { mutableListOf() } += ScoreTableResponse.Entry(
+                    skillId = skill.skillKey,
+                    name = skill.name,
+                    description = skill.description,
+                    resolvedDescription = SkillDescriptions.resolve(skill, level),
+                    score = scenario?.total ?: expected.total,
+                    appliedGrade = SkillRules.gradeLabels(skill.cardType, SkillRules.maxLevel(skill))[level - 1],
+                    variant = variant,
+                    expectedScore = scenario?.let { expected.total },
+                )
+            }
         }
 
         val tiers = SkillTier.DISPLAY_ORDER.mapNotNull { tier ->
@@ -400,7 +443,9 @@ class ScoreService private constructor(
                 return@mapNotNull null
             }
             val sorted = entries.sortedWith(
-                compareByDescending<ScoreTableResponse.Entry> { it.score }.thenBy { it.skillId },
+                compareByDescending<ScoreTableResponse.Entry> { it.score }
+                    .thenBy { it.skillId }
+                    .thenBy { it.variant },
             )
             ScoreTableResponse.TierGroup(
                 tier = tier.key,
@@ -408,7 +453,31 @@ class ScoreService private constructor(
                 entries = if (topN > 0 && sorted.size > topN) sorted.take(topN) else sorted,
             )
         }
-        return ScoreTableResponse(tiers)
+        return ScoreTableResponse(tiers, splittableConditions(scoredSkills, conditionProbabilities))
+    }
+
+    /**
+     * 발동/미발동으로 나눠 볼 만한 조건. 확률이 0이나 1이면 이미 정해진 조건이라 뺀다.
+     * 쓰는 스킬이 많은 순, 같으면 토큰 이름 순이다.
+     */
+    private fun splittableConditions(
+        skills: List<ScoreSkill>,
+        probabilities: Map<String, Double>,
+    ): List<ScoreTableResponse.ConditionOption> {
+        val skillCounts = mutableMapOf<String, Int>()
+        for (skill in skills) {
+            skill.effects.flatMap { conditionTokens(it.condition) }.toSet()
+                .forEach { skillCounts[it] = (skillCounts[it] ?: 0) + 1 }
+        }
+        return skillCounts
+            .mapNotNull { (token, count) ->
+                val probability = probabilities[token] ?: return@mapNotNull null
+                if (probability <= 0.0 || probability >= 1.0) {
+                    return@mapNotNull null
+                }
+                ScoreTableResponse.ConditionOption(token, (probability * 1000).roundToLong() / 1000.0, count)
+            }
+            .sortedWith(compareByDescending<ScoreTableResponse.ConditionOption> { it.skillCount }.thenBy { it.token })
     }
 
     /** 보너스까지 반영한 레벨의 등급 라벨. 화면이 "S -> S2"를 보여 주는 데 쓴다. */

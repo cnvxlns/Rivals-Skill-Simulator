@@ -237,9 +237,6 @@ export const strings = {
 
   score_table_condition_hint: '조건을 바꾸면 아래 순위가 즉시 다시 매겨집니다',
   score_table_top_n: 'TOP 10',
-  score_table_count_prefix: '전체 ',
-  score_table_count_middle: '개 · 표시 ',
-  score_table_count_suffix: '티어',
   score_table_group_total_prefix: '전체 ',
   score_table_group_total_suffix: '개',
   score_table_more_view_prefix: '외 ',

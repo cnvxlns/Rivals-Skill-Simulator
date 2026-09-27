@@ -136,8 +136,10 @@ export type ScoreTableRequest = {
   position: Position | SubPosition | string;
   battingOrder?: number | null;
   pitcherSlot?: number | null;
-  throwHand?: Handedness;
-  batHand?: Handedness;
+  /** 비우면 점수표가 투구 손(좌완/우완)마다 나눠 보여 준다. */
+  throwHand?: Handedness | null;
+  /** 비우면 점수표가 타석 방향(좌타/우타/스위치)마다 나눠 보여 준다. */
+  batHand?: Handedness | null;
   userStats?: Record<string, number>;
   baseStats?: Record<string, number>;
 };
@@ -150,6 +152,8 @@ export type ScoreTableEntry = {
   resolvedDescription?: string | null;
   score: number;
   appliedGrade: string;
+  /** 한 스킬을 경우별로 나눈 줄의 이름(`주+수합 155 이상 165 미만`, `타순 4~5`). 같은 skillId가 여러 줄 온다. */
+  variant?: string | null;
 };
 
 export type ScoreTierGroup = {

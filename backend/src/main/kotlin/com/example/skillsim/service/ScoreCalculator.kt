@@ -198,11 +198,16 @@ private val OPPONENT_GRADE_ADVANTAGE_PROBABILITIES_BY_CARD_TYPE = mapOf(
  * 걸리는 조건이다. 여기서 말하는 기본 능력치는 육성·구단 관리를 반영하지 않은 값이라
  * 계산기의 `userStats`(육성 후 수치)와 다르다. 그래서 요청의 `baseStats`를 따로 받는다.
  */
-private data class BaseStatThreshold(val stats: List<String>, val threshold: Double)
+private data class BaseStatThreshold(
+    val stats: List<String>,
+    val threshold: Double,
+    /** 점수표가 구간별 줄을 나눌 때 스킬 이름 옆에 붙이는 능력치 묶음의 짧은 이름. */
+    val label: String,
+)
 
 private val BASE_STAT_THRESHOLDS = mapOf(
-    "기본주루수비합155이상" to BaseStatThreshold(listOf("주루", "수비"), 155.0),
-    "기본주루수비합165이상" to BaseStatThreshold(listOf("주루", "수비"), 165.0),
+    "기본주루수비합155이상" to BaseStatThreshold(listOf("주루", "수비"), 155.0, "주+수합"),
+    "기본주루수비합165이상" to BaseStatThreshold(listOf("주루", "수비"), 165.0, "주+수합"),
 )
 
 /**
@@ -753,6 +758,9 @@ class ScoreCalculator {
         val rawValue: Double,
     )
 
+    /** [baseStatThresholdLadders]의 한 단계. [label]은 `주+수합`처럼 능력치 묶음 이름이다. */
+    data class BaseStatStep(val token: String, val label: String, val threshold: Double)
+
     companion object {
         val defaultUserStat: Double get() = DEFAULT_USER_STAT
 
@@ -761,6 +769,19 @@ class ScoreCalculator {
         /** 호출자가 배열을 건드려도 원본이 상하지 않도록 복사해서 준다. */
         val inningWeightsByRole: Map<String, DoubleArray>
             get() = INNING_WEIGHTS_BY_ROLE.mapValues { (_, weights) -> weights.copyOf() }
+
+        /**
+         * 카드 고유 능력치 임계 조건의 사다리. 같은 능력치 묶음끼리 모아 임계가 낮은 순으로 준다.
+         * 높은 단계를 넘으면 낮은 단계도 넘은 것이다.
+         */
+        val baseStatThresholdLadders: List<List<BaseStatStep>>
+            get() = BASE_STAT_THRESHOLDS.entries
+                .groupBy { it.value.stats }
+                .values
+                .map { ladder ->
+                    ladder.sortedBy { it.value.threshold }
+                        .map { BaseStatStep(it.key, it.value.label, it.value.threshold) }
+                }
 
         val staticConditionProbabilities: Map<String, Double> get() = STATIC_CONDITION_PROBABILITIES
 

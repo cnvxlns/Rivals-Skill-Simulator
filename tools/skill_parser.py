@@ -535,20 +535,54 @@ def _condition_for(sentence: str) -> str:
         if condition not in conditions:
             conditions.append(condition)
 
-    order_patterns = [
-        (r"1\s*,\s*2번|1,\s*2번|1\s*,\s*2\s*타순|상위타선", "타순1_2"),
-        (r"1번 타순", "타순1"),
-        (r"2\s*,\s*3", "타순2_3"),
-        (r"3\s*,\s*4\s*,\s*5|클린업", "타순3_4_5"),
-        (r"4\s*,\s*5", "타순4_5"),
-        (r"6\s*,\s*7\s*,\s*8\s*,\s*9|6/7/8/9|하위타선", "타순6_9"),
-        (r"8\s*,\s*9", "타순8_9"),
-    ]
-    for pattern, condition in order_patterns:
-        if re.search(pattern, modified_sentence) and condition not in conditions:
+    for condition in _batting_order_conditions(modified_sentence):
+        if condition not in conditions:
             conditions.append(condition)
 
     return "+".join(conditions) if conditions else "ALWAYS"
+
+
+# 타순 목록 하나가 토큰 하나다. 예전에는 패턴을 하나씩 따로 찾아서 "3, 4, 5"가 `타순3_4_5`와
+# `타순4_5`로, "6, 7, 8, 9"가 `타순6_9`와 `타순8_9`로 동시에 잡혔다. 둘은 `+`(그리고)로 묶이므로
+# 3번 타자·6~7번 타자에서는 발동하지 않는 것으로 계산됐다.
+BATTING_ORDER_TOKENS = {
+    (1,): "타순1",
+    (2,): "타순2",
+    (3,): "타순3",
+    (1, 2): "타순1_2",
+    (2, 3): "타순2_3",
+    (3, 4, 5): "타순3_4_5",
+    (4, 5): "타순4_5",
+    (6, 7, 8, 9): "타순6_9",
+    (8, 9): "타순8_9",
+    (1, 2, 6, 7, 8, 9): "타순1_2_6_7_8_9",
+}
+# 투수 스킬의 "상대 3, 4, 5 타순 상대 시"는 내 타순이 아니라 마주한 타자의 타순이다.
+OPPONENT_BATTING_ORDER_TOKENS = {
+    (3, 4, 5): "상대타순3_4_5",
+    (6, 7, 8, 9): "상대타순6_9",
+}
+# "3, 4, 5 타순", "6/7/8/9 번 타순", "클린업(3, 4, 5번)". 괄호는 `번)`일 때만 본다 — 공지의
+# 레벨 사다리 `(1/2/3/4/5/6)`를 타순으로 읽지 않게.
+BATTING_ORDER_LIST_RE = re.compile(r"(\d(?:\s*[,/]\s*\d)*)\s*(?:번\s*)?(?:타순|타선)|(\d(?:\s*[,/]\s*\d)*)\s*번\)")
+BATTING_ORDER_WORDS = {"상위타선": (1, 2), "클린업": (3, 4, 5), "하위타선": (6, 7, 8, 9)}
+
+
+def _batting_order_conditions(sentence: str) -> list[str]:
+    """문장의 타순 목록을 통째로 읽어 토큰으로 바꾼다. 모르는 목록은 건너뛴다."""
+    found: list[tuple[tuple[int, ...], bool]] = []
+    for match in BATTING_ORDER_LIST_RE.finditer(sentence):
+        orders = tuple(sorted({int(n) for n in re.findall(r"\d", match.group(1) or match.group(2))}))
+        opponent = "상대" in sentence[max(0, match.start() - 4) : match.start()]
+        found.append((orders, opponent))
+    if not found:
+        found = [(orders, False) for word, orders in BATTING_ORDER_WORDS.items() if word in sentence]
+    conditions: list[str] = []
+    for orders, opponent in found:
+        token = (OPPONENT_BATTING_ORDER_TOKENS if opponent else BATTING_ORDER_TOKENS).get(orders)
+        if token and token not in conditions:
+            conditions.append(token)
+    return conditions
 
 
 def _extract_effects(sentence: str, row: SkillRow) -> list[tuple[str, str, bool]]:

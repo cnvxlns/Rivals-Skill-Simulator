@@ -524,6 +524,26 @@ class SkillParserTest(unittest.TestCase):
         self.assertEqual(knuckleball_rows, [("구위", "-4"), ("변화", "10/11/12")])
         self.assertIn(("파워", "1/2/3/4/5/6/7/8/9"), rising_star_rows)
 
+    def test_batting_order_list_is_one_token(self):
+        """타순 목록은 통째로 한 토큰이다. 부분 목록("4, 5")을 따로 잡아 AND로 묶으면 안 된다."""
+        cases = {
+            "3, 4, 5 타선에 배치시 추가로 파워 정확 능력치가 x 증가합니다": "타순3_4_5",
+            "클린업(3, 4, 5번)으로 배치시, 상대투수의 구위가 x 감소합니다": "타순3_4_5",
+            "6, 7, 8, 9 타순으로 출전 시 상대 투수의 구위 능력치를 6 감소시킵니다": "타순6_9",
+            "6/7/8/9 번 타순 배치 시 상대 투수의 구위 능력치가 x 감소합니다": "타순6_9",
+            "1, 2, 6, 7, 8, 9번 타순에 배치 시 모든 능력치가 6 증가합니다": "타순1_2_6_7_8_9",
+            "상위타선(1, 2번)에 배치되는 경우 정확 능력치가 y 증가합니다": "타순1_2",
+            "상대 3, 4, 5 타순 상대 시 구위 능력치가 x 증가합니다": "상대타순3_4_5",
+            "상대 6, 7, 8, 9 타순 상대 시 구위 능력치가 z 증가합니다": "상대타순6_9",
+            "8, 9번 타순 배치 시 정확 능력치가 z 증가합니다": "타순8_9",
+        }
+        for sentence, expected in cases.items():
+            with self.subTest(sentence=sentence):
+                self.assertEqual(_condition_for(sentence), expected)
+
+    def test_level_ladder_in_parentheses_is_not_a_batting_order(self):
+        self.assertEqual(_condition_for("파워 능력치가 (1/2/3/4/5/6) 증가합니다"), "ALWAYS")
+
     def test_decrease_clause_does_not_flip_stats_borrowed_from_previous_clause(self):
         """감소 절에 스탯이 없어 앞 절에서 끌려온 스탯은 뒤집지 않는다."""
         row = SkillRow(

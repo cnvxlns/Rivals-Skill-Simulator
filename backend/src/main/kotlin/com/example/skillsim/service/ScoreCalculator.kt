@@ -262,7 +262,26 @@ internal fun battingOrderProbabilities(battingOrder: Int): Map<String, Double> =
     "타순4_5" to gate(battingOrder in 4..5),
     "타순6_9" to gate(battingOrder in 6..9),
     "타순8_9" to gate(battingOrder in 8..9),
+    // "1, 2, 6, 7, 8, 9 타순" — 클린업(3~5번)만 빠진다.
+    "타순1_2_6_7_8_9" to gate(battingOrder !in 3..5),
 )
+
+/**
+ * 투수 스킬의 "상대 3, 4, 5 타순 상대 시" 같은 조건. 내 타순이 아니라 마주하는 타자의 타순이라
+ * 0/1이 아니라 확률이다.
+ *
+ * 타순별 타석 수는 [plateAppearanceReach]의 도달 확률 합으로 잡는다. 앞 타순일수록 타석이
+ * 많으므로 그 비중만큼 가중해 "마주한 타자 중 해당 타순의 비율"을 구한다.
+ */
+private val OPPONENT_BATTING_ORDER_PROBABILITIES: Map<String, Double> = run {
+    val plateAppearances = (1..9).associateWith { plateAppearanceReach(it).sum() }
+    val total = plateAppearances.values.sum()
+    fun share(orders: IntRange) = orders.sumOf { plateAppearances.getValue(it) } / total
+    mapOf(
+        "상대타순3_4_5" to share(3..5),
+        "상대타순6_9" to share(6..9),
+    )
+}
 
 /** 조건이 확률이 아니라 참/거짓일 때 쓰는 게이트 값. */
 private fun gate(condition: Boolean): Double = if (condition) 1.0 else 0.0
@@ -351,6 +370,7 @@ private object SlotGateResolver : ConditionResolver {
 private object BattingOrderResolver : ConditionResolver {
     override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
         probabilities.putAll(battingOrderProbabilities(context.battingOrder ?: DEFAULT_BATTING_ORDER))
+        probabilities.putAll(OPPONENT_BATTING_ORDER_PROBABILITIES)
     }
 }
 
@@ -476,7 +496,7 @@ private object InningRangeResolver : ConditionResolver {
 
 private object PlateAppearanceResolver : ConditionResolver {
     override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
-        val reachProbabilities = plateAppearanceReachProbabilities(context.battingOrder)
+        val reachProbabilities = plateAppearanceReach(context.battingOrder)
         val totalReachProbability = reachProbabilities.sum()
 
         for (start in 1..reachProbabilities.size) {
@@ -489,15 +509,16 @@ private object PlateAppearanceResolver : ConditionResolver {
             }
         }
     }
-
-    private fun plateAppearanceReachProbabilities(order: Int?): DoubleArray =
-        when (order ?: DEFAULT_BATTING_ORDER) {
-            in 1..2 -> TOP_ORDER_PLATE_APPEARANCE_REACH
-            in 3..5 -> MIDDLE_ORDER_PLATE_APPEARANCE_REACH
-            in 6..9 -> LOWER_ORDER_PLATE_APPEARANCE_REACH
-            else -> MIDDLE_ORDER_PLATE_APPEARANCE_REACH
-        }
 }
+
+/** 타순 그룹별 타석 도달 확률(1~7번째 타석). 원본 배열이라 호출자가 고치면 안 된다. */
+internal fun plateAppearanceReach(order: Int?): DoubleArray =
+    when (order ?: DEFAULT_BATTING_ORDER) {
+        in 1..2 -> TOP_ORDER_PLATE_APPEARANCE_REACH
+        in 3..5 -> MIDDLE_ORDER_PLATE_APPEARANCE_REACH
+        in 6..9 -> LOWER_ORDER_PLATE_APPEARANCE_REACH
+        else -> MIDDLE_ORDER_PLATE_APPEARANCE_REACH
+    }
 
 private val CONDITION_RESOLVERS = listOf(
     StaticProbabilityResolver(STATIC_CONDITION_PROBABILITIES),

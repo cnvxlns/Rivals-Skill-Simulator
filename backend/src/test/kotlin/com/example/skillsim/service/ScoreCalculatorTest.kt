@@ -446,6 +446,29 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    fun `클린업을 뺀 타순 조건은 1 2 6 7 8 9번에서 발동한다`() {
+        val fire = (1..9).filter {
+            ScoreCalculator.conditionProbabilitiesForPosition("BATTER", it)["타순1_2_6_7_8_9"] == 1.0
+        }
+
+        assertThat(fire).containsExactly(1, 2, 6, 7, 8, 9)
+    }
+
+    @Test
+    fun `상대 타순 조건은 투수가 마주한 타자 중 그 타순의 비율이다`() {
+        // 투수의 "상대 3, 4, 5 타순 상대 시"는 내 타순과 무관하다. 예전에는 내 타순(기본 1번)으로
+        // 판정해 늘 0점이었다.
+        val probabilities = ScoreCalculator.conditionProbabilitiesForPosition("SP")
+
+        val cleanup = probabilities.getValue("상대타순3_4_5")
+        val lower = probabilities.getValue("상대타순6_9")
+        assertThat(cleanup).isBetween(0.30, 0.37)
+        assertThat(lower).isBetween(0.37, 0.44)
+        // 앞 타순이 타석을 더 많이 받으니 1~2번 몫(나머지)은 2/9보다 크다.
+        assertThat(1.0 - cleanup - lower).isGreaterThan(2.0 / 9)
+    }
+
+    @Test
     fun `gates single batting order tokens`() {
         val third = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 3)
 

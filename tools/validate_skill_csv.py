@@ -62,7 +62,8 @@ CONDITIONS = frozenset(
         # 주자·타순
         "주자없음", "주자있음", "주자2루이상",
         "타순1", "타순1_2", "타순2", "타순2_3", "타순3",
-        "타순3_4_5", "타순4_5", "타순6_9", "타순8_9",
+        "타순3_4_5", "타순4_5", "타순6_9", "타순8_9", "타순1_2_6_7_8_9",
+        "상대타순3_4_5", "상대타순6_9",
         # 타석. PlateAppearanceResolver가 타석N·타석N_M을 전부 만들어 두므로
         # 새 조합을 쓰려면 여기에만 더하면 된다(코드 변경 불필요).
         "타석1", "타석2", "타석3", "타석4", "타석5",
@@ -180,6 +181,12 @@ def check(skills: list[dict], effects: list[dict], weights: list[dict]) -> list[
         for atom in (c.strip() for c in cond.split("+")):
             if atom and atom not in CONDITIONS:
                 err("BAD_CONDITION", at, f"{sid}: 모르는 조건 '{atom}' (condition='{cond}')")
+        # `+`는 '그리고'다. 타순은 하나뿐이라 타순 토큰 둘을 묶으면 교집합만 남는다.
+        # "3, 4, 5 타순"이 `타순3_4_5+타순4_5`로 들어가 3번 타자가 0점이 된 적이 있다.
+        orders = [c.strip() for c in cond.split("+") if c.strip().startswith(("타순", "상대타순"))]
+        if len(orders) > 1:
+            err("SPLIT_BATTING_ORDER", at, f"{sid}: 타순 조건이 여럿 묶였다 '{cond}' — 목록 전체를 토큰 하나로 쓴다")
+
         base = (row.get("base_stat") or "").strip()
         if base and base not in BASE_STATS:
             err("BAD_BASE_STAT", at, f"{sid}: 모르는 base_stat '{base}'")

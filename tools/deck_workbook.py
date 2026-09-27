@@ -822,6 +822,7 @@ CONDITION_SELECTORS = {
     "타순4_5": "ORDER=4..5",
     "타순6_9": "ORDER=6..9",
     "타순8_9": "ORDER=8..9",
+    "타순1_2_6_7_8_9": "!ORDER=3..5",
     "포지션_C": "POS=C",
     "포지션_DH": "POS=DH",
     "포지션_OF": "POS=OF",

@@ -536,6 +536,10 @@ def _condition_for(sentence: str) -> str:
         if needle in modified_sentence and condition not in conditions:
             conditions.append(condition)
 
+    for condition in _pitching_window_conditions(modified_sentence):
+        if condition not in conditions:
+            conditions.append(condition)
+
     for condition in _count_conditions(modified_sentence):
         if condition not in conditions:
             conditions.append(condition)
@@ -592,6 +596,28 @@ def _batting_order_conditions(sentence: str) -> list[str]:
         token = (OPPONENT_BATTING_ORDER_TOKENS if opponent else BATTING_ORDER_TOKENS).get(orders)
         if token and token not in conditions:
             conditions.append(token)
+    return conditions
+
+
+PITCHING_WINDOW_NUMBERS = {"세": 3, "네": 4, "일곱": 7, "아홉": 9}
+PITCHING_WINDOW_RE = re.compile(r"등판\s*(?:후|시)\s*(?:상대하는\s*)?(\d+|세|네|일곱|아홉)\s*타자\s*동안")
+
+
+def _pitching_window_conditions(sentence: str) -> list[str]:
+    """"등판 후 상대하는 3 타자동안", "등판 시 세타자 동안" 같은 등판 직후 구간.
+
+    구간 표현이 앞 효과 절 뒤에 오면("7 증가하고 등판 후 9타자 동안 추가로 5") 문장 전체에 걸면
+    앞 절까지 구간에 묶인다. 그런 문장은 건너뛰고 [SPECIAL_EFFECT_CONDITIONS]로 행마다 정한다.
+    """
+    conditions: list[str] = []
+    for match in PITCHING_WINDOW_RE.finditer(sentence):
+        if re.search(r"증가|감소", sentence[: match.start()]):
+            continue
+        word = match.group(1)
+        batters = int(word) if word.isdigit() else PITCHING_WINDOW_NUMBERS[word]
+        condition = f"등판후{batters}타자"
+        if condition not in conditions:
+            conditions.append(condition)
     return conditions
 
 

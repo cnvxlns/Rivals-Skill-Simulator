@@ -194,6 +194,16 @@ class SkillParserTest(unittest.TestCase):
             self.assertIn((stat, "등판후7타자"), pitcher_rows)
         self.assertIn(("파워", "ALWAYS"), pitcher_rows)
 
+    def test_pitching_window_conditions(self):
+        """등판 직후 N타자 구간. 구간이 앞 효과 절 뒤에 오는 문장(스탠드아웃)은 문장 전체에 걸지 않는다."""
+        self.assertEqual(
+            _condition_for("등판 후 상대하는 3 타자동안 변화, 구위 능력치가 8 증가합니다"), "등판후3타자"
+        )
+        self.assertEqual(_condition_for("등판 후 상대하는 세 타자동안 구속 능력치가 x+1증가합니다"), "등판후3타자")
+        self.assertEqual(
+            _condition_for("구위 능력치가 7 증가하고 등판 후 9타자 동안 구위 능력치가 추가로 5 증가합니다"), "ALWAYS"
+        )
+
     def test_count_conditions(self):
         """"1스트라이크 이후"는 2스트라이크를 포함하는 별도 조건이고, "2 스트라이크"는 띄어 써도 잡는다.
         "볼 카운트 0-0, 0-1, 1-0"은 빠른 카운트다."""

@@ -40,15 +40,46 @@ private val STATIC_CONDITION_PROBABILITIES = mapOf(
     "낮은공" to 0.333,
     "대타첫타석" to 0.0, // 주전 라인업 기준 대타 출전 없음
     "교체후첫타자" to 0.25, // 계투 상대 타자 중 첫 타자 근사
-    "풀카운트" to 0.048,
     "2아웃" to 0.333,
 )
 
+/**
+ * 볼 카운트별 투구 비율. 한 타석에서 던지는 공 가운데 그 카운트에서 던지는 공의 비율이다.
+ *
+ * 카운트 조건 스킬(초구공략, 위닝샷, 투 스트라이크 히터, 어그레시브 히터, 풀카운트)의 버프는
+ * 그 카운트에서 던지는 공에만 걸리므로 투구 비율로 가중한다. 조건마다 따로 짐작하던 값
+ * (초구 0.30, 2스트라이크 0.35)을 버리고 모두 이 표에서 합산한다.
+ *
+ * 2015 MLB(Retrosheet) 카운트 전이확률(Jim Albert, "Count Effects")로 타석당 카운트별 방문
+ * 횟수의 기댓값을 구해 전체 투구 수(타석당 3.83구)로 나눴다.
+ * https://bayesball.github.io/BLOG/Count_Effects.html
+ */
+private val PITCH_SHARE_BY_COUNT = mapOf(
+    "0-0" to 0.261, "0-1" to 0.131, "1-0" to 0.102,
+    "0-2" to 0.066, "1-1" to 0.102, "2-0" to 0.035,
+    "1-2" to 0.095, "2-1" to 0.052, "3-0" to 0.011,
+    "2-2" to 0.078, "3-1" to 0.021, "3-2" to 0.046,
+)
+
+/** [PITCH_SHARE_BY_COUNT]에서 (볼, 스트라이크)가 [matches]인 카운트의 투구 비율 합. */
+private fun pitchShare(matches: (balls: Int, strikes: Int) -> Boolean): Double {
+    val share = PITCH_SHARE_BY_COUNT.entries.sumOf { (count, share) ->
+        val (balls, strikes) = count.split("-").map(String::toInt)
+        if (matches(balls, strikes)) share else 0.0
+    }
+    return (share * 1000).roundToLong() / 1000.0
+}
+
 private val PLATE_SITUATION_PROBABILITIES = mapOf(
-    "초구" to 0.30,
     "스트라이크타격" to 0.55,
-    "1스트라이크" to 0.30,
-    "2스트라이크" to 0.35,
+    "초구" to pitchShare { balls, strikes -> balls == 0 && strikes == 0 },
+    // 어그레시브 히터의 "볼 카운트 0-0, 0-1, 1-0".
+    "빠른카운트" to pitchShare { balls, strikes -> balls + strikes <= 1 },
+    // "1스트라이크"는 딱 1스트라이크, "1스트라이크이후"는 2스트라이크까지 포함한다.
+    "1스트라이크" to pitchShare { _, strikes -> strikes == 1 },
+    "1스트라이크이후" to pitchShare { _, strikes -> strikes >= 1 },
+    "2스트라이크" to pitchShare { _, strikes -> strikes == 2 },
+    "풀카운트" to pitchShare { balls, strikes -> balls == 3 && strikes == 2 },
 )
 
 /**

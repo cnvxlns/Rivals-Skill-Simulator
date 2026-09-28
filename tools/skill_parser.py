@@ -500,8 +500,6 @@ def _condition_for(sentence: str) -> str:
         ("풀카운트", "풀카운트"),
         ("초구", "초구"),
         ("2아웃", "2아웃"),
-        ("1스트라이크", "1스트라이크"),
-        ("2스트라이크", "2스트라이크"),
         ("상대 팀이 홈런 3개", "상대팀홈런3"),
         ("출루시킨 타자가 2인 이상", "이닝출루2인이상"),
         ("스트라이크 타격", "스트라이크타격"),
@@ -536,6 +534,10 @@ def _condition_for(sentence: str) -> str:
     ]
     for needle, condition in checks:
         if needle in modified_sentence and condition not in conditions:
+            conditions.append(condition)
+
+    for condition in _count_conditions(modified_sentence):
+        if condition not in conditions:
             conditions.append(condition)
 
     for inning_until in re.findall(r"(\d+)\s*회\s*까지", modified_sentence):
@@ -590,6 +592,24 @@ def _batting_order_conditions(sentence: str) -> list[str]:
         token = (OPPONENT_BATTING_ORDER_TOKENS if opponent else BATTING_ORDER_TOKENS).get(orders)
         if token and token not in conditions:
             conditions.append(token)
+    return conditions
+
+
+def _count_conditions(sentence: str) -> list[str]:
+    """볼 카운트 조건.
+
+    "1스트라이크 이후"는 1스트라이크 이상(2스트라이크 포함)이라 "딱 1스트라이크"와 다른 토큰이다.
+    원문은 "2 스트라이크"처럼 띄어 쓰기도 한다. "볼 카운트 0-0, 0-1, 1-0"은 빠른 카운트다.
+    """
+    conditions: list[str] = []
+    if re.search(r"1\s*스트라이크\s*이후", sentence):
+        conditions.append("1스트라이크이후")
+    elif re.search(r"1\s*스트라이크", sentence):
+        conditions.append("1스트라이크")
+    if re.search(r"2\s*스트라이크", sentence):
+        conditions.append("2스트라이크")
+    if re.search(r"0-0\s*,\s*0-1\s*,\s*1-0", sentence):
+        conditions.append("빠른카운트")
     return conditions
 
 
@@ -652,6 +672,9 @@ def _looks_like_effect_value(sentence: str, match: re.Match[str]) -> bool:
     before = sentence[max(0, match.start() - 40) : match.start()]
     after = sentence[match.end() : min(len(sentence), match.end() + 35)]
     if re.match(r"\s*(타자|타석|이닝|회)\s*(동안|까지|까지만)", after):
+        return False
+    # "모든 구종 등급이 1단계 상승"은 능력치가 아니라 구종 등급이다.
+    if re.match(r"\s*단계", after):
         return False
     has_stat_context = any(stat in before for stat in STATS) or "모든 능력치" in before
     has_effect_verb = any(verb in after for verb in ["증가", "감소", "상승"])

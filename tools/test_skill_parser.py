@@ -194,6 +194,33 @@ class SkillParserTest(unittest.TestCase):
             self.assertIn((stat, "등판후7타자"), pitcher_rows)
         self.assertIn(("파워", "ALWAYS"), pitcher_rows)
 
+    def test_count_conditions(self):
+        """"1스트라이크 이후"는 2스트라이크를 포함하는 별도 조건이고, "2 스트라이크"는 띄어 써도 잡는다.
+        "볼 카운트 0-0, 0-1, 1-0"은 빠른 카운트다."""
+        self.assertEqual(_condition_for("1스트라이크 이후 파워 선구 능력치가 z 증가합니다"), "1스트라이크이후")
+        self.assertEqual(_condition_for("2 스트라이크 이후 정확 능력치가 a 증가합니다"), "2스트라이크")
+        self.assertEqual(_condition_for("스트라이크 카운트가 2스트라이크일 때 파워 능력치가 z 증가합니다"), "2스트라이크")
+        self.assertEqual(_condition_for("볼 카운트 0-0, 0-1, 1-0 상황에서 파워 정확 능력치가 y 증가합니다"), "빠른카운트")
+
+    def test_pitch_grade_step_is_not_a_stat_value(self):
+        """위닝샷의 "모든 구종 등급이 1단계 상승"을 능력치 +1로 읽지 않는다."""
+        row = SkillRow(
+            skill_id="G_066",
+            card_type="NORMAL",
+            position="PITCHER",
+            name="위닝샷",
+            description="2 스트라이크 이후 추가로 구위, 변화, 제구 능력치가 z 증가하고 모든 구종 등급이 1단계 상승합니다.",
+            variables={"z": "1/2/3"},
+        )
+
+        effects, _ = build_effect_rows(row)
+
+        self.assertEqual({(e.stat, e.condition, e.values) for e in effects}, {
+            ("구위", "2스트라이크", "1/2/3"),
+            ("변화", "2스트라이크", "1/2/3"),
+            ("제구", "2스트라이크", "1/2/3"),
+        })
+
     def test_conditions_power_pitcher_stat_comparison_bonus(self):
         row = SkillRow(
             skill_id="M_041",

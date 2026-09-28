@@ -37,6 +37,8 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "초구" to "condition_first_pitch",
     "스트라이크타격" to "condition_strike_hit",
     "1스트라이크" to "condition_one_strike",
+    "1스트라이크이후" to "condition_one_strike_or_more",
+    "빠른카운트" to "condition_early_count",
     "2스트라이크" to "condition_two_strikes",
     "상대팀홈런3" to "condition_opponent_three_homeruns",
     "이닝출루2인이상" to "condition_inning_two_baserunners",

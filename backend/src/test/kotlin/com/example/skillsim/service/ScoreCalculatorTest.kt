@@ -434,7 +434,22 @@ class ScoreCalculatorTest {
         assertThat(result.perStat).containsEntry("파워", 10.00)
         assertThat(result.perStat).containsEntry("정확", 10.00)
         // 타순을 넘기지 않으면 1번타자로 본다. 타순1_2는 평균 0.222가 아니라 1.0으로 걸린다.
-        assertThat(result.total).isEqualTo(34.00)
+        // 초구 0.261, 2스트라이크 0.285는 카운트별 투구 비율에서 온다.
+        assertThat(result.total).isEqualTo(32.96)
+    }
+
+    @Test
+    fun `볼 카운트 조건은 모두 카운트별 투구 비율 한 표에서 합산한다`() {
+        val probabilities = ScoreCalculator.conditionProbabilitiesForPosition("BATTER")
+
+        assertThat(probabilities).containsEntry("초구", 0.261)
+        assertThat(probabilities).containsEntry("빠른카운트", 0.494)
+        assertThat(probabilities).containsEntry("1스트라이크", 0.306)
+        assertThat(probabilities).containsEntry("2스트라이크", 0.285)
+        assertThat(probabilities).containsEntry("풀카운트", 0.046)
+        // "1스트라이크 이후"는 2스트라이크까지 포함한다.
+        assertThat(probabilities.getValue("1스트라이크이후"))
+            .isCloseTo(probabilities.getValue("1스트라이크") + probabilities.getValue("2스트라이크"), within(0.001))
     }
 
     @Test

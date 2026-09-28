@@ -45,6 +45,8 @@ const TOKEN_DESCRIPTION_KEYS: Record<string, string> = {
   '2아웃': 'condition_two_outs',
   초구: 'condition_first_pitch',
   '1스트라이크': 'condition_one_strike',
+  '1스트라이크이후': 'condition_one_strike_or_more',
+  빠른카운트: 'condition_early_count',
   '2스트라이크': 'condition_two_strikes',
   상대팀홈런3: 'condition_opponent_three_homeruns',
   이닝출루2인이상: 'condition_inning_two_baserunners',

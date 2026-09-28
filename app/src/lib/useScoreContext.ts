@@ -36,12 +36,13 @@ export const defaultSubPosition = (position: Position): SubPosition =>
 export function useScoreContext() {
   const [position, setPosition] = useState<Position>(Position.BATTER);
   const [subPosition, setSubPosition] = useState<SubPosition | ''>(defaultSubPosition(Position.BATTER));
-  // 평균 타순 개념을 두지 않는다. 지정하지 않으면 어떤 타순 조건도 온전히 발동하지
-  // 않아 타순 조건 스킬이 일률적으로 눌렸다. 1번타자를 전제로 시작한다.
-  const [battingOrder, setBattingOrder] = useState<number | null>(1);
+  // 타순을 비워 두면 점수표가 타순 조건 스킬을 발동하는 타순마다 나눠 보여 준다.
+  // 평균 타순으로 뭉개지 않으므로 타순 조건 스킬이 눌리지 않는다.
+  const [battingOrder, setBattingOrder] = useState<number | null>(null);
   const [pitcherSlot, setPitcherSlot] = useState<number | null>(null);
-  const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
-  const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);
+  // 투타도 카드가 정하는 값이라 비워 두면 점수표가 경우마다 나눠 보여 준다(치퍼의 스위치 히터 등).
+  const [throwHand, setThrowHand] = useState<Handedness | null>(null);
+  const [batHand, setBatHand] = useState<Handedness | null>(null);
   const [userStats, setUserStats] = useState<Record<string, number>>(defaultUserStats);
 
   const visibleStats = useMemo(

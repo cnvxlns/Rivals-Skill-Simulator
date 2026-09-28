@@ -16,6 +16,14 @@ SPECIAL_EFFECT_CONDITIONS = {
     ("M_032", "파워", "5"): "두번째타석까지",
     ("M_032", "정확", "5"): "두번째타석까지",
     ("M_032", "선구", "5"): "두번째타석까지",
+    ("M_008", "파워", "6"): "두번째타석까지",
+    ("M_008", "정확", "6"): "두번째타석까지",
+    ("M_008", "선구", "6"): "두번째타석까지",
+    ("M_008", "인내", "6"): "두번째타석까지",
+    ("M_023", "구위", "6"): "등판후7타자",
+    ("M_023", "변화", "6"): "등판후7타자",
+    ("M_023", "구속", "6"): "등판후7타자",
+    ("M_023", "제구", "6"): "등판후7타자",
     ("M_041", "파워", "10"): "인내<구속",
     ("M_041", "정확", "10"): "인내<구속",
     ("M_041", "선구", "10"): "인내<구속",
@@ -25,10 +33,6 @@ SPECIAL_EFFECT_CONDITIONS = {
     ("HOF_018", "변화", "1/2/3/4/5/6"): "선구>제구",
     ("HOF_036", "파워", "1/2/3/4/5/6"): "제구>선구",
     ("HOF_036", "정확", "1/2/3/4/5/6"): "제구>선구",
-}
-
-SPECIAL_EFFECT_VALUES = {
-    ("G_028", "파워", "4"): "-4",
 }
 
 CARD_TYPES = {
@@ -148,13 +152,15 @@ def build_effect_rows(row: SkillRow) -> tuple[list[EffectRow], list[ReviewNote]]
             clean_sentence = _remove_proportional_clause(sentence)
             if clean_sentence.strip():
                 sentence_effects = _extract_effects(clean_sentence, row)
-                for stat, value_expr in sentence_effects:
+                for stat, value_expr, own_decrease in sentence_effects:
                     try:
                         values = expand_value(value_expr, row.variables)
                     except ValueError as exc:
                         notes.append(ReviewNote(row.skill_id, "값전개필요", f"{clean_sentence} ({exc})"))
                         continue
-                    effect_condition, effect_values = _effect_condition_and_values(row, stat, values, condition)
+                    effect_condition, effect_values = _effect_condition_and_values(
+                        row, stat, values, condition, own_decrease
+                    )
                     key = (row.skill_id, stat, effect_condition, effect_values)
                     if key not in seen:
                         seen.add(key)
@@ -166,13 +172,15 @@ def build_effect_rows(row: SkillRow) -> tuple[list[EffectRow], list[ReviewNote]]
                 notes.append(ReviewNote(row.skill_id, _review_reason(clean_sentence), clean_sentence))
         else:
             sentence_effects = _extract_effects(sentence, row)
-            for stat, value_expr in sentence_effects:
+            for stat, value_expr, own_decrease in sentence_effects:
                 try:
                     values = expand_value(value_expr, row.variables)
                 except ValueError as exc:
                     notes.append(ReviewNote(row.skill_id, "값전개필요", f"{sentence} ({exc})"))
                     continue
-                effect_condition, effect_values = _effect_condition_and_values(row, stat, values, condition)
+                effect_condition, effect_values = _effect_condition_and_values(
+                    row, stat, values, condition, own_decrease
+                )
                 key = (row.skill_id, stat, effect_condition, effect_values)
                 if key not in seen:
                     seen.add(key)
@@ -415,9 +423,16 @@ def _condition_for_effect(row: SkillRow, stat: str, values: str, default_conditi
     return SPECIAL_EFFECT_CONDITIONS.get((row.skill_id, stat, values), default_condition)
 
 
-def _effect_condition_and_values(row: SkillRow, stat: str, values: str, default_condition: str) -> tuple[str, str]:
-    key = (row.skill_id, stat, values)
-    return SPECIAL_EFFECT_CONDITIONS.get(key, default_condition), SPECIAL_EFFECT_VALUES.get(key, values)
+def _effect_condition_and_values(
+    row: SkillRow, stat: str, values: str, default_condition: str, own_decrease: bool = False
+) -> tuple[str, str]:
+    # 특수 조건표는 설명문에 적힌 양의 크기로 찾는다. 부호는 그 다음에 붙인다.
+    condition = SPECIAL_EFFECT_CONDITIONS.get((row.skill_id, stat, values), default_condition)
+    return condition, _negate(values) if own_decrease else values
+
+
+def _negate(values: str) -> str:
+    return "/".join(_format_number(-float(value)) if float(value) else value for value in values.split("/"))
 
 
 
@@ -485,8 +500,6 @@ def _condition_for(sentence: str) -> str:
         ("풀카운트", "풀카운트"),
         ("초구", "초구"),
         ("2아웃", "2아웃"),
-        ("1스트라이크", "1스트라이크"),
-        ("2스트라이크", "2스트라이크"),
         ("상대 팀이 홈런 3개", "상대팀홈런3"),
         ("출루시킨 타자가 2인 이상", "이닝출루2인이상"),
         ("스트라이크 타격", "스트라이크타격"),
@@ -505,8 +518,8 @@ def _condition_for(sentence: str) -> str:
         ("6회 이후", "6회이후"),
         ("7회 이후", "7회이후"),
         ("8회 이후", "8회이후"),
+        ("9회 이후", "9회이후"),
         ("이기고 있을", "리드"),
-        ("지고 있을", "리드아님"),
         ("비기거나 리드", "비김또는리드"),
         ("비기거나 지고", "비김또는열세"),
         ("DH", "포지션_DH"),
@@ -523,43 +536,178 @@ def _condition_for(sentence: str) -> str:
         if needle in modified_sentence and condition not in conditions:
             conditions.append(condition)
 
+    # "지고 있을 때"는 열세만이다. "비기거나 지고", "동점이거나 지고"는 동점을 포함하므로 따로 읽는다.
+    if re.search(r"지고\s*있", modified_sentence) and not re.search(r"(비기거나|동점이거나)\s*지고", modified_sentence):
+        if "열세" not in conditions:
+            conditions.append("열세")
+    if re.search(r"동점이거나\s*지고", modified_sentence) and "리드아님" not in conditions:
+        conditions.append("리드아님")
+
+    for condition in _pitching_window_conditions(modified_sentence):
+        if condition not in conditions:
+            conditions.append(condition)
+
+    for condition in _count_conditions(modified_sentence):
+        if condition not in conditions:
+            conditions.append(condition)
+
     for inning_until in re.findall(r"(\d+)\s*회\s*까지", modified_sentence):
         condition = f"{inning_until}회까지"
         if condition not in conditions:
             conditions.append(condition)
 
-    order_patterns = [
-        (r"1\s*,\s*2번|1,\s*2번|1\s*,\s*2\s*타순|상위타선", "타순1_2"),
-        (r"1번 타순", "타순1"),
-        (r"2\s*,\s*3", "타순2_3"),
-        (r"3\s*,\s*4\s*,\s*5|클린업", "타순3_4_5"),
-        (r"4\s*,\s*5", "타순4_5"),
-        (r"6\s*,\s*7\s*,\s*8\s*,\s*9|6/7/8/9|하위타선", "타순6_9"),
-        (r"8\s*,\s*9", "타순8_9"),
-    ]
-    for pattern, condition in order_patterns:
-        if re.search(pattern, modified_sentence) and condition not in conditions:
+    for condition in _batting_order_conditions(modified_sentence):
+        if condition not in conditions:
             conditions.append(condition)
 
     return "+".join(conditions) if conditions else "ALWAYS"
 
 
-def _extract_effects(sentence: str, row: SkillRow) -> list[tuple[str, str]]:
-    effects: list[tuple[str, str]] = []
+# 타순 목록 하나가 토큰 하나다. 예전에는 패턴을 하나씩 따로 찾아서 "3, 4, 5"가 `타순3_4_5`와
+# `타순4_5`로, "6, 7, 8, 9"가 `타순6_9`와 `타순8_9`로 동시에 잡혔다. 둘은 `+`(그리고)로 묶이므로
+# 3번 타자·6~7번 타자에서는 발동하지 않는 것으로 계산됐다.
+BATTING_ORDER_TOKENS = {
+    (1,): "타순1",
+    (2,): "타순2",
+    (3,): "타순3",
+    (1, 2): "타순1_2",
+    (2, 3): "타순2_3",
+    (3, 4, 5): "타순3_4_5",
+    (4, 5): "타순4_5",
+    (6, 7, 8, 9): "타순6_9",
+    (8, 9): "타순8_9",
+    (1, 2, 6, 7, 8, 9): "타순1_2_6_7_8_9",
+}
+# 투수 스킬의 "상대 3, 4, 5 타순 상대 시"는 내 타순이 아니라 마주한 타자의 타순이다.
+OPPONENT_BATTING_ORDER_TOKENS = {
+    (3, 4, 5): "상대타순3_4_5",
+    (6, 7, 8, 9): "상대타순6_9",
+}
+# "3, 4, 5 타순", "6/7/8/9 번 타순", "클린업(3, 4, 5번)". 괄호는 `번)`일 때만 본다 — 공지의
+# 레벨 사다리 `(1/2/3/4/5/6)`를 타순으로 읽지 않게.
+BATTING_ORDER_LIST_RE = re.compile(r"(\d(?:\s*[,/]\s*\d)*)\s*(?:번\s*)?(?:타순|타선)|(\d(?:\s*[,/]\s*\d)*)\s*번\)")
+BATTING_ORDER_WORDS = {"상위타선": (1, 2), "클린업": (3, 4, 5), "하위타선": (6, 7, 8, 9)}
+
+
+def _batting_order_conditions(sentence: str) -> list[str]:
+    """문장의 타순 목록을 통째로 읽어 토큰으로 바꾼다. 모르는 목록은 건너뛴다."""
+    found: list[tuple[tuple[int, ...], bool]] = []
+    for match in BATTING_ORDER_LIST_RE.finditer(sentence):
+        orders = tuple(sorted({int(n) for n in re.findall(r"\d", match.group(1) or match.group(2))}))
+        opponent = "상대" in sentence[max(0, match.start() - 4) : match.start()]
+        found.append((orders, opponent))
+    if not found:
+        found = [(orders, False) for word, orders in BATTING_ORDER_WORDS.items() if word in sentence]
+    conditions: list[str] = []
+    for orders, opponent in found:
+        token = (OPPONENT_BATTING_ORDER_TOKENS if opponent else BATTING_ORDER_TOKENS).get(orders)
+        if token and token not in conditions:
+            conditions.append(token)
+    return conditions
+
+
+PITCHING_WINDOW_NUMBERS = {"세": 3, "네": 4, "일곱": 7, "아홉": 9}
+PITCHING_WINDOW_RE = re.compile(r"등판\s*(?:후|시)\s*(?:상대하는\s*)?(\d+|세|네|일곱|아홉)\s*타자\s*동안")
+
+
+def _pitching_window_conditions(sentence: str) -> list[str]:
+    """"등판 후 상대하는 3 타자동안", "등판 시 세타자 동안" 같은 등판 직후 구간.
+
+    구간 표현이 앞 효과 절 뒤에 오면("7 증가하고 등판 후 9타자 동안 추가로 5") 문장 전체에 걸면
+    앞 절까지 구간에 묶인다. 그런 문장은 건너뛰고 [SPECIAL_EFFECT_CONDITIONS]로 행마다 정한다.
+    """
+    conditions: list[str] = []
+    for match in PITCHING_WINDOW_RE.finditer(sentence):
+        if re.search(r"증가|감소", sentence[: match.start()]):
+            continue
+        word = match.group(1)
+        batters = int(word) if word.isdigit() else PITCHING_WINDOW_NUMBERS[word]
+        condition = f"등판후{batters}타자"
+        if condition not in conditions:
+            conditions.append(condition)
+    return conditions
+
+
+def _count_conditions(sentence: str) -> list[str]:
+    """볼 카운트 조건.
+
+    "1스트라이크 이후"는 1스트라이크 이상(2스트라이크 포함)이라 "딱 1스트라이크"와 다른 토큰이다.
+    원문은 "2 스트라이크"처럼 띄어 쓰기도 한다. "볼 카운트 0-0, 0-1, 1-0"은 빠른 카운트다.
+    """
+    conditions: list[str] = []
+    if re.search(r"1\s*스트라이크\s*이후", sentence):
+        conditions.append("1스트라이크이후")
+    elif re.search(r"1\s*스트라이크", sentence):
+        conditions.append("1스트라이크")
+    if re.search(r"2\s*스트라이크", sentence):
+        conditions.append("2스트라이크")
+    if re.search(r"0-0\s*,\s*0-1\s*,\s*1-0", sentence):
+        conditions.append("빠른카운트")
+    return conditions
+
+
+def _extract_effects(sentence: str, row: SkillRow) -> list[tuple[str, str, bool]]:
+    """(스탯, 값 표현, 자기감소 여부)를 뽑는다.
+
+    자기감소는 부호가 뒤집힌다. 상대 능력치를 깎는 것은 내 이득이라 양수로 두지만,
+    "파워 능력치가 3 감소합니다"처럼 내 능력치가 깎이는 절은 점수에서 빠져야 한다.
+    """
+    effects: list[tuple[str, str, bool]] = []
     for match in VALUE_RE.finditer(sentence):
         value_expr = match.group(0)
         if not _looks_like_effect_value(sentence, match):
             continue
-        stats = _stats_before_value(sentence[: match.start()], row)
+        before = sentence[: match.start()]
+        decreases = _effect_verb(sentence, match) == "감소"
+        stats = _stats_before_value(before, row)
         for stat in stats:
-            effects.append((stat, value_expr))
+            effects.append((stat, value_expr, decreases and _is_own_decrease(stat, row, before)))
     return effects
+
+
+def _effect_verb(sentence: str, match: re.Match[str]) -> str | None:
+    """값 뒤에 처음 나오는 효과 동사. 한 문장에 증가절과 감소절이 같이 오기 때문이다."""
+    found = re.search(r"증가|감소|상승", sentence[match.end() :])
+    return found.group(0) if found else None
+
+
+def _is_own_decrease(stat: str, row: SkillRow, before: str) -> bool:
+    """감소 절이 선수 자신의 이 스탯을 깎는지.
+
+    감소 절 안에 스탯이 직접 적혀 있고 '상대'가 없을 때만 그렇다고 본다.
+    [_stats_before_value]는 절에 스탯이 없으면 앞 절에서 끌어오는데("정확 능력치가 a
+    증가하고 상대 투수의 변화 능력치를 추가로 a 감소"의 정확), 그걸 자기 감소로 읽으면
+    멀쩡한 증가를 음수로 뒤집는다.
+    """
+    own, opponent = _stat_sides(row)
+    if stat in opponent and stat not in own:
+        # 타자에게 구위는 상대 것이다. 깎이면 이득이다.
+        return False
+    clause = re.split(r"하고|하며|시키고|경우|때", before)[-1]
+    named = stat in clause or "모든 능력치" in clause
+    return named and "상대" not in clause
+
+
+def _stat_sides(row: SkillRow) -> tuple[list[str], list[str]]:
+    """(자기 쪽 스탯, 상대 쪽 스탯)."""
+    if _is_pitcher(row):
+        return PITCHER_STATS, BATTER_STATS
+    return BATTER_STATS, PITCHER_STATS
+
+
+def _is_pitcher(row: SkillRow) -> bool:
+    # 포지션은 "SP, RP"처럼 여럿이 올 수 있고 "SP. RP" 같은 오타도 있다.
+    atoms = {atom.strip() for atom in re.split(r"[,.]", row.position.upper())}
+    return bool(atoms & {"PITCHER", "SP", "RP", "CP"})
 
 
 def _looks_like_effect_value(sentence: str, match: re.Match[str]) -> bool:
     before = sentence[max(0, match.start() - 40) : match.start()]
     after = sentence[match.end() : min(len(sentence), match.end() + 35)]
     if re.match(r"\s*(타자|타석|이닝|회)\s*(동안|까지|까지만)", after):
+        return False
+    # "모든 구종 등급이 1단계 상승"은 능력치가 아니라 구종 등급이다.
+    if re.match(r"\s*단계", after):
         return False
     has_stat_context = any(stat in before for stat in STATS) or "모든 능력치" in before
     has_effect_verb = any(verb in after for verb in ["증가", "감소", "상승"])
@@ -590,16 +738,23 @@ def _stats_before_value(before: str, row: SkillRow) -> list[str]:
 
 
 def _all_stats_for(row: SkillRow, text: str) -> list[str]:
-    if "상대 투수" in text:
+    """'모든 능력치'가 누구의 것인지 바로 앞 주어로 가른다.
+
+    문장 어디엔가 '상대 투수'가 있는지로 보면 안 된다. "상대 투수의 OVR이 더 높은 경우
+    모든 능력치가 5 증가"는 제 능력치가 오르는 절인데 상대 스탯으로 뒤집힌다.
+    """
+    own, opponent = _stat_sides(row)
+    subject = text[: text.rfind("모든 능력치")] if "모든 능력치" in text else ""
+    if re.search(r"상대\s*투수\s*의?\s*$", subject):
         return PITCHER_STATS
-    if "상대 타자" in text or "타자의" in text:
+    if re.search(r"상대\s*타자\s*의?\s*$", subject):
         return BATTER_STATS
-    if row.position in {"PITCHER", "SP", "RP", "CP", "RP, CP", "SP. RP"}:
-        return PITCHER_STATS
-    return BATTER_STATS
+    if re.search(r"상대\s*의?\s*$", subject):
+        return opponent
+    return own
 
 
-def _needs_review(sentence: str, sentence_effects: list[tuple[str, str]]) -> bool:
+def _needs_review(sentence: str, sentence_effects: list[tuple[str, str, bool]]) -> bool:
     if not sentence_effects:
         return True
     if any(token in sentence for token in ["덱 스코어가 더 높", "스페셜 덱 스코어가 더 높", "나보다 높은 등급", "홈런이 3개 이상"]):

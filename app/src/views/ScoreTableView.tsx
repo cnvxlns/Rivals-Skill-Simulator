@@ -27,6 +27,9 @@ const TOP_N = 10;
  */
 const VISIBLE_TIERS = ['gold', 'hof', 'moment', 'wbc', 'black'];
 
+/** 단계별로 나뉜 스킬은 skillId가 겹치므로 단계 이름까지 붙여 키를 만든다. */
+const rowKey = (entry: ScoreTableEntry) => `${entry.skillId}:${entry.variant ?? ''}`;
+
 export default function ScoreTableView() {
   const ctx = useScoreContext();
   const { t } = useTranslation();
@@ -41,6 +44,8 @@ export default function ScoreTableView() {
   const [conditionsOpen, setConditionsOpen] = useState(true);
   // 티어별 펼침 여부. 데이터는 이미 전량 받아두므로 자르기만 풀면 된다.
   const [expandedTiers, setExpandedTiers] = useState<Record<string, boolean>>({});
+  // 티어별 채점 등급. S1 이상에서 스킬이 어떻게 달라지는지 보려고 티어 카드마다 고른다.
+  const [gradeByTier, setGradeByTier] = useState<Record<string, string>>({});
 
   const { width, isWide, isSplit } = useResponsive();
 
@@ -81,6 +86,7 @@ export default function ScoreTableView() {
           throwHand: ctx.position === Position.PITCHER ? ctx.throwHand : undefined,
           batHand: ctx.position === Position.BATTER ? ctx.batHand : undefined,
           userStats: ctx.userStats,
+          grades: gradeByTier,
         },
         0, // 전체를 받아 검색까지 클라이언트에서 처리한다 (233개라 부담 없음)
       );
@@ -92,7 +98,16 @@ export default function ScoreTableView() {
     } finally {
       setLoading(false);
     }
-  }, [requestPosition, ctx.position, ctx.battingOrder, ctx.pitcherSlot, ctx.throwHand, ctx.batHand, ctx.userStats]);
+  }, [
+    requestPosition,
+    ctx.position,
+    ctx.battingOrder,
+    ctx.pitcherSlot,
+    ctx.throwHand,
+    ctx.batHand,
+    ctx.userStats,
+    gradeByTier,
+  ]);
 
   useEffect(() => {
     load();
@@ -104,8 +119,6 @@ export default function ScoreTableView() {
     const byTier = new Map(table.tiers.map((g) => [String(g.tier).toLowerCase(), g]));
     return VISIBLE_TIERS.map((tier) => byTier.get(tier)).filter((g): g is NonNullable<typeof g> => Boolean(g));
   }, [table]);
-
-  const totalCount = useMemo(() => groups.reduce((sum, g) => sum + g.totalCount, 0), [groups]);
 
   const searchResults = useMemo(() => {
     const q = query.trim();
@@ -169,6 +182,12 @@ export default function ScoreTableView() {
                 numberOfLines={1}
               >
                 {entry.name}
+                {/* 카드 능력치·타순·선발 순번 조건 스킬은 경우마다 줄이 나뉜다. 어느 경우의 점수인지 이름 옆에 적는다. */}
+                {entry.variant ? (
+                  <Text style={{ fontWeight: '500', color: inactive ? inactiveRow.name : colors.muted }}>
+                    {` (${entry.variant})`}
+                  </Text>
+                ) : null}
               </Text>
             </TooltipTarget>
             {/* 모바일은 열을 3개로 줄이려고 등급 칩을 스킬명 옆으로 올린다. */}
@@ -248,17 +267,21 @@ export default function ScoreTableView() {
                 <LabeledDropdown
                   label={t('label_throw_hand')}
                   selected={ctx.throwHand}
-                  options={[Handedness.RIGHT, Handedness.LEFT]}
-                  optionLabel={(o) => (o === Handedness.LEFT ? t('hand_left_throw') : t('hand_right_throw'))}
+                  options={[null, Handedness.RIGHT, Handedness.LEFT]}
+                  optionLabel={(o) =>
+                    o == null ? '-' : o === Handedness.LEFT ? t('hand_left_throw') : t('hand_right_throw')
+                  }
                   onSelect={(o) => ctx.setThrowHand(o)}
                 />
               ) : (
                 <LabeledDropdown
                   label={t('label_bat_hand')}
                   selected={ctx.batHand}
-                  options={[Handedness.RIGHT, Handedness.LEFT, Handedness.SWITCH]}
+                  options={[null, Handedness.RIGHT, Handedness.LEFT, Handedness.SWITCH]}
                   optionLabel={(o) =>
-                    o === Handedness.LEFT
+                    o == null
+                      ? '-'
+                      : o === Handedness.LEFT
                       ? t('hand_left_bat')
                       : o === Handedness.SWITCH
                         ? t('hand_switch')
@@ -273,8 +296,8 @@ export default function ScoreTableView() {
                 <LabeledDropdown
                   label={t('label_batting_order')}
                   selected={ctx.battingOrder}
-                  options={[1, 2, 3, 4, 5, 6, 7, 8, 9]}
-                  optionLabel={(o) => String(o)}
+                  options={[null, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
+                  optionLabel={(o) => (o == null ? '-' : String(o))}
                   onSelect={(o) => ctx.setBattingOrder(o)}
                 />
               </View>
@@ -306,22 +329,13 @@ export default function ScoreTableView() {
             height={isWide ? 58 : 54}
           />
         </View>
-        {table ? (
-          <Text style={{ color: colors.muted, fontSize: 16.5 }} numberOfLines={1}>
-            {t('score_table_count_prefix')}
-            <Text style={[{ color: colors.onSurface }, tabularNums]}>{totalCount}</Text>
-            {t('score_table_count_middle')}
-            <Text style={[{ color: colors.onSurface }, tabularNums]}>{groups.length}</Text>
-            {t('score_table_count_suffix')}
-          </Text>
-        ) : null}
       </View>
 
       {/* 검색 결과는 티어 카드 위에 삽입된다. 순위 번호 대신 티어 칩을 붙인다. */}
       {query.trim() ? (
         <SectionCard title={t('score_table_search')} padding={isWide ? spacing.xxl : spacing.lg}>
           {searchResults.length ? (
-            searchResults.map(({ tier, entry }) => <Row key={entry.skillId} rank={null} tier={tier} entry={entry} />)
+            searchResults.map(({ tier, entry }) => <Row key={rowKey(entry)} rank={null} tier={tier} entry={entry} />)
           ) : (
             <Text style={{ color: colors.muted, fontSize: 17 }}>{t('score_table_no_match')}</Text>
           )}
@@ -380,15 +394,27 @@ export default function ScoreTableView() {
                         {t('score_table_group_total_suffix')}
                       </Text>
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 15, fontWeight: '600', letterSpacing: 0.66 }}>
-                      {t('score_table_top_n')}
-                    </Text>
+                    {/* 고를 등급이 둘 이상인 티어만 드롭다운을 둔다. 모먼트는 S뿐이다. */}
+                    {(group.grades?.length ?? 0) > 1 ? (
+                      <LabeledDropdown
+                        compact
+                        label={`${tk(`tier_${group.tier}`)} ${t('score_table_grade_label')}`}
+                        selected={group.grade ?? 'S'}
+                        options={group.grades ?? ['S']}
+                        optionLabel={(o) => o}
+                        onSelect={(o) => setGradeByTier((prev) => ({ ...prev, [group.tier]: o }))}
+                      />
+                    ) : (
+                      <Text style={{ color: colors.muted, fontSize: 15, fontWeight: '600', letterSpacing: 0.66 }}>
+                        {t('score_table_top_n')}
+                      </Text>
+                    )}
                   </View>
 
                   <View style={{ paddingHorizontal: isWide ? 31 : 24, paddingTop: 12, paddingBottom: 29 }}>
                     {(expandedTiers[group.tier] ? group.entries : group.entries.slice(0, TOP_N)).map(
                       (entry, i) => (
-                        <Row key={entry.skillId} rank={i + 1} entry={entry} />
+                        <Row key={rowKey(entry)} rank={i + 1} entry={entry} />
                       ),
                     )}
                     {group.totalCount > TOP_N ? (

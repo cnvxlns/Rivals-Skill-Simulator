@@ -125,6 +125,30 @@ class TeamBuffResolverTest {
     }
 
     @Test
+    fun `투수의 팀 타자 버프는 타자에게 가고 리그 모드 전용 버프는 랭킹대전에서 0이다`() {
+        // 퍼포머트리오(투수) M_026: "팀 타자 전체의 파워, 정확 +2".
+        val performer = resolver().resolve(roster(player("SP1", "M_026" to 1)), PositionTraining.EMPTY)
+        assertThat(performer.batter).containsEntry("파워", 2.0).containsEntry("정확", 2.0)
+        assertThat(performer.pitcher).isEmpty()
+
+        // 리그의 지배자 HOF_003: "리그 모드에서 라인업 모든 타자 파워, 정확 +1".
+        val league = resolver().resolve(roster(player("C", "HOF_003" to 5, battingOrder = 1)), PositionTraining.EMPTY)
+        assertThat(league.batter).isEmpty()
+    }
+
+    @Test
+    fun `팀 버프 행은 보유자 본인의 효과에 들어 있지 않다`() {
+        // 계산기와 점수표는 본인 효과만 채점한다. 팀 효과가 효과행에도 있으면 거기서 보유자 점수로 잡힌다.
+        for ((skillId, buffs) in deckData.teamBuffSkills) {
+            val own = skills.findBySkillKey(skillId)?.effects.orEmpty()
+                .map { Triple(it.stat, it.condition, it.values) }
+            for (buff in buffs) {
+                assertThat(own).describedAs(skillId).doesNotContain(Triple(buff.stat, buff.condition, buff.rawValues))
+            }
+        }
+    }
+
+    @Test
     fun `후보는 주기만 하고 받지는 않는다`() {
         val result = resolver().resolve(
             roster(player("BENCH1", "HOF_012" to 6)),
@@ -170,9 +194,10 @@ class TeamBuffResolverTest {
     }
 
     @Test
-    fun `팀 버프 표가 여섯 스킬을 덮는다`() {
+    fun `팀 버프 표가 팀 전체 효과를 가진 스킬을 모두 덮는다`() {
         assertThat(deckData.teamBuffSkills.keys).containsExactlyInAnyOrder(
             "HOF_012", "HOF_031", "WBC_005", "WBC_011", "M_014", "G_027",
+            "M_006", "M_026", "G_041", "HOF_003", "HOF_021",
         )
         assertThat(deckData.teamBuffSkills.values.flatten())
             .allSatisfy { assertThat(it.scope).isIn(*TeamBuffSkill.Scope.entries.toTypedArray()) }

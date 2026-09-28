@@ -371,8 +371,9 @@ class CommittedDataTest(unittest.TestCase):
                 target,
             )
 
-    def test_team_buff_values_match_the_effect_rows(self):
-        """팀 버프 수치는 우리 효과행에서 온다. WBC_011 구위만 워크북에서 가져왔다."""
+    def test_team_buff_rows_are_not_owner_effects(self):
+        """팀 버프는 team_buff_skills.csv에만 있고 보유자 본인 효과(score_effects.csv)에는 없다.
+        계산기·점수표는 본인 효과만 채점하고 팀 효과는 라인업에서만 준다."""
         import csv
 
         effects: set[tuple[str, str, str]] = set()
@@ -381,12 +382,12 @@ class CommittedDataTest(unittest.TestCase):
                 effects.add((row_["skill_id"], row_["stat"], row_["values"]))
         with (RESOURCES / "team_buff_skills.csv").open(encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))
-        missing = [
+        doubled = [
             (r["skill_id"], r["stat"])
             for r in rows
-            if (r["skill_id"], r["stat"], r["values"]) not in effects
+            if (r["skill_id"], r["stat"], r["values"]) in effects
         ]
-        self.assertEqual(missing, [("WBC_011", "구위")], missing)
+        self.assertEqual(doubled, [], doubled)
 
 
 @unittest.skipUnless(

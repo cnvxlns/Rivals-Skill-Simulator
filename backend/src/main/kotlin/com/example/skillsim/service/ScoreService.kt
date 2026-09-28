@@ -13,6 +13,7 @@ import com.example.skillsim.enums.Level
 import com.example.skillsim.model.ScoreSkill
 import com.example.skillsim.repository.ScoreSkillRepository
 import java.util.EnumMap
+import kotlin.math.roundToLong
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -216,7 +217,8 @@ class ScoreService private constructor(
             cardType = cardType,
             position = position,
             name = name,
-            description = description,
+            // 목록에는 등급이 없으니 점수표와 같은 S 기준으로 x·y·z를 채워 둔다. 글자가 남은 원문을 보이지 않게.
+            description = SkillDescriptions.resolve(this, appliedLevel(this)),
             maxLevel = maxLevel,
             levelLabels = SkillRules.gradeLabels(cardType, maxLevel),
         )
@@ -355,6 +357,12 @@ class ScoreService private constructor(
      * 실제 적용된 등급을 함께 반환한다. 효과 행이 없는 스킬은 0점으로 포함한다 —
      * 능력치가 아니라 확률을 바꾸는 효과라 현재 모델로 측정할 수 없을 뿐이다.
      *
+     * 카드·라인업을 정하면 결정되는 조건(기본 능력치, 능력치 비교, 타순, 선발 순번)을 쓰는 스킬은
+     * 경우마다 한 줄씩 나눈다([ScoreTableVariants]).
+     *
+     * 요청에 조건이 있으면 그 조건을 발동/미발동으로 못박은 확률표로 채점하고
+     * ([ConditionScenario]), 원래 기댓값 점수는 [ScoreTableResponse.Entry.expectedScore]에 싣는다.
+     *
      * @param topN 티어별 상위 몇 개까지 담을지. 0 이하면 전부 담는다.
      */
     fun buildScoreTable(request: ScoreTableRequest, topN: Int): ScoreTableResponse {
@@ -368,29 +376,65 @@ class ScoreService private constructor(
             batHand = request.batHand,
             baseStats = request.baseStats,
         )
+        val scenarioProbabilities = request.condition?.trim()?.takeIf { it.isNotEmpty() }?.let { token ->
+            if (!conditionProbabilities.containsKey(token)) {
+                throw badRequest("Unknown condition: $token")
+            }
+            HashMap(conditionProbabilities).also {
+                ConditionScenario.apply(
+                    it,
+                    token,
+                    request.conditionActive,
+                    SkillRules.roleForPosition(normalizedPosition),
+                    request.battingOrder,
+                )
+            }
+        }
         val statWeights = statWeightsSupplier()
+        val role = SkillRules.roleForPosition(normalizedPosition)
 
         val grouped = EnumMap<SkillTier, MutableList<ScoreTableResponse.Entry>>(SkillTier::class.java)
+        val scoredSkills = mutableListOf<ScoreSkill>()
         for (skill in scoreSkillRepository.findAll()) {
             val tier = SkillTier.of(skill)
             if (tier == null || !SkillRules.matchesPosition(skill.position, normalizedPosition)) {
                 continue
             }
-            val level = appliedLevel(skill)
-            val result = scoreCalculator.calculate(
-                listOf(ScoreCalculator.Selection(skill, level)),
-                statWeights,
-                conditionProbabilities,
-                request.userStats,
+            scoredSkills += skill
+            val level = tableLevel(skill, tableGrade(request.grades?.get(tier.key)))
+            val selections = listOf(ScoreCalculator.Selection(skill, level))
+            val variants = ScoreTableVariants.variants(
+                skill = skill,
+                level = level,
+                role = role,
+                battingOrder = request.battingOrder,
+                pitcherSlot = request.pitcherSlot,
+                batHand = request.batHand,
+                throwHand = request.throwHand,
+                probabilities = conditionProbabilities,
             )
-            grouped.getOrPut(tier) { mutableListOf() } += ScoreTableResponse.Entry(
-                skillId = skill.skillKey,
-                name = skill.name,
-                description = skill.description,
-                resolvedDescription = SkillDescriptions.resolve(skill, level),
-                score = result.total,
-                appliedGrade = SkillRules.gradeLabels(skill.cardType, SkillRules.maxLevel(skill))[level - 1],
-            )
+            for ((variant, overrides, stats) in variants) {
+                val userStats = request.userStats.orEmpty() + stats
+                val expected = scoreCalculator.calculate(
+                    selections,
+                    statWeights,
+                    conditionProbabilities + overrides,
+                    userStats,
+                )
+                val scenario = scenarioProbabilities?.let {
+                    scoreCalculator.calculate(selections, statWeights, it + overrides, userStats)
+                }
+                grouped.getOrPut(tier) { mutableListOf() } += ScoreTableResponse.Entry(
+                    skillId = skill.skillKey,
+                    name = skill.name,
+                    description = skill.description,
+                    resolvedDescription = SkillDescriptions.resolve(skill, level),
+                    score = scenario?.total ?: expected.total,
+                    appliedGrade = SkillRules.gradeLabels(skill.cardType, SkillRules.maxLevel(skill))[level - 1],
+                    variant = variant,
+                    expectedScore = scenario?.let { expected.total },
+                )
+            }
         }
 
         val tiers = SkillTier.DISPLAY_ORDER.mapNotNull { tier ->
@@ -399,15 +443,43 @@ class ScoreService private constructor(
                 return@mapNotNull null
             }
             val sorted = entries.sortedWith(
-                compareByDescending<ScoreTableResponse.Entry> { it.score }.thenBy { it.skillId },
+                compareByDescending<ScoreTableResponse.Entry> { it.score }
+                    .thenBy { it.skillId }
+                    .thenBy { it.variant },
             )
             ScoreTableResponse.TierGroup(
                 tier = tier.key,
+                grade = tableGrade(request.grades?.get(tier.key)).name,
+                grades = selectableGrades(scoredSkills.filter { SkillTier.of(it) == tier }),
                 totalCount = sorted.size,
                 entries = if (topN > 0 && sorted.size > topN) sorted.take(topN) else sorted,
             )
         }
-        return ScoreTableResponse(tiers)
+        return ScoreTableResponse(tiers, splittableConditions(scoredSkills, conditionProbabilities))
+    }
+
+    /**
+     * 발동/미발동으로 나눠 볼 만한 조건. 확률이 0이나 1이면 이미 정해진 조건이라 뺀다.
+     * 쓰는 스킬이 많은 순, 같으면 토큰 이름 순이다.
+     */
+    private fun splittableConditions(
+        skills: List<ScoreSkill>,
+        probabilities: Map<String, Double>,
+    ): List<ScoreTableResponse.ConditionOption> {
+        val skillCounts = mutableMapOf<String, Int>()
+        for (skill in skills) {
+            skill.effects.flatMap { conditionTokens(it.condition) }.toSet()
+                .forEach { skillCounts[it] = (skillCounts[it] ?: 0) + 1 }
+        }
+        return skillCounts
+            .mapNotNull { (token, count) ->
+                val probability = probabilities[token] ?: return@mapNotNull null
+                if (probability <= 0.0 || probability >= 1.0) {
+                    return@mapNotNull null
+                }
+                ScoreTableResponse.ConditionOption(token, (probability * 1000).roundToLong() / 1000.0, count)
+            }
+            .sortedWith(compareByDescending<ScoreTableResponse.ConditionOption> { it.skillCount }.thenBy { it.token })
     }
 
     /** 보너스까지 반영한 레벨의 등급 라벨. 화면이 "S -> S2"를 보여 주는 데 쓴다. */
@@ -418,6 +490,29 @@ class ScoreService private constructor(
     }
 
     /** S레벨. 사다리에서 S 위치가 스킬의 최대 단계를 넘으면 최대 단계로 내린다. */
+    /** 점수표에서 고를 수 있는 등급. S 아래는 비교할 까닭이 없어 받지 않는다. */
+    private val tableGrades = listOf(Level.S, Level.S1, Level.S2, Level.S3, Level.S4)
+
+    /** 요청의 등급 문자열. 비었거나 S~S4가 아니면 S로 본다. */
+    private fun tableGrade(raw: String?): Level =
+        tableGrades.firstOrNull { it.name.equals(raw?.trim(), ignoreCase = true) } ?: Level.S
+
+    /**
+     * [grade]로 채점할 레벨. 스킬 사다리에 그 등급이 없거나(HOF의 S3) 수치 단계가 모자라면
+     * 자기 최대 등급으로 내려간다. 실제로 쓴 등급은 [ScoreTableResponse.Entry.appliedGrade]에 실린다.
+     */
+    private fun tableLevel(skill: ScoreSkill, grade: Level): Int {
+        val ladder = SkillRules.gradeLadder(skill.cardType)
+        val index = ladder.indexOf(grade).takeIf { it >= 0 }?.plus(1) ?: ladder.size
+        return minOf(index, SkillRules.maxLevel(skill))
+    }
+
+    /** 티어 안 스킬 중 하나라도 닿는 S~S4 등급. 모먼트처럼 S뿐이면 하나만 남는다. */
+    private fun selectableGrades(skills: List<ScoreSkill>): List<String> {
+        val reachable = skills.flatMap { SkillRules.gradeLabels(it.cardType, SkillRules.maxLevel(it)) }.toSet()
+        return tableGrades.map { it.name }.filter { it in reachable }.ifEmpty { listOf(Level.S.name) }
+    }
+
     private fun appliedLevel(skill: ScoreSkill): Int =
         minOf(SkillRules.levelIndex(Level.S, skill.cardType), SkillRules.maxLevel(skill))
 }

@@ -37,6 +37,8 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "초구" to "condition_first_pitch",
     "스트라이크타격" to "condition_strike_hit",
     "1스트라이크" to "condition_one_strike",
+    "1스트라이크이후" to "condition_one_strike_or_more",
+    "빠른카운트" to "condition_early_count",
     "2스트라이크" to "condition_two_strikes",
     "상대팀홈런3" to "condition_opponent_three_homeruns",
     "이닝출루2인이상" to "condition_inning_two_baserunners",
@@ -52,10 +54,14 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "타순4_5" to "condition_batting_order_4_5",
     "타순6_9" to "condition_batting_order_6_9",
     "타순8_9" to "condition_batting_order_8_9",
+    "타순1_2_6_7_8_9" to "condition_batting_order_not_3_5",
+    "상대타순3_4_5" to "condition_opponent_batting_order_3_5",
+    "상대타순6_9" to "condition_opponent_batting_order_6_9",
     "리드" to "condition_lead",
     "리드아님" to "condition_not_leading",
     "비김또는리드" to "condition_tie_or_lead",
     "비김또는열세" to "condition_tie_or_behind",
+    "열세" to "condition_behind",
     "모드_랭킹대전" to "condition_mode_ranking_match",
     "모드_랭킹토너먼트" to "condition_mode_ranking_tournament",
     "모드_라이브매치" to "condition_mode_live_match",
@@ -69,6 +75,7 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "포지션_2B" to "condition_gate_position_2b",
     "포지션_SS" to "condition_gate_position_ss",
     "포지션_OF" to "condition_gate_position_of",
+    "포지션_CF" to "condition_gate_position_cf",
     "포지션_C" to "condition_gate_position_c",
     "선발1" to "condition_gate_slot_sp_1",
     "선발1_2" to "condition_gate_slot_sp_1_2",
@@ -84,7 +91,7 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
 )
 
 private val GATE_TOKENS = listOf(
-    "포지션_SP", "포지션_RP_CP", "포지션_DH", "포지션_2B", "포지션_SS", "포지션_OF", "포지션_C",
+    "포지션_SP", "포지션_RP_CP", "포지션_DH", "포지션_2B", "포지션_SS", "포지션_OF", "포지션_CF", "포지션_C",
     "선발1", "선발1_2", "선발3_4", "선발3_4_5", "선발4_5", "중계3_4_5",
     "좌완", "우완", "좌타", "우타", "스위치타",
     // 카드 고유 능력치 임계. baseStats가 오면 0/1로 확정되므로 게이트로 다룬다.

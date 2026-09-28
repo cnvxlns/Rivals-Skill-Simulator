@@ -254,16 +254,19 @@ class ScoreDataLoaderTest {
     fun `board sourced skills carry their announced values`() {
         val skills = readBundledScoreSkills()
 
-        // 저니맨(v2.03.00). 게시글 표는 D~SS+ 7단계뿐이라 S3·S4는 마지막 증가폭을 이어 붙였다.
+        // 로드 워리어(G_021/G_062)의 수치는 v2.03.00 공지 표(D~SS+)에 "저니맨"이라는 이름으로 실렸다.
+        // 인게임에는 저니맨이 없다(2026-09 확인). 예전에 공지 이름대로 G_077/G_078을 따로 넣어
+        // 같은 스킬이 두 번 있었으므로 다시 들어오지 않게 막는다.
         for (stat in listOf("파워", "정확", "인내")) {
-            assertThat(valuesFor(skills, "G_077", stat, "ALWAYS")).containsExactly("1/2/3/4/5/6/7/8/9")
+            assertThat(valuesFor(skills, "G_021", stat, "ALWAYS")).containsExactly("1/2/3/4/5/6/7/8/9")
         }
         for (stat in listOf("구위", "변화", "구속")) {
-            assertThat(valuesFor(skills, "G_077", stat, "원정")).containsExactly("2/2/2/2/2/3/4/5/6")
+            assertThat(valuesFor(skills, "G_021", stat, "원정")).containsExactly("2/2/2/2/2/3/4/5/6")
         }
         for (stat in listOf("파워", "정확", "주루")) {
-            assertThat(valuesFor(skills, "G_078", stat, "원정")).containsExactly("2/2/2/2/2/3/4/5/6")
+            assertThat(valuesFor(skills, "G_062", stat, "원정")).containsExactly("2/2/2/2/2/3/4/5/6")
         }
+        assertThat(skills.map { it.name }).doesNotContain("저니맨")
 
         // HOF 전용 스킬은 사다리가 D~S1 6단계라 공지 수치를 그대로 옮겼다.
         for (stat in listOf("파워", "정확", "선구")) {

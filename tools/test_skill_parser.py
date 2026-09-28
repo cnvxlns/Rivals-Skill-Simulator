@@ -1,10 +1,22 @@
 import csv
+import re
 import unittest
+from collections import defaultdict
 from pathlib import Path
 
-from skill_parser import SkillRow, build_effect_rows, expand_value, _condition_for
+from skill_parser import SkillRow, build_effect_rows, expand_value, _all_stats_for, _condition_for
 
 RESOURCES = Path(__file__).resolve().parent.parent / "backend" / "src" / "main" / "resources"
+
+
+def _skills() -> list[SkillRow]:
+    """커밋된 score_skills.csv. 사다리 변수는 CSV에 없으니 자리만 채운다."""
+    placeholder = {name: "1/2/3" for name in "yzabc"}
+    with (RESOURCES / "score_skills.csv").open(encoding="utf-8-sig", newline="") as fp:
+        return [
+            SkillRow(r["skill_id"], r["card_type"], r["position"], r["name"], r["description"], placeholder)
+            for r in csv.DictReader(fp)
+        ]
 
 
 def _effects_by_skill() -> dict[str, list[tuple[str, str, str]]]:
@@ -151,6 +163,81 @@ class SkillParserTest(unittest.TestCase):
                 ("선구", "두번째타석까지", "5"),
             ],
         )
+
+    def test_hot_start_buffs_last_only_for_their_window(self):
+        """핫 스타트의 자기 버프는 타자면 두 번째 타석까지, 투수면 등판 후 7타자 동안만이다.
+        상대 능력치를 깎는 절은 계속 유지된다."""
+        batter = SkillRow(
+            skill_id="M_008",
+            card_type="MOMENT",
+            position="BATTER",
+            name="핫 스타트",
+            description="상대 투수의 모든 능력치가 6 감소합니다. 두 번째 타석까지 파워, 정확, 선구, 인내 능력치가 6 증가합니다.",
+            variables={},
+        )
+        pitcher = SkillRow(
+            skill_id="M_023",
+            card_type="MOMENT",
+            position="PITCHER",
+            name="핫 스타트",
+            description="상대 타자의 모든 능력치가 6 감소합니다. 등판 후 7타자 동안 구위, 변화, 구속, 제구 능력치가 6 증가합니다.",
+            variables={},
+        )
+
+        batter_rows = {(e.stat, e.condition) for e in build_effect_rows(batter)[0]}
+        pitcher_rows = {(e.stat, e.condition) for e in build_effect_rows(pitcher)[0]}
+
+        for stat in ("파워", "정확", "선구", "인내"):
+            self.assertIn((stat, "두번째타석까지"), batter_rows)
+        self.assertIn(("구위", "ALWAYS"), batter_rows)
+        for stat in ("구위", "변화", "구속", "제구"):
+            self.assertIn((stat, "등판후7타자"), pitcher_rows)
+        self.assertIn(("파워", "ALWAYS"), pitcher_rows)
+
+    def test_game_state_losing_is_strictly_behind(self):
+        """"지고 있을 때"는 열세(동점 제외). "비기거나 지고", "동점이거나 지고"는 동점을 포함한다."""
+        self.assertEqual(_condition_for("지고 있을 때 파워 능력치가 x 증가합니다"), "열세")
+        self.assertEqual(_condition_for("지고 있는 상황일 경우 구위 능력치가 6 증가합니다"), "열세")
+        self.assertEqual(_condition_for("비기거나 지고있을 경우 파워 능력치가 10 증가합니다"), "비김또는열세")
+        self.assertIn("리드아님", _condition_for("동점이거나 지고 있을때 상대 투수의 구위 능력치를 x 감소시킵니다"))
+        self.assertEqual(_condition_for("9회 이후 등판 시 상대 타자의 파워 능력치가 6 감소합니다"), "9회이후")
+
+    def test_pitching_window_conditions(self):
+        """등판 직후 N타자 구간. 구간이 앞 효과 절 뒤에 오는 문장(스탠드아웃)은 문장 전체에 걸지 않는다."""
+        self.assertEqual(
+            _condition_for("등판 후 상대하는 3 타자동안 변화, 구위 능력치가 8 증가합니다"), "등판후3타자"
+        )
+        self.assertEqual(_condition_for("등판 후 상대하는 세 타자동안 구속 능력치가 x+1증가합니다"), "등판후3타자")
+        self.assertEqual(
+            _condition_for("구위 능력치가 7 증가하고 등판 후 9타자 동안 구위 능력치가 추가로 5 증가합니다"), "ALWAYS"
+        )
+
+    def test_count_conditions(self):
+        """"1스트라이크 이후"는 2스트라이크를 포함하는 별도 조건이고, "2 스트라이크"는 띄어 써도 잡는다.
+        "볼 카운트 0-0, 0-1, 1-0"은 빠른 카운트다."""
+        self.assertEqual(_condition_for("1스트라이크 이후 파워 선구 능력치가 z 증가합니다"), "1스트라이크이후")
+        self.assertEqual(_condition_for("2 스트라이크 이후 정확 능력치가 a 증가합니다"), "2스트라이크")
+        self.assertEqual(_condition_for("스트라이크 카운트가 2스트라이크일 때 파워 능력치가 z 증가합니다"), "2스트라이크")
+        self.assertEqual(_condition_for("볼 카운트 0-0, 0-1, 1-0 상황에서 파워 정확 능력치가 y 증가합니다"), "빠른카운트")
+
+    def test_pitch_grade_step_is_not_a_stat_value(self):
+        """위닝샷의 "모든 구종 등급이 1단계 상승"을 능력치 +1로 읽지 않는다."""
+        row = SkillRow(
+            skill_id="G_066",
+            card_type="NORMAL",
+            position="PITCHER",
+            name="위닝샷",
+            description="2 스트라이크 이후 추가로 구위, 변화, 제구 능력치가 z 증가하고 모든 구종 등급이 1단계 상승합니다.",
+            variables={"z": "1/2/3"},
+        )
+
+        effects, _ = build_effect_rows(row)
+
+        self.assertEqual({(e.stat, e.condition, e.values) for e in effects}, {
+            ("구위", "2스트라이크", "1/2/3"),
+            ("변화", "2스트라이크", "1/2/3"),
+            ("제구", "2스트라이크", "1/2/3"),
+        })
 
     def test_conditions_power_pitcher_stat_comparison_bonus(self):
         row = SkillRow(
@@ -466,6 +553,115 @@ class SkillParserTest(unittest.TestCase):
         self.assertEqual(_condition_for("선발 등판 시"), "포지션_SP")
         self.assertEqual(_condition_for("중계 등판 시"), "포지션_RP_CP")
 
+    def test_own_stat_decrease_is_negative(self):
+        """내 능력치가 깎이는 절은 음수다. 상대 능력치를 깎는 절은 이득이라 양수로 둔다."""
+        row = SkillRow(
+            skill_id="G_035",
+            card_type="NORMAL",
+            position="BATTER",
+            name="컨택 스페셜리스트",
+            description=(
+                "상대 투수의 변화 제구 구속 능력치를 x+1 감소시킵니다. 평균 발사각이 3도 감소합니다. "
+                "정확 능력치가 y 증가하고 파워 능력치가 3 감소합니다."
+            ),
+            variables={"y": "3/4/5"},
+        )
+
+        effects, _ = build_effect_rows(row)
+        rows = [(effect.stat, effect.condition, effect.values) for effect in effects]
+
+        self.assertIn(("변화", "ALWAYS", "2/3/4/5/6/7/8/9/10"), rows)
+        self.assertIn(("정확", "ALWAYS", "3/4/5"), rows)
+        self.assertIn(("파워", "ALWAYS", "-3"), rows)
+
+    def test_pitcher_decrease_sign_follows_whose_stat_it_is(self):
+        """투수에게 구위는 제 것이고 파워는 상대 것이다. 포지션이 여럿이어도 같다."""
+        knuckleball = SkillRow(
+            skill_id="HOF_037",
+            card_type="HOF",
+            position="PITCHER",
+            name="너클볼 마스터",
+            description="구위 능력치가 4 감소하고 변화 능력치가 y 증가합니다.",
+            variables={"y": "10/11/12"},
+        )
+        rising_star = SkillRow(
+            skill_id="G_052",
+            card_type="NORMAL",
+            position="SP, RP",
+            name="라이징 스타",
+            description="등판 후 4타자 동안 상대 타자의 파워, 인내 능력치가 x 감소합니다.",
+            variables={},
+        )
+
+        knuckleball_rows = [(e.stat, e.values) for e in build_effect_rows(knuckleball)[0]]
+        rising_star_rows = [(e.stat, e.values) for e in build_effect_rows(rising_star)[0]]
+
+        self.assertEqual(knuckleball_rows, [("구위", "-4"), ("변화", "10/11/12")])
+        self.assertIn(("파워", "1/2/3/4/5/6/7/8/9"), rising_star_rows)
+
+    def test_batting_order_list_is_one_token(self):
+        """타순 목록은 통째로 한 토큰이다. 부분 목록("4, 5")을 따로 잡아 AND로 묶으면 안 된다."""
+        cases = {
+            "3, 4, 5 타선에 배치시 추가로 파워 정확 능력치가 x 증가합니다": "타순3_4_5",
+            "클린업(3, 4, 5번)으로 배치시, 상대투수의 구위가 x 감소합니다": "타순3_4_5",
+            "6, 7, 8, 9 타순으로 출전 시 상대 투수의 구위 능력치를 6 감소시킵니다": "타순6_9",
+            "6/7/8/9 번 타순 배치 시 상대 투수의 구위 능력치가 x 감소합니다": "타순6_9",
+            "1, 2, 6, 7, 8, 9번 타순에 배치 시 모든 능력치가 6 증가합니다": "타순1_2_6_7_8_9",
+            "상위타선(1, 2번)에 배치되는 경우 정확 능력치가 y 증가합니다": "타순1_2",
+            "상대 3, 4, 5 타순 상대 시 구위 능력치가 x 증가합니다": "상대타순3_4_5",
+            "상대 6, 7, 8, 9 타순 상대 시 구위 능력치가 z 증가합니다": "상대타순6_9",
+            "8, 9번 타순 배치 시 정확 능력치가 z 증가합니다": "타순8_9",
+        }
+        for sentence, expected in cases.items():
+            with self.subTest(sentence=sentence):
+                self.assertEqual(_condition_for(sentence), expected)
+
+    def test_level_ladder_in_parentheses_is_not_a_batting_order(self):
+        self.assertEqual(_condition_for("파워 능력치가 (1/2/3/4/5/6) 증가합니다"), "ALWAYS")
+
+    def test_decrease_clause_does_not_flip_stats_borrowed_from_previous_clause(self):
+        """감소 절에 스탯이 없어 앞 절에서 끌려온 스탯은 뒤집지 않는다."""
+        row = SkillRow(
+            skill_id="HOF_005",
+            card_type="HOF",
+            position="BATTER",
+            name="장타 본능",
+            description="3, 4, 5 타순으로 출전 시 파워, 정확 능력치가 a 증가하고 상대 투수의 변화 능력치를 추가로 a 감소시킵니다.",
+            variables={"a": "1/2/3"},
+        )
+
+        effects, _ = build_effect_rows(row)
+
+        self.assertEqual([e for e in effects if e.values.startswith("-")], [])
+
+    def test_all_stats_belong_to_the_subject_right_before_them(self):
+        """'모든 능력치'가 누구 것인지는 문장 어딘가가 아니라 바로 앞 주어가 정한다."""
+        own_buff = SkillRow(
+            skill_id="M_002",
+            card_type="MOMENT",
+            position="BATTER",
+            name="돌풍의 주인공",
+            description="상대 투수의 OVR이 더 높은 경우 모든 능력치가 5 증가합니다",
+            variables={},
+        )
+        opponent_debuff = SkillRow(
+            skill_id="G_015",
+            card_type="NORMAL",
+            position="BATTER",
+            name="도전정신",
+            description="나보다 높은 등급의 상대를 만났을 경우 상대 모든 능력치가 1 감소합니다.",
+            variables={},
+        )
+
+        own_stats = [e.stat for e in build_effect_rows(own_buff)[0]]
+        opponent_rows = [(e.stat, e.values) for e in build_effect_rows(opponent_debuff)[0]]
+
+        self.assertEqual(own_stats, ["파워", "정확", "선구", "인내", "주루", "수비"])
+        self.assertEqual(
+            opponent_rows,
+            [(stat, "1") for stat in ["구속", "구위", "변화", "제구", "지구력", "수비"]],
+        )
+
     def test_r19_conditioned_skill_mappings(self):
         """조건이 붙은 스킬들의 효과행이 되돌아가지 않게 못을 박는다.
 
@@ -528,20 +724,21 @@ class SkillParserTest(unittest.TestCase):
                 ("파워", "제구>선구", "1/2/3/4/5/6"),
                 ("정확", "제구>선구", "1/2/3/4/5/6"),
             ],
+            # "상대 모든 능력치가 1 감소"라서 타자 스킬이면 상대 투수의 스탯이다.
             "G_015": [
-                ("파워", "상대등급우세", "1"),
-                ("정확", "상대등급우세", "1"),
-                ("선구", "상대등급우세", "1"),
-                ("인내", "상대등급우세", "1"),
-                ("주루", "상대등급우세", "1"),
-                ("수비", "상대등급우세", "1"),
-            ],
-            "G_053": [
                 ("구속", "상대등급우세", "1"),
                 ("구위", "상대등급우세", "1"),
                 ("변화", "상대등급우세", "1"),
                 ("제구", "상대등급우세", "1"),
                 ("지구력", "상대등급우세", "1"),
+                ("수비", "상대등급우세", "1"),
+            ],
+            "G_053": [
+                ("파워", "상대등급우세", "1"),
+                ("정확", "상대등급우세", "1"),
+                ("선구", "상대등급우세", "1"),
+                ("인내", "상대등급우세", "1"),
+                ("주루", "상대등급우세", "1"),
                 ("수비", "상대등급우세", "1"),
             ],
             # 조건 토큰이 '홈런3이상'에서 '상대팀홈런3'으로 바뀌고 사다리도 7칸으로
@@ -601,3 +798,43 @@ class SkillParserTest(unittest.TestCase):
                     self.assertIn(row, actual)
                 for row in always_rows.get(skill_id, []):
                     self.assertIn(row, actual)
+
+
+class CommittedEffectDirectionTest(unittest.TestCase):
+    """커밋된 CSV의 효과 방향이 설명문과 맞는지 본다.
+
+    사다리 값은 공지에서 오므로 설명문만으로 검증할 수 없다. 하지만 부호(내 능력치가
+    오르는지 깎이는지)와 대상(내 것인지 상대 것인지)은 설명문에 적혀 있다. 컨택
+    스페셜리스트의 "파워 능력치가 3 감소"가 +3으로 들어가 점수를 올리고 있었다.
+    """
+
+    def test_negative_rows_are_exactly_the_own_stat_decreases(self):
+        expected = {
+            (row.skill_id, effect.stat)
+            for row in _skills()
+            for effect in build_effect_rows(row)[0]
+            if effect.values.startswith("-")
+        }
+        actual = {
+            (skill_id, stat)
+            for skill_id, rows in _effects_by_skill().items()
+            for stat, _, values in rows
+            if any(float(value) < 0 for value in values.split("/"))
+        }
+
+        self.assertEqual(actual, expected)
+
+    def test_all_stats_rows_belong_to_the_side_the_description_names(self):
+        effects = _effects_by_skill()
+        for row in _skills():
+            groups: dict[tuple[str, str], set[str]] = defaultdict(set)
+            for stat, condition, values in effects.get(row.skill_id, []):
+                groups[(condition, values)].add(stat)
+            for mention in re.finditer("모든 능력치", row.description):
+                # 수비는 투타 양쪽에 다 있어서 어느 쪽인지 가려 주지 못한다.
+                side = set(_all_stats_for(row, row.description[: mention.end()])) - {"수비"}
+                with self.subTest(skill_id=row.skill_id, at=mention.start()):
+                    self.assertTrue(
+                        any(side <= stats for stats in groups.values()),
+                        f"{row.skill_id}: '{row.description[: mention.end()]}' -> {sorted(side)} 묶음이 없다",
+                    )

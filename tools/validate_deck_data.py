@@ -48,6 +48,10 @@ CARD_GRADES = frozenset(
 CARD_VARIANTS = frozenset(["NONE", "FA", "WBC"])
 GROWTH_STATS = frozenset(["파워", "정확", "선구", "변화", "구위"])
 
+# 팀 버프는 성장 능력치가 아닌 것도 준다(리더십 수비, 타선지원 주루). 가중치가 0이라 점수에는
+# 안 잡히지만 버프 자체는 그대로 둔다.
+TEAM_BUFF_STATS = GROWTH_STATS | frozenset(["인내", "주루", "수비", "구속", "제구", "지구력"])
+
 # 사다리 상한. 게임의 실제 상한이라 표가 짧은 것은 오류가 아니다.
 TRANSCENDENCE_MAX = 16  # 레벨 0~15
 ENHANCEMENT_MAX = 20  # 레벨 1~20
@@ -342,7 +346,7 @@ def check_team_buffs(path: Path, resources: Path, problems: list[Problem]) -> No
             problems.append(Problem("ERROR", "BAD_SCOPE", where, f"모르는 대상: {row['scope']}"))
         if row["requires_slot"] and row["requires_slot"] not in REWARD_TARGET_SLOTS:
             problems.append(Problem("ERROR", "BAD_SLOT", where, f"모르는 자리: {row['requires_slot']}"))
-        if row["stat"] not in GROWTH_STATS:
+        if row["stat"] not in TEAM_BUFF_STATS:
             problems.append(Problem("ERROR", "BAD_STAT", where, f"모르는 스탯: {row['stat']}"))
         values = _ladder(row["values"])
         if values is None:

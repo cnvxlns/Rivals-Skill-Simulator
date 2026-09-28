@@ -17,6 +17,11 @@ data class ScoreTableRequest(
     val throwHand: Handedness? = null,
     val batHand: Handedness? = null,
     val userStats: Map<String, Double>? = null,
+    /**
+     * 티어별로 채점할 등급(`gold` -> `S2`). S~S4만 받는다. 빠진 티어와 모르는 값은 S로 채점한다.
+     * 스킬 사다리가 그 등급까지 없으면 자기 최대 등급으로 내려간다(HOF는 S1이 끝이다).
+     */
+    val grades: Map<String, String>? = null,
     /** 카드 고유 능력치. [ScoreRequest.baseStats]와 같은 뜻이다. */
     val baseStats: Map<String, Double>? = null,
     /**

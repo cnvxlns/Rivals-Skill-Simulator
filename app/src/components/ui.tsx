@@ -643,6 +643,7 @@ export function LabeledDropdown<T>({
   searchable = false,
   searchPlaceholder = '검색',
   placeholder,
+  compact = false,
 }: {
   label: string;
   selected: T;
@@ -653,6 +654,8 @@ export function LabeledDropdown<T>({
   searchable?: boolean;
   searchPlaceholder?: string;
   placeholder?: string;
+  /** 카드 머리글처럼 좁은 자리에 둘 때. 위 라벨을 숨기고(시트 제목에는 남긴다) 버튼을 줄인다. */
+  compact?: boolean;
 }) {
   const { colors, radius, controlHeight, spacing } = useAppTheme();
   const { height: windowHeight } = useWindowDimensions();
@@ -696,18 +699,21 @@ export function LabeledDropdown<T>({
 
   return (
     <View style={{ gap: 11 }}>
-      <Text style={{ color: colors.secondaryText, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
-        {label}
-      </Text>
+      {compact ? null : (
+        <Text style={{ color: colors.secondaryText, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
+          {label}
+        </Text>
+      )}
       <Pressable
+        accessibilityLabel={compact ? label : undefined}
         onPress={() => !disabled && setOpen(true)}
         style={({ pressed }) => ({
-          height: controlHeight.dropdown,
+          height: compact ? 40 : controlHeight.dropdown,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: spacing.sm,
-          paddingHorizontal: 22,
+          paddingHorizontal: compact ? 14 : 22,
           borderRadius: radius.control,
           backgroundColor: colors.surfaceVariant,
           borderWidth: 1,
@@ -715,7 +721,10 @@ export function LabeledDropdown<T>({
           opacity: disabled ? 0.5 : pressed ? 0.72 : 1,
         })}
       >
-        <Text style={{ color: colors.onSurface, fontSize: 18, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+        <Text
+          style={{ color: colors.onSurface, fontSize: compact ? 16 : 18, fontWeight: '600', flex: compact ? undefined : 1 }}
+          numberOfLines={1}
+        >
           {selectedLabel || placeholder || '선택 안 함'}
         </Text>
         <CaretDown size={12} color={colors.muted} />

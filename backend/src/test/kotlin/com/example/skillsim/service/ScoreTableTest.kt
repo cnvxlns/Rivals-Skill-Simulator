@@ -319,6 +319,31 @@ class ScoreTableTest {
     }
 
     @Test
+    fun `티어별로 고른 등급으로 채점하고 사다리가 짧은 스킬은 자기 최대 등급으로 내려간다`() {
+        val repository = mock(ScoreSkillRepository::class.java)
+        `when`(repository.findAll()).thenReturn(
+            listOf(
+                skill("G_001", "긴 사다리", "1/2/3/4/5/6/7/8/9"),
+                // 수치가 6단계뿐이라 S1이 끝이다.
+                skill("G_002", "짧은 사다리", "10/20/30/40/50/60"),
+            ),
+        )
+        val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
+
+        val s3 = service.buildScoreTable(request().copy(grades = mapOf("gold" to "S3")), 0).tiers[0]
+        assertThat(s3.grade).isEqualTo("S3")
+        assertThat(s3.grades).containsExactly("S", "S1", "S2", "S3", "S4")
+        assertThat(s3.entries.associate { it.name to (it.score to it.appliedGrade) }).containsExactlyInAnyOrderEntriesOf(
+            mapOf("긴 사다리" to (8.0 to "S3"), "짧은 사다리" to (60.0 to "S1")),
+        )
+
+        // 고르지 않았거나 모르는 값이면 S다.
+        val fallback = service.buildScoreTable(request().copy(grades = mapOf("gold" to "S9")), 0).tiers[0]
+        assertThat(fallback.grade).isEqualTo("S")
+        assertThat(fallback.entries.first { it.name == "긴 사다리" }.score).isEqualTo(5.0)
+    }
+
+    @Test
     fun `모르는 조건을 못박으려 하면 400이다`() {
         val repository = mock(ScoreSkillRepository::class.java)
         `when`(repository.findAll()).thenReturn(emptyList())

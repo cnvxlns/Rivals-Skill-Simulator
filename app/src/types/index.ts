@@ -142,6 +142,8 @@ export type ScoreTableRequest = {
   batHand?: Handedness | null;
   userStats?: Record<string, number>;
   baseStats?: Record<string, number>;
+  /** 티어별 채점 등급(`gold` -> `S2`). S~S4. 빠진 티어는 S다. */
+  grades?: Record<string, string>;
 };
 
 export type ScoreTableEntry = {
@@ -158,6 +160,10 @@ export type ScoreTableEntry = {
 
 export type ScoreTierGroup = {
   tier: string;
+  /** 이 티어를 채점한 등급. */
+  grade?: string;
+  /** 이 티어에서 고를 수 있는 등급(S~S4 중 사다리에 있는 것). 하나뿐이면 고를 게 없다. */
+  grades?: string[];
   totalCount: number;
   entries: ScoreTableEntry[];
 };

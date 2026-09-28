@@ -401,7 +401,7 @@ class ScoreService private constructor(
                 continue
             }
             scoredSkills += skill
-            val level = appliedLevel(skill)
+            val level = tableLevel(skill, tableGrade(request.grades?.get(tier.key)))
             val selections = listOf(ScoreCalculator.Selection(skill, level))
             val variants = ScoreTableVariants.variants(
                 skill = skill,
@@ -449,6 +449,8 @@ class ScoreService private constructor(
             )
             ScoreTableResponse.TierGroup(
                 tier = tier.key,
+                grade = tableGrade(request.grades?.get(tier.key)).name,
+                grades = selectableGrades(scoredSkills.filter { SkillTier.of(it) == tier }),
                 totalCount = sorted.size,
                 entries = if (topN > 0 && sorted.size > topN) sorted.take(topN) else sorted,
             )
@@ -488,6 +490,29 @@ class ScoreService private constructor(
     }
 
     /** S레벨. 사다리에서 S 위치가 스킬의 최대 단계를 넘으면 최대 단계로 내린다. */
+    /** 점수표에서 고를 수 있는 등급. S 아래는 비교할 까닭이 없어 받지 않는다. */
+    private val tableGrades = listOf(Level.S, Level.S1, Level.S2, Level.S3, Level.S4)
+
+    /** 요청의 등급 문자열. 비었거나 S~S4가 아니면 S로 본다. */
+    private fun tableGrade(raw: String?): Level =
+        tableGrades.firstOrNull { it.name.equals(raw?.trim(), ignoreCase = true) } ?: Level.S
+
+    /**
+     * [grade]로 채점할 레벨. 스킬 사다리에 그 등급이 없거나(HOF의 S3) 수치 단계가 모자라면
+     * 자기 최대 등급으로 내려간다. 실제로 쓴 등급은 [ScoreTableResponse.Entry.appliedGrade]에 실린다.
+     */
+    private fun tableLevel(skill: ScoreSkill, grade: Level): Int {
+        val ladder = SkillRules.gradeLadder(skill.cardType)
+        val index = ladder.indexOf(grade).takeIf { it >= 0 }?.plus(1) ?: ladder.size
+        return minOf(index, SkillRules.maxLevel(skill))
+    }
+
+    /** 티어 안 스킬 중 하나라도 닿는 S~S4 등급. 모먼트처럼 S뿐이면 하나만 남는다. */
+    private fun selectableGrades(skills: List<ScoreSkill>): List<String> {
+        val reachable = skills.flatMap { SkillRules.gradeLabels(it.cardType, SkillRules.maxLevel(it)) }.toSet()
+        return tableGrades.map { it.name }.filter { it in reachable }.ifEmpty { listOf(Level.S.name) }
+    }
+
     private fun appliedLevel(skill: ScoreSkill): Int =
         minOf(SkillRules.levelIndex(Level.S, skill.cardType), SkillRules.maxLevel(skill))
 }

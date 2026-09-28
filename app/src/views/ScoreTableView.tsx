@@ -44,6 +44,8 @@ export default function ScoreTableView() {
   const [conditionsOpen, setConditionsOpen] = useState(true);
   // 티어별 펼침 여부. 데이터는 이미 전량 받아두므로 자르기만 풀면 된다.
   const [expandedTiers, setExpandedTiers] = useState<Record<string, boolean>>({});
+  // 티어별 채점 등급. S1 이상에서 스킬이 어떻게 달라지는지 보려고 티어 카드마다 고른다.
+  const [gradeByTier, setGradeByTier] = useState<Record<string, string>>({});
 
   const { width, isWide, isSplit } = useResponsive();
 
@@ -84,6 +86,7 @@ export default function ScoreTableView() {
           throwHand: ctx.position === Position.PITCHER ? ctx.throwHand : undefined,
           batHand: ctx.position === Position.BATTER ? ctx.batHand : undefined,
           userStats: ctx.userStats,
+          grades: gradeByTier,
         },
         0, // 전체를 받아 검색까지 클라이언트에서 처리한다 (233개라 부담 없음)
       );
@@ -95,7 +98,16 @@ export default function ScoreTableView() {
     } finally {
       setLoading(false);
     }
-  }, [requestPosition, ctx.position, ctx.battingOrder, ctx.pitcherSlot, ctx.throwHand, ctx.batHand, ctx.userStats]);
+  }, [
+    requestPosition,
+    ctx.position,
+    ctx.battingOrder,
+    ctx.pitcherSlot,
+    ctx.throwHand,
+    ctx.batHand,
+    ctx.userStats,
+    gradeByTier,
+  ]);
 
   useEffect(() => {
     load();
@@ -382,9 +394,21 @@ export default function ScoreTableView() {
                         {t('score_table_group_total_suffix')}
                       </Text>
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 15, fontWeight: '600', letterSpacing: 0.66 }}>
-                      {t('score_table_top_n')}
-                    </Text>
+                    {/* 고를 등급이 둘 이상인 티어만 드롭다운을 둔다. 모먼트는 S뿐이다. */}
+                    {(group.grades?.length ?? 0) > 1 ? (
+                      <LabeledDropdown
+                        compact
+                        label={`${tk(`tier_${group.tier}`)} ${t('score_table_grade_label')}`}
+                        selected={group.grade ?? 'S'}
+                        options={group.grades ?? ['S']}
+                        optionLabel={(o) => o}
+                        onSelect={(o) => setGradeByTier((prev) => ({ ...prev, [group.tier]: o }))}
+                      />
+                    ) : (
+                      <Text style={{ color: colors.muted, fontSize: 15, fontWeight: '600', letterSpacing: 0.66 }}>
+                        {t('score_table_top_n')}
+                      </Text>
+                    )}
                   </View>
 
                   <View style={{ paddingHorizontal: isWide ? 31 : 24, paddingTop: 12, paddingBottom: 29 }}>

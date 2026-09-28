@@ -21,6 +21,10 @@ data class ScoreTableResponse(
     data class TierGroup(
         /** 화면 표시에 쓰는 티어 키. i18n 키로도 사용한다. */
         val tier: String,
+        /** 이 티어를 채점한 등급. 요청의 [ScoreTableRequest.grades]를 정리한 값이다. */
+        val grade: String = "S",
+        /** 이 티어에서 고를 수 있는 등급(S~S4 중 이 티어 스킬 사다리에 있는 것). */
+        val grades: List<String> = listOf("S"),
         /** 이 티어에서 요청 포지션에 해당하는 스킬 수. entries는 상위 일부만 담을 수 있다. */
         val totalCount: Int,
         val entries: List<Entry>,

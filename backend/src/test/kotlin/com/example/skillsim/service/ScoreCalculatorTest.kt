@@ -77,7 +77,7 @@ class ScoreCalculatorTest {
 
         assertThat(totalForRole(skill, "파워", "BATTER")).isEqualTo(2.50)
         assertThat(totalForRole(skill, "파워", "SP")).isEqualTo(1.20)
-        assertThat(totalForRole(skill, "파워", "RP")).isEqualTo(7.90)
+        assertThat(totalForRole(skill, "파워", "RP")).isEqualTo(7.80)
         assertThat(totalForRole(skill, "파워", "CP")).isEqualTo(10.00)
     }
 
@@ -92,7 +92,7 @@ class ScoreCalculatorTest {
         assertThat(starter).containsEntry("6회까지", 0.88)
         assertThat(starter).containsEntry("7회까지", 0.94)
         assertThat(reliever).containsEntry("1_3회", 0.00)
-        assertThat(reliever).containsEntry("7_9회", 0.79)
+        assertThat(reliever).containsEntry("7_9회", 0.78)
     }
 
     @Test
@@ -161,8 +161,9 @@ class ScoreCalculatorTest {
         val skill = scoreSkill("M_029", "스탠드아웃", effect("구위", "등판후9타자", "10"))
 
         assertThat(totalForRole(skill, "구위", "BATTER")).isEqualTo(0.00)
-        assertThat(totalForRole(skill, "구위", "SP")).isEqualTo(4.50)
-        assertThat(totalForRole(skill, "구위", "RP")).isEqualTo(9.50)
+        // 선발은 약 24명 중 처음 9명(0.38). 중계·마무리는 9명을 채우기 전에 내려가 등판 내내 켜진다.
+        assertThat(totalForRole(skill, "구위", "SP")).isEqualTo(3.80)
+        assertThat(totalForRole(skill, "구위", "RP")).isEqualTo(10.00)
         assertThat(totalForRole(skill, "구위", "CP")).isEqualTo(10.00)
     }
 
@@ -171,15 +172,18 @@ class ScoreCalculatorTest {
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("BATTER"))
             .containsEntry("등판후3타자", 0.00)
             .containsEntry("등판후4타자", 0.00)
+        // 역할별 아웃 수(선발 17, 중계 4, 마무리 3) × 아웃당 타자 38/27 = 약 24, 5.6, 4.2명.
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("SP"))
-            .containsEntry("등판후3타자", 0.15)
-            .containsEntry("등판후4타자", 0.20)
+            .containsEntry("등판후3타자", 0.13)
+            .containsEntry("등판후4타자", 0.17)
+            .containsEntry("등판후7타자", 0.29)
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("RP"))
-            .containsEntry("등판후3타자", 0.65)
-            .containsEntry("등판후4타자", 0.80)
+            .containsEntry("등판후3타자", 0.53)
+            .containsEntry("등판후4타자", 0.71)
+            .containsEntry("등판후7타자", 1.00)
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("CP"))
-            .containsEntry("등판후3타자", 0.90)
-            .containsEntry("등판후4타자", 1.00)
+            .containsEntry("등판후3타자", 0.71)
+            .containsEntry("등판후4타자", 0.95)
     }
 
     @Test
@@ -195,9 +199,10 @@ class ScoreCalculatorTest {
 
         // 타순 미지정은 1번타자와 같은 값이어야 한다.
         assertThat(totalForOrder(null)).isEqualTo(totalForOrder(1))
-        assertThat(totalForOrder(1)).isEqualTo(5.00)
-        assertThat(totalForOrder(4)).isEqualTo(5.50)
-        assertThat(totalForOrder(8)).isEqualTo(5.80)
+        // 타석 분포에서 첫째·둘째 타석의 비율: 2/3.96, 2/3.595, 1.95/3.22
+        assertThat(totalForOrder(1)).isEqualTo(5.05)
+        assertThat(totalForOrder(4)).isEqualTo(5.56)
+        assertThat(totalForOrder(8)).isEqualTo(6.06)
     }
 
     @Test
@@ -431,7 +436,39 @@ class ScoreCalculatorTest {
         assertThat(result.perStat).containsEntry("파워", 10.00)
         assertThat(result.perStat).containsEntry("정확", 10.00)
         // 타순을 넘기지 않으면 1번타자로 본다. 타순1_2는 평균 0.222가 아니라 1.0으로 걸린다.
-        assertThat(result.total).isEqualTo(34.00)
+        // 초구 0.261, 2스트라이크 0.285는 카운트별 투구 비율에서 온다.
+        assertThat(result.total).isEqualTo(32.96)
+    }
+
+    @Test
+    fun `지고 있을 때는 동점을 뺀 열세만이다`() {
+        val probabilities = ScoreCalculator.conditionProbabilitiesForPosition("SP")
+
+        assertThat(probabilities.getValue("열세")).isEqualTo(0.37)
+        // 리드 + 동점 + 열세 = 1, 동점을 포함한 "리드가 아닐 때"는 열세보다 크다.
+        assertThat(probabilities.getValue("비김또는리드") + probabilities.getValue("열세")).isCloseTo(1.0, within(0.001))
+        assertThat(probabilities.getValue("리드아님")).isGreaterThan(probabilities.getValue("열세"))
+    }
+
+    @Test
+    fun `중견수 게이트는 CF일 때만 열린다`() {
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("CF")).containsEntry("포지션_CF", 1.0)
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("LF")).containsEntry("포지션_CF", 0.0)
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("LF")).containsEntry("포지션_OF", 1.0)
+    }
+
+    @Test
+    fun `볼 카운트 조건은 모두 카운트별 투구 비율 한 표에서 합산한다`() {
+        val probabilities = ScoreCalculator.conditionProbabilitiesForPosition("BATTER")
+
+        assertThat(probabilities).containsEntry("초구", 0.261)
+        assertThat(probabilities).containsEntry("빠른카운트", 0.494)
+        assertThat(probabilities).containsEntry("1스트라이크", 0.306)
+        assertThat(probabilities).containsEntry("2스트라이크", 0.285)
+        assertThat(probabilities).containsEntry("풀카운트", 0.046)
+        // "1스트라이크 이후"는 2스트라이크까지 포함한다.
+        assertThat(probabilities.getValue("1스트라이크이후"))
+            .isCloseTo(probabilities.getValue("1스트라이크") + probabilities.getValue("2스트라이크"), within(0.001))
     }
 
     @Test
@@ -443,6 +480,29 @@ class ScoreCalculatorTest {
         assertThat(probabilities).containsEntry("타순3_4_5", 1.0)
         assertThat(probabilities).containsEntry("타순4_5", 1.0)
         assertThat(probabilities).containsEntry("타순6_9", 0.0)
+    }
+
+    @Test
+    fun `클린업을 뺀 타순 조건은 1 2 6 7 8 9번에서 발동한다`() {
+        val fire = (1..9).filter {
+            ScoreCalculator.conditionProbabilitiesForPosition("BATTER", it)["타순1_2_6_7_8_9"] == 1.0
+        }
+
+        assertThat(fire).containsExactly(1, 2, 6, 7, 8, 9)
+    }
+
+    @Test
+    fun `상대 타순 조건은 투수가 마주한 타자 중 그 타순의 비율이다`() {
+        // 투수의 "상대 3, 4, 5 타순 상대 시"는 내 타순과 무관하다. 예전에는 내 타순(기본 1번)으로
+        // 판정해 늘 0점이었다.
+        val probabilities = ScoreCalculator.conditionProbabilitiesForPosition("SP")
+
+        val cleanup = probabilities.getValue("상대타순3_4_5")
+        val lower = probabilities.getValue("상대타순6_9")
+        assertThat(cleanup).isBetween(0.30, 0.37)
+        assertThat(lower).isBetween(0.37, 0.44)
+        // 앞 타순이 타석을 더 많이 받으니 1~2번 몫(나머지)은 2/9보다 크다.
+        assertThat(1.0 - cleanup - lower).isGreaterThan(2.0 / 9)
     }
 
     @Test

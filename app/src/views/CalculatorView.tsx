@@ -698,7 +698,9 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                           tabularNums,
                         ]}
                       >
-                        +{Math.abs(stat.value).toFixed(2)}
+                        {/* 내 능력치를 깎는 스킬도 있다(컨택 스페셜리스트의 파워 −3). */}
+                        {stat.value >= 0 ? '+' : '−'}
+                        {Math.abs(stat.value).toFixed(2)}
                       </Text>
                     </View>
                   ))}
@@ -738,7 +740,9 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                           tabularNums,
                         ]}
                       >
-                        −{Math.abs(stat.value).toFixed(2)}
+                        {/* 상대 쪽 값은 양수가 곧 상대 능력치 감소다. */}
+                        {stat.value >= 0 ? '−' : '+'}
+                        {Math.abs(stat.value).toFixed(2)}
                       </Text>
                     </View>
                   ))}

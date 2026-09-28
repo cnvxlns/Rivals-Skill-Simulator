@@ -176,7 +176,7 @@ class ScoreServiceTest {
             ),
         )
 
-        assertThat(response.total).isEqualTo(17.90)
+        assertThat(response.total).isEqualTo(17.80)
         assertThat(response.perStat).extracting("stat", "value")
             .containsExactly(tuple("구위", 10.00), tuple("변화", 10.00))
     }

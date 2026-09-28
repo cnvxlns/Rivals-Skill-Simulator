@@ -10,13 +10,6 @@ private const val DEFAULT_USER_STAT = 120.0
 private const val DEFAULT_DECK_SCORE = 500.0
 private const val BATTER_OFFENSE_OVER_DEFENSE_CONDITION = "파워정확합>주루수비합"
 
-private val INNING_WEIGHTS_BY_ROLE = mapOf(
-    "SP" to doubleArrayOf(0.190, 0.180, 0.170, 0.130, 0.110, 0.100, 0.060, 0.040, 0.020),
-    "BATTER" to doubleArrayOf(0.150, 0.140, 0.130, 0.120, 0.110, 0.100, 0.090, 0.080, 0.080),
-    "RP" to doubleArrayOf(0.000, 0.000, 0.000, 0.000, 0.030, 0.180, 0.340, 0.350, 0.100),
-    "CP" to doubleArrayOf(0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.100, 0.900),
-)
-
 private val STATIC_CONDITION_PROBABILITIES = mapOf(
     "ALWAYS" to 1.0,
     // 랭킹대전은 전부 원정으로 치러진다. 홈 조건은 발동하지 않고 원정 조건은 늘 발동한다.
@@ -47,15 +40,46 @@ private val STATIC_CONDITION_PROBABILITIES = mapOf(
     "낮은공" to 0.333,
     "대타첫타석" to 0.0, // 주전 라인업 기준 대타 출전 없음
     "교체후첫타자" to 0.25, // 계투 상대 타자 중 첫 타자 근사
-    "풀카운트" to 0.048,
     "2아웃" to 0.333,
 )
 
+/**
+ * 볼 카운트별 투구 비율. 한 타석에서 던지는 공 가운데 그 카운트에서 던지는 공의 비율이다.
+ *
+ * 카운트 조건 스킬(초구공략, 위닝샷, 투 스트라이크 히터, 어그레시브 히터, 풀카운트)의 버프는
+ * 그 카운트에서 던지는 공에만 걸리므로 투구 비율로 가중한다. 조건마다 따로 짐작하던 값
+ * (초구 0.30, 2스트라이크 0.35)을 버리고 모두 이 표에서 합산한다.
+ *
+ * 2015 MLB(Retrosheet) 카운트 전이확률(Jim Albert, "Count Effects")로 타석당 카운트별 방문
+ * 횟수의 기댓값을 구해 전체 투구 수(타석당 3.83구)로 나눴다.
+ * https://bayesball.github.io/BLOG/Count_Effects.html
+ */
+private val PITCH_SHARE_BY_COUNT = mapOf(
+    "0-0" to 0.261, "0-1" to 0.131, "1-0" to 0.102,
+    "0-2" to 0.066, "1-1" to 0.102, "2-0" to 0.035,
+    "1-2" to 0.095, "2-1" to 0.052, "3-0" to 0.011,
+    "2-2" to 0.078, "3-1" to 0.021, "3-2" to 0.046,
+)
+
+/** [PITCH_SHARE_BY_COUNT]에서 (볼, 스트라이크)가 [matches]인 카운트의 투구 비율 합. */
+private fun pitchShare(matches: (balls: Int, strikes: Int) -> Boolean): Double {
+    val share = PITCH_SHARE_BY_COUNT.entries.sumOf { (count, share) ->
+        val (balls, strikes) = count.split("-").map(String::toInt)
+        if (matches(balls, strikes)) share else 0.0
+    }
+    return (share * 1000).roundToLong() / 1000.0
+}
+
 private val PLATE_SITUATION_PROBABILITIES = mapOf(
-    "초구" to 0.30,
     "스트라이크타격" to 0.55,
-    "1스트라이크" to 0.30,
-    "2스트라이크" to 0.35,
+    "초구" to pitchShare { balls, strikes -> balls == 0 && strikes == 0 },
+    // 어그레시브 히터의 "볼 카운트 0-0, 0-1, 1-0".
+    "빠른카운트" to pitchShare { balls, strikes -> balls + strikes <= 1 },
+    // "1스트라이크"는 딱 1스트라이크, "1스트라이크이후"는 2스트라이크까지 포함한다.
+    "1스트라이크" to pitchShare { _, strikes -> strikes == 1 },
+    "1스트라이크이후" to pitchShare { _, strikes -> strikes >= 1 },
+    "2스트라이크" to pitchShare { _, strikes -> strikes == 2 },
+    "풀카운트" to pitchShare { balls, strikes -> balls == 3 && strikes == 2 },
 )
 
 /**
@@ -67,11 +91,53 @@ private val PLATE_SITUATION_PROBABILITIES = mapOf(
  */
 internal const val DEFAULT_BATTING_ORDER = 1
 
+/**
+ * 경기 상황. 리드 0.37, 동점 0.26, 열세 0.37로 나눈 칸의 합집합이다.
+ * `열세`는 "지고 있을 때"만이다. 동점을 포함하는 "리드가 아닐 때"(`리드아님`, `비김또는열세`)와 다르다.
+ */
 private val GAME_STATE_PROBABILITIES = mapOf(
     "리드" to 0.37,
     "리드아님" to 0.63,
     "비김또는리드" to 0.63,
     "비김또는열세" to 0.63,
+    "열세" to 0.37,
+)
+
+/**
+ * 원정 중계 투수가 9회에 올라왔을 때 9회 말이 실제로 열릴 확률.
+ *
+ * 원정 팀은 9회 말을 수비한다. 9회 초가 끝났을 때 홈 팀이 앞서 있으면 9회 말은 없다.
+ * 앞선 9회는 마무리가 맡으므로 중계가 9회에 오르는 경우는 동점이거나 뒤질 때이고,
+ * 그중 동점일 때만 9회 말이 열린다. 경기 상황 확률로 P(동점 | 동점 또는 열세)를 쓴다.
+ */
+private val AWAY_RELIEVER_BOTTOM_NINTH_PLAYED = GAME_STATE_PROBABILITIES.let {
+    (it.getValue("비김또는리드") - it.getValue("리드")) / it.getValue("비김또는열세")
+}
+
+/** 9회 비중에 [factor]를 곱하고 합이 1이 되게 다시 나눈다. */
+private fun scaleNinthInning(weights: DoubleArray, factor: Double): DoubleArray {
+    val scaled = weights.copyOf().also { it[8] *= factor }
+    val total = scaled.sum()
+    return DoubleArray(scaled.size) { scaled[it] / total }
+}
+
+/**
+ * 역할별 회별 노출 비중. 합이 1이다. 랭킹대전은 전부 원정이라는 전제로 정한다.
+ *
+ * - 타자: 앞 회로 갈수록 무거운 기존 값을 그대로 쓴다. 원정이라면 회마다 고르게(1/9)
+ *   돌아가야 할 것 같지만, 앞쪽에 몰린 까닭(조기 종료 등)이 확인되지 않아 손대지 않았다.
+ * - 선발·마무리: 9회에 던지는 건 대개 앞설 때라 9회 말이 늘 열린다. 원정이어도 그대로다.
+ * - 중계: 9회 등판은 동점·열세 상황이라 열세면 9회 말이 사라진다
+ *   ([AWAY_RELIEVER_BOTTOM_NINTH_PLAYED]). 사라진 몫만큼 앞 회의 비중이 커진다.
+ */
+private val INNING_WEIGHTS_BY_ROLE = mapOf(
+    "SP" to doubleArrayOf(0.190, 0.180, 0.170, 0.130, 0.110, 0.100, 0.060, 0.040, 0.020),
+    "BATTER" to doubleArrayOf(0.150, 0.140, 0.130, 0.120, 0.110, 0.100, 0.090, 0.080, 0.080),
+    "RP" to scaleNinthInning(
+        doubleArrayOf(0.000, 0.000, 0.000, 0.000, 0.030, 0.180, 0.340, 0.350, 0.100),
+        AWAY_RELIEVER_BOTTOM_NINTH_PLAYED,
+    ),
+    "CP" to doubleArrayOf(0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.100, 0.900),
 )
 
 private val MODE_PROBABILITIES = mapOf(
@@ -90,27 +156,37 @@ private val LAUNCH_ANGLE_PROBABILITIES = mapOf(
     "발사각14이하" to 0.50,
 )
 
-private val NINE_BATTER_DURATION_PROBABILITIES_BY_ROLE = mapOf(
-    "BATTER" to 0.00,
-    "SP" to 0.45,
-    "RP" to 0.95,
-    "CP" to 1.00,
+/**
+ * 역할별로 한 번 등판해 잡는 아웃 수. 마에스트로 누적과 "등판 후 N타자" 비율이 함께 쓴다.
+ * 선발 17(약 5⅔이닝), 중계 4(1⅓이닝), 마무리 3(1이닝).
+ */
+private val EXPECTED_OUTS_BY_ROLE = mapOf(
+    "BATTER" to 0,
+    "SP" to 17,
+    "RP" to 4,
+    "CP" to 3,
 )
 
-// 보직별 평균 상대 타자 수 대비 해당 타자 수 비중 근사(등판후9타자와 동일 방법론).
-private val THREE_BATTER_DURATION_PROBABILITIES_BY_ROLE = mapOf(
-    "BATTER" to 0.00,
-    "SP" to 0.15,
-    "RP" to 0.65,
-    "CP" to 0.90,
-)
+/** 아웃 하나를 잡는 동안 상대하는 타자 수. MLB 팀 경기당 타석 약 38 / 27아웃. */
+private const val BATTERS_FACED_PER_OUT = 38.0 / 27.0
 
-private val FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE = mapOf(
-    "BATTER" to 0.00,
-    "SP" to 0.20,
-    "RP" to 0.80,
-    "CP" to 1.00,
-)
+/**
+ * "등판 후 N타자 동안" 버프가 켜져 있는 비율. 한 번 등판에서 상대하는 타자 가운데 처음 N명의 몫이다.
+ *
+ * 상대 타자 수는 [EXPECTED_OUTS_BY_ROLE] × [BATTERS_FACED_PER_OUT]이다(선발 약 24명, 중계 약 5.6명,
+ * 마무리 약 4.2명). N명을 채우기 전에 내려가면 등판 내내 켜져 있으므로 1이다.
+ * 예전에는 3·4·9타자 값을 따로 짐작해 적어 마에스트로가 쓰는 아웃 수 가정과 어긋났다.
+ */
+private fun firstBattersShareByRole(batters: Int): Map<String, Double> =
+    EXPECTED_OUTS_BY_ROLE.mapValues { (_, outs) ->
+        val faced = outs * BATTERS_FACED_PER_OUT
+        if (faced <= 0.0) 0.0 else roundToCents(minOf(batters.toDouble(), faced) / faced)
+    }
+
+private val NINE_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(9)
+private val THREE_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(3)
+private val FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(4)
+private val SEVEN_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(7)
 
 private val GUTS_PROBABILITIES_BY_ROLE = mapOf(
     "BATTER" to 0.20,
@@ -128,12 +204,8 @@ private val PATIENCE_BELOW_VELOCITY_PROBABILITIES_BY_ROLE = mapOf(
     "CP" to 0.10,
 )
 
-private val MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE = mapOf(
-    "BATTER" to 0.0,
-    "SP" to maestroAverageActiveStack(17) / 12.0,
-    "RP" to maestroAverageActiveStack(4) / 12.0,
-    "CP" to maestroAverageActiveStack(3) / 12.0,
-)
+private val MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE =
+    EXPECTED_OUTS_BY_ROLE.mapValues { (_, outs) -> maestroAverageActiveStack(outs) / 12.0 }
 
 // 도전정신(상대등급우세): 자기 카드 등급 기준 P(상대 선수 등급 > 내 등급).
 // 상대 라인업이 프라임/시그니처/모먼트/HOF 위주라는 메타 가정에서 산출한 값 (agy×3+codex×3 2라운드 토론 합의).
@@ -168,11 +240,16 @@ private val OPPONENT_GRADE_ADVANTAGE_PROBABILITIES_BY_CARD_TYPE = mapOf(
  * 걸리는 조건이다. 여기서 말하는 기본 능력치는 육성·구단 관리를 반영하지 않은 값이라
  * 계산기의 `userStats`(육성 후 수치)와 다르다. 그래서 요청의 `baseStats`를 따로 받는다.
  */
-private data class BaseStatThreshold(val stats: List<String>, val threshold: Double)
+private data class BaseStatThreshold(
+    val stats: List<String>,
+    val threshold: Double,
+    /** 점수표가 구간별 줄을 나눌 때 스킬 이름 옆에 붙이는 능력치 묶음의 짧은 이름. */
+    val label: String,
+)
 
 private val BASE_STAT_THRESHOLDS = mapOf(
-    "기본주루수비합155이상" to BaseStatThreshold(listOf("주루", "수비"), 155.0),
-    "기본주루수비합165이상" to BaseStatThreshold(listOf("주루", "수비"), 165.0),
+    "기본주루수비합155이상" to BaseStatThreshold(listOf("주루", "수비"), 155.0, "주+수합"),
+    "기본주루수비합165이상" to BaseStatThreshold(listOf("주루", "수비"), 165.0, "주+수합"),
 )
 
 /**
@@ -232,7 +309,26 @@ internal fun battingOrderProbabilities(battingOrder: Int): Map<String, Double> =
     "타순4_5" to gate(battingOrder in 4..5),
     "타순6_9" to gate(battingOrder in 6..9),
     "타순8_9" to gate(battingOrder in 8..9),
+    // "1, 2, 6, 7, 8, 9 타순" — 클린업(3~5번)만 빠진다.
+    "타순1_2_6_7_8_9" to gate(battingOrder !in 3..5),
 )
+
+/**
+ * 투수 스킬의 "상대 3, 4, 5 타순 상대 시" 같은 조건. 내 타순이 아니라 마주하는 타자의 타순이라
+ * 0/1이 아니라 확률이다.
+ *
+ * 타순별 타석 수는 [plateAppearanceReach]의 도달 확률 합으로 잡는다. 앞 타순일수록 타석이
+ * 많으므로 그 비중만큼 가중해 "마주한 타자 중 해당 타순의 비율"을 구한다.
+ */
+private val OPPONENT_BATTING_ORDER_PROBABILITIES: Map<String, Double> = run {
+    val plateAppearances = (1..9).associateWith { plateAppearanceReach(it).sum() }
+    val total = plateAppearances.values.sum()
+    fun share(orders: IntRange) = orders.sumOf { plateAppearances.getValue(it) } / total
+    mapOf(
+        "상대타순3_4_5" to share(3..5),
+        "상대타순6_9" to share(6..9),
+    )
+}
 
 /** 조건이 확률이 아니라 참/거짓일 때 쓰는 게이트 값. */
 private fun gate(condition: Boolean): Double = if (condition) 1.0 else 0.0
@@ -299,6 +395,8 @@ private object PositionGateResolver : ConditionResolver {
         probabilities["포지션_2B"] = gate(position == "2B")
         probabilities["포지션_SS"] = gate(position == "SS")
         probabilities["포지션_OF"] = gate(position in setOf("OF", "LF", "CF", "RF"))
+        // 업 더 미들의 "C, 2B, SS, CF 배치 시"처럼 외야 가운데만 따로 보는 경우가 있다.
+        probabilities["포지션_CF"] = gate(position == "CF")
         probabilities["포지션_C"] = gate(position == "C")
     }
 }
@@ -321,6 +419,7 @@ private object SlotGateResolver : ConditionResolver {
 private object BattingOrderResolver : ConditionResolver {
     override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
         probabilities.putAll(battingOrderProbabilities(context.battingOrder ?: DEFAULT_BATTING_ORDER))
+        probabilities.putAll(OPPONENT_BATTING_ORDER_PROBABILITIES)
     }
 }
 
@@ -329,20 +428,24 @@ private object DurationResolver : ConditionResolver {
         probabilities["등판후9타자"] = NINE_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
         probabilities["등판후3타자"] = THREE_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
         probabilities["등판후4타자"] = FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
-        probabilities["두번째타석까지"] = secondPlateAppearanceProbability(context.battingOrder)
+        probabilities["등판후7타자"] = SEVEN_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
+        probabilities["두번째타석까지"] = secondPlateAppearanceShare(context.battingOrder)
         // 아래 둘은 "발동 확률"이 아니라 "버프가 켜져 있는 기회의 비율"이다.
         // 등판후N타자·마에스트로누적과 같은 시간평균 노출 비율 척도를 따른다.
         probabilities["상대팀홈런3"] = OPPONENT_THREE_HOMERUN_EXPOSURE
         probabilities["이닝출루2인이상"] = INNING_TWO_BASERUNNERS_EXPOSURE
     }
 
-    private fun secondPlateAppearanceProbability(order: Int?): Double =
-        when (order ?: DEFAULT_BATTING_ORDER) {
-            in 1..2 -> 0.50
-            in 3..5 -> 0.55
-            in 6..9 -> 0.58
-            else -> 0.55
-        }
+    /**
+     * 이 타자의 타석 중 첫째·둘째 타석의 비율. `타석1_2`와 같은 값이다.
+     *
+     * 예전에는 타순 그룹마다 0.50/0.55/0.58로 따로 적어 두어, 같은 분포로 계산하는 `타석N`
+     * 조건(빌드업·오버페이스)과 조금씩 어긋났다. 이제 [plateAppearanceReach] 하나에서 뽑는다.
+     */
+    private fun secondPlateAppearanceShare(order: Int?): Double {
+        val reach = plateAppearanceReach(order)
+        return (reach[0] + reach[1]) / reach.sum()
+    }
 }
 
 private object StatComparisonResolver : ConditionResolver {
@@ -446,7 +549,7 @@ private object InningRangeResolver : ConditionResolver {
 
 private object PlateAppearanceResolver : ConditionResolver {
     override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
-        val reachProbabilities = plateAppearanceReachProbabilities(context.battingOrder)
+        val reachProbabilities = plateAppearanceReach(context.battingOrder)
         val totalReachProbability = reachProbabilities.sum()
 
         for (start in 1..reachProbabilities.size) {
@@ -459,15 +562,16 @@ private object PlateAppearanceResolver : ConditionResolver {
             }
         }
     }
-
-    private fun plateAppearanceReachProbabilities(order: Int?): DoubleArray =
-        when (order ?: DEFAULT_BATTING_ORDER) {
-            in 1..2 -> TOP_ORDER_PLATE_APPEARANCE_REACH
-            in 3..5 -> MIDDLE_ORDER_PLATE_APPEARANCE_REACH
-            in 6..9 -> LOWER_ORDER_PLATE_APPEARANCE_REACH
-            else -> MIDDLE_ORDER_PLATE_APPEARANCE_REACH
-        }
 }
+
+/** 타순 그룹별 타석 도달 확률(1~7번째 타석). 원본 배열이라 호출자가 고치면 안 된다. */
+internal fun plateAppearanceReach(order: Int?): DoubleArray =
+    when (order ?: DEFAULT_BATTING_ORDER) {
+        in 1..2 -> TOP_ORDER_PLATE_APPEARANCE_REACH
+        in 3..5 -> MIDDLE_ORDER_PLATE_APPEARANCE_REACH
+        in 6..9 -> LOWER_ORDER_PLATE_APPEARANCE_REACH
+        else -> MIDDLE_ORDER_PLATE_APPEARANCE_REACH
+    }
 
 private val CONDITION_RESOLVERS = listOf(
     StaticProbabilityResolver(STATIC_CONDITION_PROBABILITIES),
@@ -702,6 +806,9 @@ class ScoreCalculator {
         val rawValue: Double,
     )
 
+    /** [baseStatThresholdLadders]의 한 단계. [label]은 `주+수합`처럼 능력치 묶음 이름이다. */
+    data class BaseStatStep(val token: String, val label: String, val threshold: Double)
+
     companion object {
         val defaultUserStat: Double get() = DEFAULT_USER_STAT
 
@@ -710,6 +817,19 @@ class ScoreCalculator {
         /** 호출자가 배열을 건드려도 원본이 상하지 않도록 복사해서 준다. */
         val inningWeightsByRole: Map<String, DoubleArray>
             get() = INNING_WEIGHTS_BY_ROLE.mapValues { (_, weights) -> weights.copyOf() }
+
+        /**
+         * 카드 고유 능력치 임계 조건의 사다리. 같은 능력치 묶음끼리 모아 임계가 낮은 순으로 준다.
+         * 높은 단계를 넘으면 낮은 단계도 넘은 것이다.
+         */
+        val baseStatThresholdLadders: List<List<BaseStatStep>>
+            get() = BASE_STAT_THRESHOLDS.entries
+                .groupBy { it.value.stats }
+                .values
+                .map { ladder ->
+                    ladder.sortedBy { it.value.threshold }
+                        .map { BaseStatStep(it.key, it.value.label, it.value.threshold) }
+                }
 
         val staticConditionProbabilities: Map<String, Double> get() = STATIC_CONDITION_PROBABILITIES
 

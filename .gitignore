@@ -66,6 +66,7 @@ backend/simulator.db
 docs/*
 !docs/skillsim_logics.json
 !docs/score_effects_manual_review.csv
+!docs/pending_condition_weights.md
 
 # ===========================
 # Python (data-conversion scripts under docs/)

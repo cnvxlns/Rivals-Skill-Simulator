@@ -479,6 +479,9 @@ def _condition_for(sentence: str) -> str:
         ("좌타자인", "좌타상대"),
         ("우타자", "우타상대"),
         ("주자가 2루 이상", "주자2루이상"),
+        ("주자가 3루", "주자3루"),
+        # 보유자 자신이 루상에 있는 동안. "주자가 있을 때"와 다르다.
+        ("주자로 나가 있는 동안", "출루중"),
         ("주자가 있을", "주자있음"),
         ("주자가 있는", "주자있음"),
         ("주자가 1명이라도", "주자있음"),
@@ -495,7 +498,6 @@ def _condition_for(sentence: str) -> str:
         ("스페셜 덱 스코어가 더 높", "덱스코어열세"),
         ("나보다 높은 등급", "상대등급우세"),
         ("홈런이 3개 이상", "홈런3이상"),
-        ("평균 발사각", "발사각조건"),
         ("좋은 타격 타이밍", "스윗스팟"),
         ("풀카운트", "풀카운트"),
         ("초구", "초구"),
@@ -503,10 +505,21 @@ def _condition_for(sentence: str) -> str:
         ("상대 팀이 홈런 3개", "상대팀홈런3"),
         ("출루시킨 타자가 2인 이상", "이닝출루2인이상"),
         ("스트라이크 타격", "스트라이크타격"),
+        ("높은 볼", "높은공"),
+        ("낮은 볼", "낮은공"),
+        ("당겨치기", "당겨치기"),
+        ("밀어치기", "밀어치기"),
+        ("직전 타자가 출루", "직전타자출루"),
+        ("직전 타자가 아웃", "직전타자아웃"),
+        ("직전 타자가 홈런", "직전타자홈런"),
+        ("직전 타자를 삼진", "직전타자삼진"),
+        ("직전 타석에서 출루에 실패", "직전타석출루실패"),
+        ("직전 타석에서 홈런에 실패", "직전타석홈런실패"),
         ("직구 상대", "직구상대"),
         ("속구 선택", "속구선택"),
         ("변화구 상대", "변화구상대"),
         ("변화구 선택", "변화구선택"),
+        ("너클볼 선택", "너클볼선택"),
         ("랭킹 대전", "모드_랭킹대전"),
         ("리그 모드", "모드_리그"),
         ("리그모드", "모드_리그"),
@@ -542,6 +555,16 @@ def _condition_for(sentence: str) -> str:
             conditions.append("열세")
     if re.search(r"동점이거나\s*지고", modified_sentence) and "리드아님" not in conditions:
         conditions.append("리드아님")
+
+    # "주자당", "주자 1명당"은 주자 수만큼 곱해지는 효과다. 같은 문장의 "주자가 있을 때"는 이것에 들어 있다.
+    if RUNNER_COUNT_RE.search(modified_sentence):
+        conditions = [c for c in conditions if c != "주자있음"]
+        if "주자당" not in conditions:
+            conditions.append("주자당")
+
+    for condition in _launch_angle_conditions(modified_sentence):
+        if condition not in conditions:
+            conditions.append(condition)
 
     for condition in _pitching_window_conditions(modified_sentence):
         if condition not in conditions:
@@ -606,8 +629,31 @@ def _batting_order_conditions(sentence: str) -> list[str]:
     return conditions
 
 
-PITCHING_WINDOW_NUMBERS = {"세": 3, "네": 4, "일곱": 7, "아홉": 9}
-PITCHING_WINDOW_RE = re.compile(r"등판\s*(?:후|시)\s*(?:상대하는\s*)?(\d+|세|네|일곱|아홉)\s*타자\s*동안")
+RUNNER_COUNT_RE = re.compile(r"주자\s*(?:1\s*명\s*)?당")
+
+# 카드의 평균 발사각 조건. 토큰이 있는 문턱만 읽는다.
+LAUNCH_ANGLE_TOKENS = {("10", "이상"): "발사각10이상", ("14", "이하"): "발사각14이하"}
+LAUNCH_ANGLE_RE = re.compile(r"평균\s*발사각이\s*(\d+)\s*도\s*(이상|이하)인\s*경우")
+
+
+def _launch_angle_conditions(sentence: str) -> list[str]:
+    """"평균 발사각이 10도 이상인 경우"만 조건이다.
+
+    "평균 발사각이 3도 감소하고 추가로 …"는 발사각을 바꾸는 효과(비스탯)라 조건이 아니다. 예전에는
+    "평균 발사각"이 보이면 무조건 발사각 조건(0.2)을 걸어 컨택트 히터·리듬 메이커의 절이 깎였다.
+    """
+    conditions: list[str] = []
+    for threshold, side in LAUNCH_ANGLE_RE.findall(sentence):
+        token = LAUNCH_ANGLE_TOKENS.get((threshold, side))
+        if token and token not in conditions:
+            conditions.append(token)
+    return conditions
+
+
+PITCHING_WINDOW_NUMBERS = {"세": 3, "네": 4, "여섯": 6, "일곱": 7, "아홉": 9}
+PITCHING_WINDOW_RE = re.compile(r"등판\s*(?:후|시)\s*(?:상대하는\s*)?(\d+|세|네|여섯|일곱|아홉)\s*타자\s*동안")
+# 기선제압의 "등판 후 상대하는 첫 타자". "교체 등판 후 첫 타자"는 계투 전용 근사(교체후첫타자)로 따로 둔다.
+FIRST_BATTER_RE = re.compile(r"(?<!교체 )등판\s*후\s*(?:상대하는\s*)?첫\s*타자")
 
 
 def _pitching_window_conditions(sentence: str) -> list[str]:
@@ -617,6 +663,8 @@ def _pitching_window_conditions(sentence: str) -> list[str]:
     앞 절까지 구간에 묶인다. 그런 문장은 건너뛰고 [SPECIAL_EFFECT_CONDITIONS]로 행마다 정한다.
     """
     conditions: list[str] = []
+    if FIRST_BATTER_RE.search(sentence):
+        conditions.append("등판후1타자")
     for match in PITCHING_WINDOW_RE.finditer(sentence):
         if re.search(r"증가|감소", sentence[: match.start()]):
             continue

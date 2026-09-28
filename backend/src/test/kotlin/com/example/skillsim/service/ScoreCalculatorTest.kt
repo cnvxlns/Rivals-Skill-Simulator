@@ -174,9 +174,11 @@ class ScoreCalculatorTest {
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("SP"))
             .containsEntry("등판후3타자", 0.15)
             .containsEntry("등판후4타자", 0.20)
+            .containsEntry("등판후7타자", 0.35)
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("RP"))
             .containsEntry("등판후3타자", 0.65)
             .containsEntry("등판후4타자", 0.80)
+            .containsEntry("등판후7타자", 0.90)
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("CP"))
             .containsEntry("등판후3타자", 0.90)
             .containsEntry("등판후4타자", 1.00)
@@ -195,9 +197,10 @@ class ScoreCalculatorTest {
 
         // 타순 미지정은 1번타자와 같은 값이어야 한다.
         assertThat(totalForOrder(null)).isEqualTo(totalForOrder(1))
-        assertThat(totalForOrder(1)).isEqualTo(5.00)
-        assertThat(totalForOrder(4)).isEqualTo(5.50)
-        assertThat(totalForOrder(8)).isEqualTo(5.80)
+        // 타석 분포에서 첫째·둘째 타석의 비율: 2/3.96, 2/3.595, 1.95/3.22
+        assertThat(totalForOrder(1)).isEqualTo(5.05)
+        assertThat(totalForOrder(4)).isEqualTo(5.56)
+        assertThat(totalForOrder(8)).isEqualTo(6.06)
     }
 
     @Test

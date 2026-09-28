@@ -142,6 +142,15 @@ private val FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE = mapOf(
     "CP" to 1.00,
 )
 
+// 핫 스타트(투수)의 "등판 후 7타자 동안". 실측 근거가 따로 없어 4타자와 9타자 값 사이를
+// 타자 수로 선형 보간했다(선발 0.20 -> 0.45는 타자당 0.05, 중계 0.80 -> 0.95는 0.03).
+private val SEVEN_BATTER_DURATION_PROBABILITIES_BY_ROLE = mapOf(
+    "BATTER" to 0.00,
+    "SP" to 0.35,
+    "RP" to 0.90,
+    "CP" to 1.00,
+)
+
 private val GUTS_PROBABILITIES_BY_ROLE = mapOf(
     "BATTER" to 0.20,
     "SP" to 0.80,
@@ -384,20 +393,24 @@ private object DurationResolver : ConditionResolver {
         probabilities["등판후9타자"] = NINE_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
         probabilities["등판후3타자"] = THREE_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
         probabilities["등판후4타자"] = FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
-        probabilities["두번째타석까지"] = secondPlateAppearanceProbability(context.battingOrder)
+        probabilities["등판후7타자"] = SEVEN_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
+        probabilities["두번째타석까지"] = secondPlateAppearanceShare(context.battingOrder)
         // 아래 둘은 "발동 확률"이 아니라 "버프가 켜져 있는 기회의 비율"이다.
         // 등판후N타자·마에스트로누적과 같은 시간평균 노출 비율 척도를 따른다.
         probabilities["상대팀홈런3"] = OPPONENT_THREE_HOMERUN_EXPOSURE
         probabilities["이닝출루2인이상"] = INNING_TWO_BASERUNNERS_EXPOSURE
     }
 
-    private fun secondPlateAppearanceProbability(order: Int?): Double =
-        when (order ?: DEFAULT_BATTING_ORDER) {
-            in 1..2 -> 0.50
-            in 3..5 -> 0.55
-            in 6..9 -> 0.58
-            else -> 0.55
-        }
+    /**
+     * 이 타자의 타석 중 첫째·둘째 타석의 비율. `타석1_2`와 같은 값이다.
+     *
+     * 예전에는 타순 그룹마다 0.50/0.55/0.58로 따로 적어 두어, 같은 분포로 계산하는 `타석N`
+     * 조건(빌드업·오버페이스)과 조금씩 어긋났다. 이제 [plateAppearanceReach] 하나에서 뽑는다.
+     */
+    private fun secondPlateAppearanceShare(order: Int?): Double {
+        val reach = plateAppearanceReach(order)
+        return (reach[0] + reach[1]) / reach.sum()
+    }
 }
 
 private object StatComparisonResolver : ConditionResolver {

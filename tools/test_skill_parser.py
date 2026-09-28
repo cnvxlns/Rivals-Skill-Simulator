@@ -164,6 +164,36 @@ class SkillParserTest(unittest.TestCase):
             ],
         )
 
+    def test_hot_start_buffs_last_only_for_their_window(self):
+        """핫 스타트의 자기 버프는 타자면 두 번째 타석까지, 투수면 등판 후 7타자 동안만이다.
+        상대 능력치를 깎는 절은 계속 유지된다."""
+        batter = SkillRow(
+            skill_id="M_008",
+            card_type="MOMENT",
+            position="BATTER",
+            name="핫 스타트",
+            description="상대 투수의 모든 능력치가 6 감소합니다. 두 번째 타석까지 파워, 정확, 선구, 인내 능력치가 6 증가합니다.",
+            variables={},
+        )
+        pitcher = SkillRow(
+            skill_id="M_023",
+            card_type="MOMENT",
+            position="PITCHER",
+            name="핫 스타트",
+            description="상대 타자의 모든 능력치가 6 감소합니다. 등판 후 7타자 동안 구위, 변화, 구속, 제구 능력치가 6 증가합니다.",
+            variables={},
+        )
+
+        batter_rows = {(e.stat, e.condition) for e in build_effect_rows(batter)[0]}
+        pitcher_rows = {(e.stat, e.condition) for e in build_effect_rows(pitcher)[0]}
+
+        for stat in ("파워", "정확", "선구", "인내"):
+            self.assertIn((stat, "두번째타석까지"), batter_rows)
+        self.assertIn(("구위", "ALWAYS"), batter_rows)
+        for stat in ("구위", "변화", "구속", "제구"):
+            self.assertIn((stat, "등판후7타자"), pitcher_rows)
+        self.assertIn(("파워", "ALWAYS"), pitcher_rows)
+
     def test_conditions_power_pitcher_stat_comparison_bonus(self):
         row = SkillRow(
             skill_id="M_041",

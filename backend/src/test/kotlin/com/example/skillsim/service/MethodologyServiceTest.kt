@@ -28,6 +28,13 @@ class MethodologyServiceTest {
         assertThat(staticProbabilities).isNotEmpty()
         assertThat(staticProbabilities.first { it.token == "홈" }.value).isEqualTo(0.0)
         assertThat(staticProbabilities.first { it.token == "원정" }.value).isEqualTo(1.0)
+        // 가중치 미정 조건과 직전 타자·타석 조건(1번 타자 기준)도 같은 목록에 설명 키와 함께 싣는다.
+        for (token in ScoreCalculator.pendingConditionProbabilities.keys + listOf("직전타자출루", "직전타석출루실패")) {
+            assertThat(staticProbabilities.first { it.token == token }.descriptionKey)
+                .describedAs(token)
+                .isNotBlank()
+        }
+        assertThat(staticProbabilities.first { it.token == "직전타자출루" }.value).isEqualTo(0.315)
 
         // 4. 역할별 확률에 SP/RP/CP/BATTER가 모두 있다
         val roleProbabilities = response.conditionProbabilities.roleProbabilities

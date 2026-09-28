@@ -15,6 +15,8 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "주자2명이상" to "condition_runners_2_or_more",
     "주자2루이상" to "condition_runner_2nd_or_higher",
     "주자3루" to "condition_runner_3rd",
+    "주자당" to "condition_per_runner",
+    "출루중" to "condition_on_base",
     "OVR열세" to "condition_ovr_inferior",
     "OVR우세" to "condition_ovr_superior",
     "기본주루수비합155이상" to "condition_base_run_field_155",
@@ -40,9 +42,15 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "1스트라이크이후" to "condition_one_strike_or_more",
     "빠른카운트" to "condition_early_count",
     "2스트라이크" to "condition_two_strikes",
+    "직전타자출루" to "condition_previous_batter_on_base",
+    "직전타자아웃" to "condition_previous_batter_out",
+    "직전타자홈런" to "condition_previous_batter_homerun",
+    "직전타자삼진" to "condition_previous_batter_strikeout",
+    "직전타석출루실패" to "condition_previous_plate_not_on_base",
+    "직전타석홈런실패" to "condition_previous_plate_no_homerun",
+    "너클볼선택" to "condition_knuckleball_selected",
     "상대팀홈런3" to "condition_opponent_three_homeruns",
     "이닝출루2인이상" to "condition_inning_two_baserunners",
-    "발사각조건" to "condition_launch_angle",
     "발사각10이상" to "condition_launch_angle_10_plus",
     "발사각14이하" to "condition_launch_angle_14_minus",
     "타순1" to "condition_batting_order_1",
@@ -129,12 +137,19 @@ class MethodologyService(
             ),
         )
 
+        // 직전 타자·타석 조건은 역할(등판 첫 타자)과 타순(첫 타석)마다 조금씩 다르다. 1번 타자 기준 값을 싣는다.
+        val previousResultProbabilities = ScoreCalculator.conditionProbabilitiesForPosition("BATTER")
+            .filterKeys { it.startsWith("직전") }
+            .toSortedMap()
+
         val staticProbabilities = listOf(
             ScoreCalculator.staticConditionProbabilities,
+            // 가중치 미정 조건. 설명 문구가 "(잠정)"으로 끝나 화면에서 가려 볼 수 있다.
+            ScoreCalculator.pendingConditionProbabilities,
+            previousResultProbabilities,
             ScoreCalculator.plateSituationProbabilities,
             ScoreCalculator.gameStateProbabilities,
             ScoreCalculator.modeProbabilities,
-            ScoreCalculator.launchAngleProbabilities,
         ).flatMap { group -> group.map { (token, value) -> conditionEntry(token, value) } }
 
         val battingOrderProbabilities = ScoreCalculator.battingOrderDefaultProbabilities

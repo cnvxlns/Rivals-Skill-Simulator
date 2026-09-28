@@ -19,6 +19,9 @@ internal object ConditionScenario {
     /** `주자있음`의 부분 사건. 주자가 없으면 모두 거짓이다. */
     private val RUNNER_DETAILS = listOf("주자1명", "주자2명이상", "주자2루이상", "주자3루")
 
+    /** 주자 수의 기댓값(`주자당`). 확률이 아니라서 주자가 있다고 정해져도 1에서 자르지 않는다. */
+    private val RUNNER_COUNTS = listOf("주자당")
+
     /** 서로 반대 사건인 쌍. 앞쪽 값으로 뒤쪽을 정한다(`1 - p`). */
     private val COMPLEMENT_PAIRS = listOf(
         "좌투상대" to "우투상대",
@@ -79,7 +82,7 @@ internal object ConditionScenario {
     /**
      * 주자 세부 조건. 칸으로 나누기엔 원래 확률끼리 맞지 않아(1명 0.25 + 2명이상 0.25 < 있음 0.4가
      * 아니다) 부모-자식 관계로만 다룬다. 주자가 있다고 정해지면 자식을 `p / P(주자있음)`으로
-     * 올리고, 없다고 정해지면 0으로 내린다.
+     * 올리고, 없다고 정해지면 0으로 내린다. 주자 수 기댓값([RUNNER_COUNTS])도 같이 따라온다.
      */
     private fun applyRunnerDetails(
         probabilities: MutableMap<String, Double>,
@@ -90,20 +93,21 @@ internal object ConditionScenario {
         val runnersOn = when {
             token == RUNNERS_ON -> active
             token == RUNNERS_OFF -> !active
-            token in RUNNER_DETAILS && active -> true
+            token in RUNNER_DETAILS + RUNNER_COUNTS && active -> true
             else -> return
         }
         probabilities[RUNNERS_ON] = if (runnersOn) 1.0 else 0.0
         probabilities[RUNNERS_OFF] = if (runnersOn) 0.0 else 1.0
-        for (detail in RUNNER_DETAILS) {
+        for (detail in RUNNER_DETAILS + RUNNER_COUNTS) {
             if (detail == token) {
                 continue
             }
             val before = probabilities[detail] ?: continue
+            val given = if (runnersOnBefore > 0.0) before / runnersOnBefore else before
             probabilities[detail] = when {
                 !runnersOn -> 0.0
-                runnersOnBefore > 0.0 -> minOf(1.0, before / runnersOnBefore)
-                else -> before
+                detail in RUNNER_COUNTS -> given
+                else -> minOf(1.0, given)
             }
         }
     }
@@ -114,6 +118,8 @@ internal object ConditionScenario {
         battingOrder: Int?,
     ): List<Partition> = buildList {
         gameStatePartition(probabilities)?.let(::add)
+        previousBatterPartition(probabilities)?.let(::add)
+        previousPlatePartition(probabilities)?.let(::add)
         for ((left, right) in COMPLEMENT_PAIRS) {
             val p = probabilities[left] ?: continue
             val tokens = mutableMapOf(left to setOf(0), right to setOf(1))
@@ -143,6 +149,43 @@ internal object ConditionScenario {
                 "비김또는리드" to setOf(0, 1),
                 "비김또는열세" to setOf(1, 2),
                 "열세" to setOf(2),
+            ),
+        )
+    }
+
+    /**
+     * 직전 타자의 결과 다섯 칸: 홈런, 그 밖의 출루, 삼진, 그 밖의 아웃, 직전 타자 없음(등판 첫 타자).
+     * 홈런은 출루의, 삼진은 아웃의 일부다.
+     */
+    private fun previousBatterPartition(probabilities: Map<String, Double>): Partition? {
+        val onBase = probabilities["직전타자출루"] ?: return null
+        val out = probabilities["직전타자아웃"] ?: return null
+        val homeRun = probabilities["직전타자홈런"] ?: return null
+        val strikeout = probabilities["직전타자삼진"] ?: return null
+        return Partition(
+            // 타자는 직전 타자가 늘 있어 마지막 칸이 0이다. 뺄셈 오차로 음수가 되지 않게 막는다.
+            doubleArrayOf(homeRun, onBase - homeRun, strikeout, out - strikeout, maxOf(0.0, 1.0 - onBase - out)),
+            mapOf(
+                "직전타자출루" to setOf(0, 1),
+                "직전타자홈런" to setOf(0),
+                "직전타자아웃" to setOf(2, 3),
+                "직전타자삼진" to setOf(2),
+            ),
+        )
+    }
+
+    /**
+     * 보유자 본인의 직전 타석 세 칸: 아웃, 홈런 아닌 출루, 나머지(홈런이거나 첫 타석이라 직전 타석이 없음).
+     * 출루 실패는 홈런 실패의 일부다.
+     */
+    private fun previousPlatePartition(probabilities: Map<String, Double>): Partition? {
+        val notOnBase = probabilities["직전타석출루실패"] ?: return null
+        val noHomeRun = probabilities["직전타석홈런실패"] ?: return null
+        return Partition(
+            doubleArrayOf(notOnBase, noHomeRun - notOnBase, 1.0 - noHomeRun),
+            mapOf(
+                "직전타석출루실패" to setOf(0),
+                "직전타석홈런실패" to setOf(0, 1),
             ),
         )
     }

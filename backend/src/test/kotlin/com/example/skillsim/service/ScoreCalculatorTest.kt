@@ -170,20 +170,81 @@ class ScoreCalculatorTest {
     @Test
     fun `exposes role based short batter duration probabilities`() {
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("BATTER"))
+            .containsEntry("등판후1타자", 0.00)
             .containsEntry("등판후3타자", 0.00)
             .containsEntry("등판후4타자", 0.00)
+            .containsEntry("등판후6타자", 0.00)
         // 역할별 아웃 수(선발 17, 중계 4, 마무리 3) × 아웃당 타자 38/27 = 약 24, 5.6, 4.2명.
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("SP"))
+            .containsEntry("등판후1타자", 0.04)
             .containsEntry("등판후3타자", 0.13)
             .containsEntry("등판후4타자", 0.17)
+            .containsEntry("등판후6타자", 0.25)
             .containsEntry("등판후7타자", 0.29)
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("RP"))
+            .containsEntry("등판후1타자", 0.18)
             .containsEntry("등판후3타자", 0.53)
             .containsEntry("등판후4타자", 0.71)
+            .containsEntry("등판후6타자", 1.00)
             .containsEntry("등판후7타자", 1.00)
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("CP"))
+            .containsEntry("등판후1타자", 0.24)
             .containsEntry("등판후3타자", 0.71)
             .containsEntry("등판후4타자", 0.95)
+            .containsEntry("등판후6타자", 1.00)
+    }
+
+    @Test
+    fun `가중치 미정 조건은 잠정 표 한 곳에만 있다`() {
+        val probabilities = ScoreCalculator.conditionProbabilitiesForPosition("BATTER")
+
+        for ((token, value) in ScoreCalculator.pendingConditionProbabilities) {
+            assertThat(probabilities).containsEntry(token, value)
+        }
+        // 한 토큰이 두 표에 있으면 어느 값이 이길지 순서에 달린다.
+        assertThat(ScoreCalculator.staticConditionProbabilities.keys)
+            .doesNotContainAnyElementsOf(ScoreCalculator.pendingConditionProbabilities.keys)
+    }
+
+    @Test
+    fun `주자·타구 조건은 MLB 실측에서 온다`() {
+        val probabilities = ScoreCalculator.conditionProbabilitiesForPosition("BATTER")
+
+        // Tango RE24(2010~15): 3루 주자가 있는 타석 0.099, 타석당 평균 주자 0.61.
+        assertThat(probabilities).containsEntry("주자3루", 0.10)
+        assertThat(probabilities).containsEntry("주자당", 0.61)
+        // FanGraphs 리그 기준치: 당긴 타구 40%, 밀어친 타구 25%.
+        assertThat(probabilities).containsEntry("당겨치기", 0.40)
+        assertThat(probabilities).containsEntry("밀어치기", 0.25)
+        // 보유자가 루상에 있을 때라 본인 타석에는 걸리지 않는다.
+        assertThat(probabilities).containsEntry("출루중", 0.0)
+    }
+
+    @Test
+    fun `직전 타자는 리그 비율이고 투수는 등판 첫 타자 몫을 뺀다`() {
+        val batter = ScoreCalculator.conditionProbabilitiesForPosition("BATTER")
+        assertThat(batter.getValue("직전타자출루")).isCloseTo(0.315, within(1e-9))
+        assertThat(batter.getValue("직전타자아웃")).isCloseTo(0.685, within(1e-9))
+        assertThat(batter.getValue("직전타자홈런")).isCloseTo(0.030, within(1e-9))
+        assertThat(batter.getValue("직전타자삼진")).isCloseTo(0.226, within(1e-9))
+
+        // 중계는 한 번에 약 5.6명을 상대해 첫 타자(0.18)에게는 직전 타자가 없다.
+        val reliever = ScoreCalculator.conditionProbabilitiesForPosition("RP")
+        assertThat(reliever.getValue("직전타자출루") + reliever.getValue("직전타자아웃")).isCloseTo(0.82, within(1e-9))
+        assertThat(reliever.getValue("직전타자삼진")).isCloseTo(0.226 * 0.82, within(1e-9))
+    }
+
+    @Test
+    fun `직전 타석 조건은 첫 타석을 뺀다`() {
+        // 1번 타자는 타석 도달 합 3.96 가운데 첫 타석이 1이다.
+        val top = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 1)
+        assertThat(top.getValue("직전타석출루실패")).isCloseTo(0.685 * (1 - 1 / 3.96), within(1e-9))
+        assertThat(top.getValue("직전타석홈런실패")).isCloseTo(0.970 * (1 - 1 / 3.96), within(1e-9))
+
+        // 하위 타순은 타석이 적어 첫 타석의 몫이 크다(1 / 3.22).
+        val lower = ScoreCalculator.conditionProbabilitiesForPosition("BATTER", 7)
+        assertThat(lower.getValue("직전타석출루실패")).isCloseTo(0.685 * (1 - 1 / 3.22), within(1e-9))
+        assertThat(lower.getValue("직전타석출루실패")).isLessThan(top.getValue("직전타석출루실패"))
     }
 
     @Test
@@ -415,7 +476,7 @@ class ScoreCalculatorTest {
             effect("인내", "리드아님", "10"),
             effect("주루", "스트라이크타격", "10"),
             effect("수비", "2스트라이크", "10"),
-            effect("발사각", "발사각조건", "10"),
+            effect("발사각", "발사각10이상", "10"),
         )
 
         val result = ScoreCalculator().calculate(
@@ -436,8 +497,8 @@ class ScoreCalculatorTest {
         assertThat(result.perStat).containsEntry("파워", 10.00)
         assertThat(result.perStat).containsEntry("정확", 10.00)
         // 타순을 넘기지 않으면 1번타자로 본다. 타순1_2는 평균 0.222가 아니라 1.0으로 걸린다.
-        // 초구 0.261, 2스트라이크 0.285는 카운트별 투구 비율에서 온다.
-        assertThat(result.total).isEqualTo(32.96)
+        // 초구 0.261, 2스트라이크 0.285는 카운트별 투구 비율에서 온다. 발사각10이상은 잠정 0.5다.
+        assertThat(result.total).isEqualTo(35.96)
     }
 
     @Test

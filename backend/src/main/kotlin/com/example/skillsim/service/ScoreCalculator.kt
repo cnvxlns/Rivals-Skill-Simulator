@@ -20,7 +20,11 @@ private val STATIC_CONDITION_PROBABILITIES = mapOf(
     "주자1명" to 0.25,
     "주자2명이상" to 0.25,
     "주자2루이상" to 0.25,
-    "주자3루" to 0.03,
+    // 어느 주자든 3루에 있을 때(3루만·1,3루·2,3루·만루). MLB 2010~15 타석 비율 0.099(Tango RE24).
+    "주자3루" to 0.10,
+    // "주자 1명당", "주자가 더해질수록"처럼 주자 수만큼 곱해지는 효과. 확률이 아니라 타석당
+    // 평균 주자 수(MLB 2010~15, Tango RE24)라 주자있음보다 크다.
+    "주자당" to 0.61,
     "OVR열세" to 0.5,
     "OVR우세" to 0.5,
     "덱스코어열세" to 0.5,
@@ -34,13 +38,49 @@ private val STATIC_CONDITION_PROBABILITIES = mapOf(
     "변화구상대" to 0.55,
     "변화구선택" to 0.55,
     "스윗스팟" to 0.3,
-    "당겨치기" to 0.35,
-    "밀어치기" to 0.35,
+    // 타구 가운데 당긴 타구 40%, 밀어친 타구 25%(FanGraphs 리그 기준치).
+    "당겨치기" to 0.40,
+    "밀어치기" to 0.25,
     "높은공" to 0.333,
     "낮은공" to 0.333,
+    // 너클볼이 있는 카드만 던질 수 있다. 카드 구종을 받지 않으므로 없다고 본다.
+    "너클볼선택" to 0.0,
+    // "주자로 나가 있는 동안". 보유자가 루상에 있을 때라 이득은 뒤 타자에게만 간다. 계산기·점수표는
+    // 팀 버프처럼 보유자 본인 효과만 채점하므로 0이다.
+    "출루중" to 0.0,
     "대타첫타석" to 0.0, // 주전 라인업 기준 대타 출전 없음
     "교체후첫타자" to 0.25, // 계투 상대 타자 중 첫 타자 근사
     "2아웃" to 0.333,
+)
+
+/**
+ * MLB 2024 리그 비율. "직전 타자"·"직전 타석" 조건이 여기서 나온다([PreviousResultResolver]).
+ * 게임 안 랭킹대전의 비율은 알 수 없어 엔진의 다른 확률처럼 MLB 실측을 쓴다.
+ *
+ * - 출루율: NL .315, AL .309(타석 가중 .312). 워크북과 같은 0.315로 둔다.
+ * - 삼진율: 경기당 팀 삼진 8.48 / 팀 타석 37.5 = 22.6%.
+ * - 홈런율: 경기당 팀 홈런 1.12 / 팀 타석 37.5 = 0.030.
+ */
+private const val LEAGUE_ON_BASE_RATE = 0.315
+private const val LEAGUE_STRIKEOUT_RATE = 0.226
+private const val LEAGUE_HOME_RUN_RATE = 0.030
+
+/**
+ * 가중치를 아직 정하지 못한 조건. **값은 잠정이다.**
+ *
+ * 근거와 후보값, 정하는 방법은 `docs/pending_condition_weights.md`에 모았다. 값을 정하면
+ * 여기서 빼 알맞은 표로 옮긴다.
+ */
+private val PENDING_CONDITION_PROBABILITIES = mapOf(
+    // 카드의 평균 발사각(퓨어 히터). 카드마다 정해져 있어 실제로는 0 아니면 1인데, 카드 값을
+    // 받지 않으므로 절반으로 둔다.
+    "발사각10이상" to 0.50,
+    "발사각14이하" to 0.50,
+    // 상대 팀 누적 3홈런 이후 경기 종료까지 유지되는 버프의 노출 비율.
+    // P(상대팀 경기당 홈런 3개 이상) x 발동 후 잔여 타석 비율로 근사한다. 게임 안 경기당 팀
+    // 홈런(lambda)을 몰라 민감도가 크다(±2배): lambda=1.1 -> 0.04, 1.6 -> 0.06, 2.0 -> 0.12.
+    // MLB 2024는 1.12라 0.04인데, 직전타자홈런과 달리 게임 쪽 추정(1.6)을 쓰고 있다.
+    "상대팀홈런3" to 0.06,
 )
 
 /**
@@ -150,12 +190,6 @@ private val MODE_PROBABILITIES = mapOf(
     "모드_랭킹슬러거" to 0.0,
 )
 
-private val LAUNCH_ANGLE_PROBABILITIES = mapOf(
-    "발사각조건" to 0.20,
-    "발사각10이상" to 0.50,
-    "발사각14이하" to 0.50,
-)
-
 /**
  * 역할별로 한 번 등판해 잡는 아웃 수. 마에스트로 누적과 "등판 후 N타자" 비율이 함께 쓴다.
  * 선발 17(약 5⅔이닝), 중계 4(1⅓이닝), 마무리 3(1이닝).
@@ -184,8 +218,10 @@ private fun firstBattersShareByRole(batters: Int): Map<String, Double> =
     }
 
 private val NINE_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(9)
+private val ONE_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(1)
 private val THREE_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(3)
 private val FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(4)
+private val SIX_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(6)
 private val SEVEN_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(7)
 
 private val GUTS_PROBABILITIES_BY_ROLE = mapOf(
@@ -279,14 +315,6 @@ private val BASE_STAT_THRESHOLD_FALLBACK = mapOf(
 private val TOP_ORDER_PLATE_APPEARANCE_REACH = doubleArrayOf(1.0, 1.0, 0.95, 0.70, 0.25, 0.05, 0.01)
 private val MIDDLE_ORDER_PLATE_APPEARANCE_REACH = doubleArrayOf(1.0, 1.0, 0.90, 0.55, 0.12, 0.02, 0.005)
 private val LOWER_ORDER_PLATE_APPEARANCE_REACH = doubleArrayOf(1.0, 0.95, 0.80, 0.40, 0.06, 0.01, 0.00)
-
-/**
- * 상대 팀 누적 3홈런 이후 경기 종료까지 유지되는 버프의 노출 비율.
- * P(상대팀 경기당 홈런 3개 이상) x 발동 후 잔여 타석 비율로 근사한다.
- * 게임 내 실제 경기당 팀 홈런(lambda)이 확정되지 않아 잠정값이며 민감도가 크다(±2배).
- * lambda=1.1 -> 0.04, lambda=1.6 -> 0.06, lambda=2.0 -> 0.12
- */
-private const val OPPONENT_THREE_HOMERUN_EXPOSURE = 0.06
 
 /**
  * 한 이닝에 출루 2명을 허용한 뒤 이닝 종료까지 유지되는 버프의 노출 비율.
@@ -426,13 +454,16 @@ private object BattingOrderResolver : ConditionResolver {
 private object DurationResolver : ConditionResolver {
     override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
         probabilities["등판후9타자"] = NINE_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
+        // 기선제압의 "등판 후 상대하는 첫 타자". 교체후첫타자(계투 전용 근사)와 달리 선발도 받는다.
+        probabilities["등판후1타자"] = ONE_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
         probabilities["등판후3타자"] = THREE_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
         probabilities["등판후4타자"] = FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
+        probabilities["등판후6타자"] = SIX_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
         probabilities["등판후7타자"] = SEVEN_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0
         probabilities["두번째타석까지"] = secondPlateAppearanceShare(context.battingOrder)
-        // 아래 둘은 "발동 확률"이 아니라 "버프가 켜져 있는 기회의 비율"이다.
+        // 아래는 "발동 확률"이 아니라 "버프가 켜져 있는 기회의 비율"이다.
         // 등판후N타자·마에스트로누적과 같은 시간평균 노출 비율 척도를 따른다.
-        probabilities["상대팀홈런3"] = OPPONENT_THREE_HOMERUN_EXPOSURE
+        // 상대팀홈런3도 같은 척도인데 값이 잠정이라 [PENDING_CONDITION_PROBABILITIES]에 있다.
         probabilities["이닝출루2인이상"] = INNING_TWO_BASERUNNERS_EXPOSURE
     }
 
@@ -445,6 +476,29 @@ private object DurationResolver : ConditionResolver {
     private fun secondPlateAppearanceShare(order: Int?): Double {
         val reach = plateAppearanceReach(order)
         return (reach[0] + reach[1]) / reach.sum()
+    }
+}
+
+/**
+ * 직전 타자·직전 타석의 결과 조건. [LEAGUE_ON_BASE_RATE] 등 리그 비율에서 나온다.
+ *
+ * - 직전 타자: 한 이닝은 출루로 끝나지 않으므로 "직전 타석이 출루였던 타석"의 비율이 곧 출루율이다.
+ *   아웃·삼진은 이닝을 넘겨도 이어진다고 본다(이닝의 세 번째 아웃도 다음 타석의 직전 결과다).
+ *   투수는 등판 첫 타자에게 직전 타자가 없으므로 그 몫(등판후1타자)을 뺀다. 타자는 0이라 그대로다.
+ * - 직전 타석: 보유자 본인의 앞 타석이다. 첫 타석에는 앞 타석이 없으므로 첫 타석의 몫을 뺀다.
+ */
+private object PreviousResultResolver : ConditionResolver {
+    override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
+        val hasPreviousBatter = 1.0 - (ONE_BATTER_DURATION_PROBABILITIES_BY_ROLE[context.role] ?: 0.0)
+        probabilities["직전타자출루"] = LEAGUE_ON_BASE_RATE * hasPreviousBatter
+        probabilities["직전타자아웃"] = (1.0 - LEAGUE_ON_BASE_RATE) * hasPreviousBatter
+        probabilities["직전타자홈런"] = LEAGUE_HOME_RUN_RATE * hasPreviousBatter
+        probabilities["직전타자삼진"] = LEAGUE_STRIKEOUT_RATE * hasPreviousBatter
+
+        val reach = plateAppearanceReach(context.battingOrder)
+        val hasPreviousPlate = 1.0 - reach[0] / reach.sum()
+        probabilities["직전타석출루실패"] = (1.0 - LEAGUE_ON_BASE_RATE) * hasPreviousPlate
+        probabilities["직전타석홈런실패"] = (1.0 - LEAGUE_HOME_RUN_RATE) * hasPreviousPlate
     }
 }
 
@@ -575,12 +629,13 @@ internal fun plateAppearanceReach(order: Int?): DoubleArray =
 
 private val CONDITION_RESOLVERS = listOf(
     StaticProbabilityResolver(STATIC_CONDITION_PROBABILITIES),
+    StaticProbabilityResolver(PENDING_CONDITION_PROBABILITIES),
     StaticProbabilityResolver(PLATE_SITUATION_PROBABILITIES),
     BattingOrderResolver,
     StaticProbabilityResolver(GAME_STATE_PROBABILITIES),
     StaticProbabilityResolver(MODE_PROBABILITIES),
-    StaticProbabilityResolver(LAUNCH_ANGLE_PROBABILITIES),
     DurationResolver,
+    PreviousResultResolver,
     MaestroCumulativeResolver,
     StatComparisonResolver,
     BaseStatThresholdResolver,
@@ -833,6 +888,9 @@ class ScoreCalculator {
 
         val staticConditionProbabilities: Map<String, Double> get() = STATIC_CONDITION_PROBABILITIES
 
+        /** 가중치 미정 조건의 잠정값([PENDING_CONDITION_PROBABILITIES]). */
+        val pendingConditionProbabilities: Map<String, Double> get() = PENDING_CONDITION_PROBABILITIES
+
         val plateSituationProbabilities: Map<String, Double> get() = PLATE_SITUATION_PROBABILITIES
 
         val battingOrderDefaultProbabilities: Map<String, Double>
@@ -841,8 +899,6 @@ class ScoreCalculator {
         val gameStateProbabilities: Map<String, Double> get() = GAME_STATE_PROBABILITIES
 
         val modeProbabilities: Map<String, Double> get() = MODE_PROBABILITIES
-
-        val launchAngleProbabilities: Map<String, Double> get() = LAUNCH_ANGLE_PROBABILITIES
 
         val nineBatterDurationProbabilitiesByRole: Map<String, Double>
             get() = NINE_BATTER_DURATION_PROBABILITIES_BY_ROLE

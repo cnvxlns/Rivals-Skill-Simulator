@@ -58,6 +58,33 @@ class ConditionScenarioTest {
         val inferior = forced("OVR열세", false)
         assertThat(inferior["OVR우세"]).isEqualTo(1.0)
         assertThat(inferior["패기"]).isEqualTo(0.0)
+
+    }
+
+    @Test
+    fun `직전 타자의 결과는 홈런이 출루의, 삼진이 아웃의 일부다`() {
+        val reached = forced("직전타자출루", true)
+        assertThat(reached["직전타자아웃"]).isEqualTo(0.0)
+        assertThat(reached["직전타자삼진"]).isEqualTo(0.0)
+        assertThat(reached["직전타자홈런"]).isCloseTo(0.030 / 0.315, within(1e-9))
+
+        // 타자에게는 직전 타자가 늘 있으므로 출루가 아니면 아웃이다.
+        val retired = forced("직전타자출루", false)
+        assertThat(retired["직전타자아웃"]).isCloseTo(1.0, within(1e-9))
+        assertThat(retired["직전타자삼진"]).isCloseTo(0.226 / 0.685, within(1e-9))
+
+        val plate = forced("직전타석출루실패", true)
+        assertThat(plate["직전타석홈런실패"]).isCloseTo(1.0, within(1e-9))
+    }
+
+    @Test
+    fun `주자 수 기댓값은 주자가 있다고 정해져도 1에서 자르지 않는다`() {
+        val on = forced("주자있음", true)
+        // 0.61 / 0.4
+        assertThat(on["주자당"]).isCloseTo(1.525, within(1e-9))
+
+        val off = forced("주자있음", false)
+        assertThat(off["주자당"]).isEqualTo(0.0)
     }
 
     @Test

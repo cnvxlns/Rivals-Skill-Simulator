@@ -206,6 +206,111 @@ class ScoreDataLoaderTest {
         }
     }
 
+    /**
+     * 설명문에 조건이 붙은 절이 조건 없이(ALWAYS) 들어가 항상 발동하던 스킬들.
+     * 전 티어를 설명문과 대조해 찾았다. 같은 값의 ALWAYS 행이 되살아나지 않게 못박는다.
+     */
+    @Test
+    fun `conditioned clauses are not scored as always`() {
+        val skills = readBundledScoreSkills()
+        data class Clause(val skillKey: String, val stats: List<String>, val condition: String, val values: String)
+
+        val clauses = listOf(
+            Clause("HOF_007", listOf("파워", "정확", "인내"), "주자3루", "1/2/2/3/3/5"),
+            Clause("HOF_010", listOf("파워", "정확", "선구", "인내", "주루", "수비"), "직전타석출루실패", "2/2/3/4/4/5"),
+            Clause("HOF_011", listOf("구위", "변화", "제구"), "출루중", "1/1/1/1/1/2"),
+            Clause("HOF_013", listOf("파워"), "당겨치기", "3/4/6/8/10/13"),
+            Clause("HOF_013", listOf("정확"), "밀어치기", "3/4/6/8/10/13"),
+            Clause("HOF_017", listOf("파워"), "직전타자출루", "1/3/4/4/5/6"),
+            Clause("HOF_017", listOf("파워", "정확", "선구"), "직전타자홈런", "2/3/3/4/4/5"),
+            Clause("HOF_024", listOf("파워", "정확"), "등판후6타자", "6"),
+            Clause("HOF_027", listOf("구위", "변화", "구속"), "주자3루", "1/2/2/3/3/5"),
+            Clause("HOF_029", listOf("구속", "구위", "변화", "제구", "지구력", "수비"), "직전타자출루", "2/2/3/4/4/5"),
+            Clause("HOF_034", listOf("파워", "정확"), "직전타자삼진", "2/3/4/5/7/8"),
+            Clause("HOF_037", listOf("정확"), "너클볼선택", "3"),
+            Clause("HOF_041", listOf("구위", "변화"), "직전타석홈런실패", "2/3/4/5/6/7"),
+            Clause("HOF_042", listOf("파워", "정확"), "직전타석출루실패", "1/2/3/4/5/6"),
+            Clause("S_004", listOf("파워", "정확", "선구", "인내", "주루", "수비"), "직전타자출루", "1/2/3/4/5/6/7/8/9"),
+            Clause("B_008", listOf("파워", "정확", "선구", "인내"), "등판후1타자", "1/2/3/4/5/6/7/8/9"),
+            Clause("B_010", listOf("변화", "구속"), "직전타자삼진", "2/3/4/5/6/7/8/9/10"),
+            Clause("I_001", listOf("파워"), "밀어치기", "2/3/4/5/6/7/8/9/10"),
+            Clause("I_002", listOf("파워"), "당겨치기", "2/3/4/5/6/7/8/9/10"),
+            Clause("G_002", listOf("파워"), "낮은공", "1/2/3/4/5/6/7/8/9"),
+            // "주자당"은 주자 수만큼 곱해진다.
+            Clause("G_042", listOf("변화", "제구"), "주자당", "1/2/3/4/5/6/7/8/9"),
+            Clause("G_076", listOf("구위", "변화"), "직전타자아웃", "1/1/1/1/2/3/4/5/6"),
+            Clause("WBC_016", listOf("구위", "변화"), "출루중", "6/7/8/9/10/11/12/13/14"),
+            Clause("BLACK_006", listOf("구위", "변화"), "출루중", "2/2/3/3/4/4/5"),
+        )
+
+        for (clause in clauses) {
+            for (stat in clause.stats) {
+                assertThat(valuesFor(skills, clause.skillKey, stat, clause.condition))
+                    .describedAs("%s %s %s", clause.skillKey, stat, clause.condition)
+                    .contains(clause.values)
+                assertThat(alwaysValues(skills, clause.skillKey, stat))
+                    .describedAs("%s %s ALWAYS", clause.skillKey, stat)
+                    .doesNotContain(clause.values)
+            }
+        }
+    }
+
+    /**
+     * 조건을 잘못 읽었거나 설명문이 낡아 틀어졌던 효과 행.
+     *
+     * - "평균 발사각이 N도 감소하고 추가로 …"는 발사각을 바꾸는 효과다. 조건(×0.2)으로 읽어 깎고 있었다.
+     * - "주자 1명당", "주자가 더해질수록"은 주자 수만큼 곱해진다(`주자당`).
+     * - 블랙 스킬의 능력치 목록은 인게임 화면을 따른다. 용기의 파워는 설명문만 보고 지웠다가 되살렸다.
+     */
+    @Test
+    fun `conditions and stats follow the in game text`() {
+        val skills = readBundledScoreSkills()
+
+        for (stat in listOf("정확", "선구", "주루")) {
+            assertThat(valuesFor(skills, "G_025", stat, "타순1_2")).containsExactly("2/3/3/4/4/5/5/6/6")
+        }
+        for (stat in listOf("파워", "정확")) {
+            assertThat(valuesFor(skills, "BLACK_004", stat, "주자있음")).containsExactly("1/2/3/4/5/8/10")
+        }
+        for (stat in listOf("정확", "선구", "인내")) {
+            assertThat(valuesFor(skills, "BLACK_004", stat, "주자없음")).containsExactly("4/5/6/7/8/11/14")
+        }
+        for (stat in listOf("파워", "인내")) {
+            assertThat(valuesFor(skills, "BLACK_001", stat, "포지션_DH+발사각10이상")).containsExactly("1/2/3/4/5/8/11")
+        }
+        for (stat in listOf("정확", "선구")) {
+            assertThat(valuesFor(skills, "BLACK_001", stat, "포지션_DH+발사각14이하")).containsExactly("1/2/3/4/5/8/11")
+        }
+        assertThat(skills.flatMap { it.effects }.map { it.condition }).noneMatch { it.contains("발사각조건") }
+
+        val perRunner = mapOf(
+            "G_004" to listOf("파워"),
+            "G_013" to listOf("정확", "선구"),
+            "G_051" to listOf("변화", "제구"),
+            "M_035" to listOf("파워", "정확", "인내"),
+            "M_038" to listOf("구속", "변화", "구위"),
+        )
+        for ((skillKey, stats) in perRunner) {
+            for (stat in stats) {
+                assertThat(valuesFor(skills, skillKey, stat, "주자당")).describedAs("%s %s", skillKey, stat).hasSize(1)
+                assertThat(valuesFor(skills, skillKey, stat, "주자있음")).describedAs("%s %s", skillKey, stat).isEmpty()
+                assertThat(valuesFor(skills, skillKey, stat, "주자2명이상")).describedAs("%s %s", skillKey, stat).isEmpty()
+            }
+        }
+
+        assertThat(valuesFor(skills, "BLACK_007", "파워", "타순6_9")).containsExactly("2/2/3/3/4/6/8")
+        assertThat(valuesFor(skills, "BLACK_002", "파워", "ALWAYS")).containsExactly("2/3/3/4/4/7/9")
+        assertThat(valuesFor(skills, "BLACK_012", "파워", "ALWAYS")).containsExactly("3/4/5/6/7/10/13")
+        // 도전 본능(타자) 인게임 설명은 "구위, 변화, 구속"이다.
+        assertThat(valuesFor(skills, "BLACK_009", "제구", "ALWAYS")).isEmpty()
+        for (stat in listOf("파워", "정확", "선구", "인내")) {
+            assertThat(valuesFor(skills, "BLACK_009", stat, "상대팀홈런3")).containsExactly("1/1/1/1/2/4/6")
+        }
+        for (stat in listOf("구위", "변화", "제구", "구속")) {
+            assertThat(valuesFor(skills, "BLACK_022", stat, "이닝출루2인이상")).containsExactly("1/1/2/3/4/6/8")
+        }
+    }
+
     @Test
     fun `duration counts are not encoded as standalone stat increases`() {
         val skills = readBundledScoreSkills()

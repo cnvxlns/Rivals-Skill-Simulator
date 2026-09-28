@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { Handedness, Position, ScoreTableEntry, ScoreTableResponse, SubPosition } from '../types';
 import { fetchScoreTable } from '../lib/api';
 import { useScoreContext } from '../lib/useScoreContext';
@@ -140,6 +140,24 @@ export default function ScoreTableView() {
    */
   const Row = ({ rank, tier, entry }: { rank: number | null; tier?: string; entry: ScoreTableEntry }) => {
     const inactive = entry.score === 0;
+    const name = (
+      <Text
+        style={{
+          fontSize: isWide ? 18 : 17.5,
+          fontWeight: '600',
+          color: inactive ? inactiveRow.name : colors.onSurface,
+        }}
+        numberOfLines={isWide ? 1 : undefined}
+      >
+        {entry.name}
+        {/* 카드 능력치·타순·선발 순번 조건 스킬은 경우마다 줄이 나뉜다. 어느 경우의 점수인지 이름 옆에 적는다. */}
+        {entry.variant ? (
+          <Text style={{ fontWeight: '500', color: inactive ? inactiveRow.name : colors.muted }}>
+            {` (${entry.variant})`}
+          </Text>
+        ) : null}
+      </Text>
+    );
     return (
       <View
         style={{
@@ -173,22 +191,15 @@ export default function ScoreTableView() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             {/* 표는 등급 하나로 고정 채점하므로 x·y·z를 실제 수치로 바꾼 설명을 쓴다. */}
             <TooltipTarget text={entry.resolvedDescription ?? entry.description} style={{ flexShrink: 1, minWidth: 0 }}>
-              <Text
-                style={{
-                  fontSize: isWide ? 18 : 17.5,
-                  fontWeight: '600',
-                  color: inactive ? inactiveRow.name : colors.onSurface,
-                }}
-                numberOfLines={1}
-              >
-                {entry.name}
-                {/* 카드 능력치·타순·선발 순번 조건 스킬은 경우마다 줄이 나뉜다. 어느 경우의 점수인지 이름 옆에 적는다. */}
-                {entry.variant ? (
-                  <Text style={{ fontWeight: '500', color: inactive ? inactiveRow.name : colors.muted }}>
-                    {` (${entry.variant})`}
-                  </Text>
-                ) : null}
-              </Text>
+              {isWide ? (
+                name
+              ) : (
+                // 모바일은 폭이 좁아 `결속력 (스페셜 덱 스코어 …)`처럼 경우가 붙은 이름이 줄임표로 잘린다.
+                // 자르지 않고 가로로 밀어 끝까지 읽게 한다.
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                  {name}
+                </ScrollView>
+              )}
             </TooltipTarget>
             {/* 모바일은 열을 3개로 줄이려고 등급 칩을 스킬명 옆으로 올린다. */}
             {!isWide ? <GradeChip grade={entry.appliedGrade} inactive={inactive} compact /> : null}

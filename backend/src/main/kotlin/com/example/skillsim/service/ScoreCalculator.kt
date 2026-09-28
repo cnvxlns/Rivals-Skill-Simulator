@@ -151,36 +151,37 @@ private val LAUNCH_ANGLE_PROBABILITIES = mapOf(
     "발사각14이하" to 0.50,
 )
 
-private val NINE_BATTER_DURATION_PROBABILITIES_BY_ROLE = mapOf(
-    "BATTER" to 0.00,
-    "SP" to 0.45,
-    "RP" to 0.95,
-    "CP" to 1.00,
+/**
+ * 역할별로 한 번 등판해 잡는 아웃 수. 마에스트로 누적과 "등판 후 N타자" 비율이 함께 쓴다.
+ * 선발 17(약 5⅔이닝), 중계 4(1⅓이닝), 마무리 3(1이닝).
+ */
+private val EXPECTED_OUTS_BY_ROLE = mapOf(
+    "BATTER" to 0,
+    "SP" to 17,
+    "RP" to 4,
+    "CP" to 3,
 )
 
-// 보직별 평균 상대 타자 수 대비 해당 타자 수 비중 근사(등판후9타자와 동일 방법론).
-private val THREE_BATTER_DURATION_PROBABILITIES_BY_ROLE = mapOf(
-    "BATTER" to 0.00,
-    "SP" to 0.15,
-    "RP" to 0.65,
-    "CP" to 0.90,
-)
+/** 아웃 하나를 잡는 동안 상대하는 타자 수. MLB 팀 경기당 타석 약 38 / 27아웃. */
+private const val BATTERS_FACED_PER_OUT = 38.0 / 27.0
 
-private val FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE = mapOf(
-    "BATTER" to 0.00,
-    "SP" to 0.20,
-    "RP" to 0.80,
-    "CP" to 1.00,
-)
+/**
+ * "등판 후 N타자 동안" 버프가 켜져 있는 비율. 한 번 등판에서 상대하는 타자 가운데 처음 N명의 몫이다.
+ *
+ * 상대 타자 수는 [EXPECTED_OUTS_BY_ROLE] × [BATTERS_FACED_PER_OUT]이다(선발 약 24명, 중계 약 5.6명,
+ * 마무리 약 4.2명). N명을 채우기 전에 내려가면 등판 내내 켜져 있으므로 1이다.
+ * 예전에는 3·4·9타자 값을 따로 짐작해 적어 마에스트로가 쓰는 아웃 수 가정과 어긋났다.
+ */
+private fun firstBattersShareByRole(batters: Int): Map<String, Double> =
+    EXPECTED_OUTS_BY_ROLE.mapValues { (_, outs) ->
+        val faced = outs * BATTERS_FACED_PER_OUT
+        if (faced <= 0.0) 0.0 else roundToCents(minOf(batters.toDouble(), faced) / faced)
+    }
 
-// 핫 스타트(투수)의 "등판 후 7타자 동안". 실측 근거가 따로 없어 4타자와 9타자 값 사이를
-// 타자 수로 선형 보간했다(선발 0.20 -> 0.45는 타자당 0.05, 중계 0.80 -> 0.95는 0.03).
-private val SEVEN_BATTER_DURATION_PROBABILITIES_BY_ROLE = mapOf(
-    "BATTER" to 0.00,
-    "SP" to 0.35,
-    "RP" to 0.90,
-    "CP" to 1.00,
-)
+private val NINE_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(9)
+private val THREE_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(3)
+private val FOUR_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(4)
+private val SEVEN_BATTER_DURATION_PROBABILITIES_BY_ROLE = firstBattersShareByRole(7)
 
 private val GUTS_PROBABILITIES_BY_ROLE = mapOf(
     "BATTER" to 0.20,
@@ -198,12 +199,8 @@ private val PATIENCE_BELOW_VELOCITY_PROBABILITIES_BY_ROLE = mapOf(
     "CP" to 0.10,
 )
 
-private val MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE = mapOf(
-    "BATTER" to 0.0,
-    "SP" to maestroAverageActiveStack(17) / 12.0,
-    "RP" to maestroAverageActiveStack(4) / 12.0,
-    "CP" to maestroAverageActiveStack(3) / 12.0,
-)
+private val MAESTRO_CUMULATIVE_PROBABILITIES_BY_ROLE =
+    EXPECTED_OUTS_BY_ROLE.mapValues { (_, outs) -> maestroAverageActiveStack(outs) / 12.0 }
 
 // 도전정신(상대등급우세): 자기 카드 등급 기준 P(상대 선수 등급 > 내 등급).
 // 상대 라인업이 프라임/시그니처/모먼트/HOF 위주라는 메타 가정에서 산출한 값 (agy×3+codex×3 2라운드 토론 합의).

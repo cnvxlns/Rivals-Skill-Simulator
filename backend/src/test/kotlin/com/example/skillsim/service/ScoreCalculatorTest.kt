@@ -161,8 +161,9 @@ class ScoreCalculatorTest {
         val skill = scoreSkill("M_029", "스탠드아웃", effect("구위", "등판후9타자", "10"))
 
         assertThat(totalForRole(skill, "구위", "BATTER")).isEqualTo(0.00)
-        assertThat(totalForRole(skill, "구위", "SP")).isEqualTo(4.50)
-        assertThat(totalForRole(skill, "구위", "RP")).isEqualTo(9.50)
+        // 선발은 약 24명 중 처음 9명(0.38). 중계·마무리는 9명을 채우기 전에 내려가 등판 내내 켜진다.
+        assertThat(totalForRole(skill, "구위", "SP")).isEqualTo(3.80)
+        assertThat(totalForRole(skill, "구위", "RP")).isEqualTo(10.00)
         assertThat(totalForRole(skill, "구위", "CP")).isEqualTo(10.00)
     }
 
@@ -171,17 +172,18 @@ class ScoreCalculatorTest {
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("BATTER"))
             .containsEntry("등판후3타자", 0.00)
             .containsEntry("등판후4타자", 0.00)
+        // 역할별 아웃 수(선발 17, 중계 4, 마무리 3) × 아웃당 타자 38/27 = 약 24, 5.6, 4.2명.
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("SP"))
-            .containsEntry("등판후3타자", 0.15)
-            .containsEntry("등판후4타자", 0.20)
-            .containsEntry("등판후7타자", 0.35)
+            .containsEntry("등판후3타자", 0.13)
+            .containsEntry("등판후4타자", 0.17)
+            .containsEntry("등판후7타자", 0.29)
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("RP"))
-            .containsEntry("등판후3타자", 0.65)
-            .containsEntry("등판후4타자", 0.80)
-            .containsEntry("등판후7타자", 0.90)
+            .containsEntry("등판후3타자", 0.53)
+            .containsEntry("등판후4타자", 0.71)
+            .containsEntry("등판후7타자", 1.00)
         assertThat(ScoreCalculator.conditionProbabilitiesForPosition("CP"))
-            .containsEntry("등판후3타자", 0.90)
-            .containsEntry("등판후4타자", 1.00)
+            .containsEntry("등판후3타자", 0.71)
+            .containsEntry("등판후4타자", 0.95)
     }
 
     @Test

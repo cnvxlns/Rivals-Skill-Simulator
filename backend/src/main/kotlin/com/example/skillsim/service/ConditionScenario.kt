@@ -142,6 +142,7 @@ internal object ConditionScenario {
                 "리드아님" to setOf(1, 2),
                 "비김또는리드" to setOf(0, 1),
                 "비김또는열세" to setOf(1, 2),
+                "열세" to setOf(2),
             ),
         )
     }

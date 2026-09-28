@@ -826,6 +826,7 @@ CONDITION_SELECTORS = {
     "포지션_C": "POS=C",
     "포지션_DH": "POS=DH",
     "포지션_OF": "POS=OF",
+    "포지션_CF": "POS=CF",
     "포지션_SS": "POS=SS",
     "포지션_2B": "POS=2B",
     "포지션_SP": "ROLE=SP",

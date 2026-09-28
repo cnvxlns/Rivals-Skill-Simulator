@@ -441,6 +441,23 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    fun `지고 있을 때는 동점을 뺀 열세만이다`() {
+        val probabilities = ScoreCalculator.conditionProbabilitiesForPosition("SP")
+
+        assertThat(probabilities.getValue("열세")).isEqualTo(0.37)
+        // 리드 + 동점 + 열세 = 1, 동점을 포함한 "리드가 아닐 때"는 열세보다 크다.
+        assertThat(probabilities.getValue("비김또는리드") + probabilities.getValue("열세")).isCloseTo(1.0, within(0.001))
+        assertThat(probabilities.getValue("리드아님")).isGreaterThan(probabilities.getValue("열세"))
+    }
+
+    @Test
+    fun `중견수 게이트는 CF일 때만 열린다`() {
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("CF")).containsEntry("포지션_CF", 1.0)
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("LF")).containsEntry("포지션_CF", 0.0)
+        assertThat(ScoreCalculator.conditionProbabilitiesForPosition("LF")).containsEntry("포지션_OF", 1.0)
+    }
+
+    @Test
     fun `볼 카운트 조건은 모두 카운트별 투구 비율 한 표에서 합산한다`() {
         val probabilities = ScoreCalculator.conditionProbabilitiesForPosition("BATTER")
 

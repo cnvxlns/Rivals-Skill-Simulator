@@ -518,8 +518,8 @@ def _condition_for(sentence: str) -> str:
         ("6회 이후", "6회이후"),
         ("7회 이후", "7회이후"),
         ("8회 이후", "8회이후"),
+        ("9회 이후", "9회이후"),
         ("이기고 있을", "리드"),
-        ("지고 있을", "리드아님"),
         ("비기거나 리드", "비김또는리드"),
         ("비기거나 지고", "비김또는열세"),
         ("DH", "포지션_DH"),
@@ -535,6 +535,13 @@ def _condition_for(sentence: str) -> str:
     for needle, condition in checks:
         if needle in modified_sentence and condition not in conditions:
             conditions.append(condition)
+
+    # "지고 있을 때"는 열세만이다. "비기거나 지고", "동점이거나 지고"는 동점을 포함하므로 따로 읽는다.
+    if re.search(r"지고\s*있", modified_sentence) and not re.search(r"(비기거나|동점이거나)\s*지고", modified_sentence):
+        if "열세" not in conditions:
+            conditions.append("열세")
+    if re.search(r"동점이거나\s*지고", modified_sentence) and "리드아님" not in conditions:
+        conditions.append("리드아님")
 
     for condition in _pitching_window_conditions(modified_sentence):
         if condition not in conditions:

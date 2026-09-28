@@ -194,6 +194,14 @@ class SkillParserTest(unittest.TestCase):
             self.assertIn((stat, "등판후7타자"), pitcher_rows)
         self.assertIn(("파워", "ALWAYS"), pitcher_rows)
 
+    def test_game_state_losing_is_strictly_behind(self):
+        """"지고 있을 때"는 열세(동점 제외). "비기거나 지고", "동점이거나 지고"는 동점을 포함한다."""
+        self.assertEqual(_condition_for("지고 있을 때 파워 능력치가 x 증가합니다"), "열세")
+        self.assertEqual(_condition_for("지고 있는 상황일 경우 구위 능력치가 6 증가합니다"), "열세")
+        self.assertEqual(_condition_for("비기거나 지고있을 경우 파워 능력치가 10 증가합니다"), "비김또는열세")
+        self.assertIn("리드아님", _condition_for("동점이거나 지고 있을때 상대 투수의 구위 능력치를 x 감소시킵니다"))
+        self.assertEqual(_condition_for("9회 이후 등판 시 상대 타자의 파워 능력치가 6 감소합니다"), "9회이후")
+
     def test_pitching_window_conditions(self):
         """등판 직후 N타자 구간. 구간이 앞 효과 절 뒤에 오는 문장(스탠드아웃)은 문장 전체에 걸지 않는다."""
         self.assertEqual(

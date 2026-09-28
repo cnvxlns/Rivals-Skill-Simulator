@@ -91,11 +91,16 @@ private val PLATE_SITUATION_PROBABILITIES = mapOf(
  */
 internal const val DEFAULT_BATTING_ORDER = 1
 
+/**
+ * 경기 상황. 리드 0.37, 동점 0.26, 열세 0.37로 나눈 칸의 합집합이다.
+ * `열세`는 "지고 있을 때"만이다. 동점을 포함하는 "리드가 아닐 때"(`리드아님`, `비김또는열세`)와 다르다.
+ */
 private val GAME_STATE_PROBABILITIES = mapOf(
     "리드" to 0.37,
     "리드아님" to 0.63,
     "비김또는리드" to 0.63,
     "비김또는열세" to 0.63,
+    "열세" to 0.37,
 )
 
 /**
@@ -390,6 +395,8 @@ private object PositionGateResolver : ConditionResolver {
         probabilities["포지션_2B"] = gate(position == "2B")
         probabilities["포지션_SS"] = gate(position == "SS")
         probabilities["포지션_OF"] = gate(position in setOf("OF", "LF", "CF", "RF"))
+        // 업 더 미들의 "C, 2B, SS, CF 배치 시"처럼 외야 가운데만 따로 보는 경우가 있다.
+        probabilities["포지션_CF"] = gate(position == "CF")
         probabilities["포지션_C"] = gate(position == "C")
     }
 }

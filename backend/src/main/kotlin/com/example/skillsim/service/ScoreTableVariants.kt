@@ -188,7 +188,8 @@ internal object ScoreTableVariants {
                 },
             )
         },
-    ) { slotsInCase -> "$prefix ${rangeLabel(slotsInCase, 1)}" }
+    // 게임 표기("3, 4 선발 배치 시")처럼 순번을 앞에 둔다: `3~4 선발`, `3~5 중계`.
+    ) { slotsInCase -> "${rangeLabel(slotsInCase, 1)} $prefix" }
 
     /**
      * 타자의 타석 방향. 토큰 값은 [ScoreCalculator]의 투타 게이트와 같다 — 스위치 히터는 좌타·우타

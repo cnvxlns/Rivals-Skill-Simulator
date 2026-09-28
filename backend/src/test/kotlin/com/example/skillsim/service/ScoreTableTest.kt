@@ -213,7 +213,7 @@ class ScoreTableTest {
 
         val entries = service.buildScoreTable(ScoreTableRequest(position = "SP"), 0).tiers[0].entries
 
-        assertThat(entries).extracting("variant").containsExactly("선발 1", "선발 2")
+        assertThat(entries).extracting("variant").containsExactly("1 선발", "2 선발")
         assertThat(entries).extracting("score").containsExactly(8.0, 5.0)
     }
 

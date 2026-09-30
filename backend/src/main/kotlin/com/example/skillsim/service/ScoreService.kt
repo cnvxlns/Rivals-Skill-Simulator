@@ -357,8 +357,8 @@ class ScoreService private constructor(
      * 실제 적용된 등급을 함께 반환한다. 효과 행이 없는 스킬은 0점으로 포함한다 —
      * 능력치가 아니라 확률을 바꾸는 효과라 현재 모델로 측정할 수 없을 뿐이다.
      *
-     * 카드·라인업을 정하면 결정되는 조건(기본 능력치, 능력치 비교, 타순, 선발 순번)을 쓰는 스킬은
-     * 경우마다 한 줄씩 나눈다([ScoreTableVariants]).
+     * 카드·라인업을 정하면 결정되는 조건(기본 능력치, 능력치 비교, 타순, 선발 순번, 카드 포지션과 DH 중
+     * 어디에 세우는지)을 쓰는 스킬은 경우마다 한 줄씩 나눈다([ScoreTableVariants]).
      *
      * 요청에 조건이 있으면 그 조건을 발동/미발동으로 못박은 확률표로 채점하고
      * ([ConditionScenario]), 원래 기댓값 점수는 [ScoreTableResponse.Entry.expectedScore]에 싣는다.
@@ -391,7 +391,6 @@ class ScoreService private constructor(
             }
         }
         val statWeights = statWeightsSupplier()
-        val role = SkillRules.roleForPosition(normalizedPosition)
 
         val grouped = EnumMap<SkillTier, MutableList<ScoreTableResponse.Entry>>(SkillTier::class.java)
         val scoredSkills = mutableListOf<ScoreSkill>()
@@ -406,7 +405,7 @@ class ScoreService private constructor(
             val variants = ScoreTableVariants.variants(
                 skill = skill,
                 level = level,
-                role = role,
+                position = normalizedPosition,
                 battingOrder = request.battingOrder,
                 pitcherSlot = request.pitcherSlot,
                 batHand = request.batHand,

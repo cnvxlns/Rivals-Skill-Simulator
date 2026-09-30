@@ -71,7 +71,8 @@ export default function ScoreTableView() {
   const batterSubs: SubPosition[] = ['ALL', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
   const subOptions = ctx.position === Position.PITCHER ? pitcherSubs : batterSubs;
 
-  // 세부 포지션이 없으면 백엔드에 범용 포지션을 넘긴다. 이때 포지션 게이트 스킬은 0점이 된다.
+  // 세부 포지션이 없으면 백엔드에 범용 포지션을 넘긴다. 이때 DH를 뺀 포지션 게이트 스킬은 0점이 된다.
+  // 포지션은 카드의 포지션이다. 자리 조건 스킬은 백엔드가 그 자리 배치 / DH 배치 두 줄로 나눠 준다.
   const requestPosition = ctx.hasSpecificPosition ? ctx.subPosition : ctx.position;
 
   const load = useCallback(async () => {

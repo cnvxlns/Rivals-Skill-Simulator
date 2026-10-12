@@ -393,6 +393,8 @@ POST /api/score/table?topN=10
 
 응답이 이미 티어별로 나뉘므로 **카드 등급은 받지 않습니다.**
 
+`position`은 카드의 포지션입니다. 타자 카드는 라인업에서 그 자리나 DH에 설 수 있으므로, 자리 조건을 쓰는 스킬(강한 어깨의 외야 보너스, 본 투 히트의 DH 보너스 등)은 `LF 배치` / `DH 배치`처럼 두 줄로 나뉩니다. DH 카드는 나누지 않습니다.
+
 
 ## 면책 조항 (Disclaimer)
 This involves an unofficial fan-made project. 본 프로젝트는 팬심으로 제작된 비공식 시뮬레이터이며, 게임 개발사(Com2uS) 및 MLB와 어떠한 공식적인 관계도 없습니다.

@@ -414,18 +414,22 @@ private object HandednessGateResolver : ConditionResolver {
     }
 }
 
+/** 배치 자리 게이트. [position]은 정규화된 값이다. */
+private fun positionGateValues(position: String): Map<String, Double> = mapOf(
+    "포지션_SP" to gate(position == "SP"),
+    "포지션_RP_CP" to gate(position in setOf("RP", "CP")),
+    "포지션_DH" to gate(position == "DH"),
+    "포지션_2B" to gate(position == "2B"),
+    "포지션_SS" to gate(position == "SS"),
+    "포지션_OF" to gate(position in setOf("OF", "LF", "CF", "RF")),
+    // 업 더 미들의 "C, 2B, SS, CF 배치 시"처럼 외야 가운데만 따로 보는 경우가 있다.
+    "포지션_CF" to gate(position == "CF"),
+    "포지션_C" to gate(position == "C"),
+)
+
 private object PositionGateResolver : ConditionResolver {
     override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
-        val position = context.normalizedPosition
-        probabilities["포지션_SP"] = gate(position == "SP")
-        probabilities["포지션_RP_CP"] = gate(position in setOf("RP", "CP"))
-        probabilities["포지션_DH"] = gate(position == "DH")
-        probabilities["포지션_2B"] = gate(position == "2B")
-        probabilities["포지션_SS"] = gate(position == "SS")
-        probabilities["포지션_OF"] = gate(position in setOf("OF", "LF", "CF", "RF"))
-        // 업 더 미들의 "C, 2B, SS, CF 배치 시"처럼 외야 가운데만 따로 보는 경우가 있다.
-        probabilities["포지션_CF"] = gate(position == "CF")
-        probabilities["포지션_C"] = gate(position == "C")
+        probabilities.putAll(positionGateValues(context.normalizedPosition))
     }
 }
 
@@ -922,6 +926,10 @@ class ScoreCalculator {
 
         val lowerOrderPlateAppearanceReach: DoubleArray
             get() = LOWER_ORDER_PLATE_APPEARANCE_REACH.copyOf()
+
+        /** [position]에 배치했을 때의 자리 조건(`포지션_*`) 값. 확률표의 같은 토큰과 같다. */
+        fun positionGates(position: String?): Map<String, Double> =
+            positionGateValues(SkillRules.normalizePosition(position))
 
         /**
          * 투/타 방향까지 반영한 조건 확률표.

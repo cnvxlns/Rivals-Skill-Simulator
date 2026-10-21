@@ -13,7 +13,7 @@ CSV에 없었다. 사람이 공지를 놓치면 데이터가 조용히 밀린다
 (예: "합이 155 이상인 경우" -> `주루 ALWAYS 155`), 그 단계는 사람 손을 거쳐야 한다.
 
     python3 tools/check_notices.py            # 보고만, 항상 exit 0
-    python3 tools/check_notices.py --strict   # 누락이 있으면 exit 1 (CI용)
+    python3 tools/check_notices.py --strict   # 누락 또는 조회 실패 시 exit 1 (CI용)
 
 의존성 없이 stdlib만 쓴다.
 """
@@ -35,11 +35,14 @@ ROOT = Path(__file__).resolve().parent.parent
 SKILLS_CSV = ROOT / "backend" / "src" / "main" / "resources" / "score_skills.csv"
 
 BASE = "https://community.withhive.com"
-# 2=공지사항, 10=Live 업데이트, 11=개발자 노트. 신규 스킬은 주로 10으로 온다.
-BOARDS = (10, 2)
+# 2=공지사항, 9=버전 업데이트, 10=Live 업데이트. 두 종류의 업데이트를 모두 확인한다.
+BOARDS = (9, 10, 2)
 POSTS_PER_BOARD = 8
 DELAY = 1.2
 UA = "Mozilla/5.0 rivals-skill-simulator/0.1 (+notice check)"
+# 2026-06-24 버전 업데이트 공지(9/16259)는 기존 '파워 피처'를 '파워 피쳐'로 표기한다.
+# 효과 설명이 같은 것으로 확인한 이 표기만 동의어로 취급한다. 키는 공백 제거 후 적용한다.
+NAME_ALIASES = {"파워피쳐": "파워피처"}
 
 
 class _Tables(HTMLParser):
@@ -101,7 +104,21 @@ def fetch_board(board: int) -> list[dict[str, str]]:
         data=payload,
         referer=f"{BASE}/MLB9IRIVALS/ko/board/{board}",
     )
-    items = json.loads(raw).get("contents_list", {}).get("list", [])
+    result = json.loads(raw)
+    contents = result.get("contents_list") if isinstance(result, dict) else None
+    items = contents.get("list") if isinstance(contents, dict) else None
+    if not isinstance(items, list) or not items:
+        raise ValueError("공지 목록이 없거나 응답 형식이 잘못되었습니다")
+    for item in items[:POSTS_PER_BOARD]:
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("title"), str)
+            or not item["title"].strip()
+            or not re.fullmatch(r"[1-9][0-9]*", str(item.get("idx", "")))
+            or not isinstance(item.get("regdate"), str)
+            or not item["regdate"].strip()
+        ):
+            raise ValueError("공지 항목에 제목, 글 번호 또는 날짜가 없습니다")
     return [
         {
             "title": (o.get("title") or "").strip(),
@@ -130,6 +147,8 @@ def extract_skills(html: str) -> list[tuple[str, str]]:
             if len(row) <= name_at:
                 continue
             name = row[name_at].strip()
+            # 같은 공지에서 '(타자) 키플레이어'처럼 역할이 이름 앞에 붙기도 한다.
+            name = re.sub(r"^\((?:타자|투수)\)\s*", "", name)
             # "빅 허트 (DH 전용 스킬)"처럼 이름 뒤에 붙는 괄호 주석을 떼어낸다.
             name = re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
             if not name or len(name) > 40:
@@ -145,13 +164,14 @@ def known_names() -> set[str]:
 
 
 def _key(name: str) -> str:
-    """띄어쓰기 표기가 공지마다 흔들려서(빅 허트/빅허트) 공백을 지우고 맞춘다."""
-    return re.sub(r"\s+", "", name)
+    """공백 차이와 확인된 공지의 별칭만 정규화한다."""
+    key = re.sub(r"\s+", "", name)
+    return NAME_ALIASES.get(key, key)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="공지에 있는데 CSV에 없는 스킬 찾기")
-    ap.add_argument("--strict", action="store_true", help="누락이 있으면 exit 1")
+    ap.add_argument("--strict", action="store_true", help="누락 또는 조회 실패 시 exit 1")
     args = ap.parse_args()
 
     have = known_names()
@@ -186,10 +206,16 @@ def main() -> int:
                 }
             time.sleep(DELAY)
 
+    if scanned == 0 and not errors:
+        errors.append("확인한 공지가 없습니다")
+
     for line in errors:
         print(f"warn: {line}", file=sys.stderr)
 
     if not missing:
+        if errors:
+            print(f"공지 {scanned}건 확인, 조회 실패 {len(errors)}건. 누락 여부를 완전히 확인하지 못했습니다.")
+            return 1 if args.strict else 0
         print(f"공지 {scanned}건 확인. CSV에 없는 스킬 없음.")
         return 0
 

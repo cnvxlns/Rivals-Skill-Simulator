@@ -218,6 +218,88 @@ class ScoreTableTest {
     }
 
     @Test
+    fun `자리 조건 스킬은 카드 포지션 배치와 DH 배치로 나눈다`() {
+        // HOF_016 강한 어깨. 외야 카드도 DH에 세울 수 있고, 그러면 외야 보너스를 잃는다.
+        val repository = mock(ScoreSkillRepository::class.java)
+        `when`(repository.findAll()).thenReturn(
+            listOf(
+                skillOf(
+                    "G_001", "강한 어깨",
+                    ScoreEffect(stat = "파워", condition = "ALWAYS", values = "4/4/4/4/4/4/4/4/4"),
+                    ScoreEffect(stat = "파워", condition = "포지션_OF", values = "8/8/8/8/8/8/8/8/8"),
+                ).copy(position = "LF, RF"),
+            ),
+        )
+        val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
+
+        val entries = service.buildScoreTable(ScoreTableRequest(position = "LF", battingOrder = 3), 0).tiers[0].entries
+
+        assertThat(entries).extracting("variant").containsExactly("LF 배치", "DH 배치")
+        assertThat(entries).extracting("score").containsExactly(12.0, 4.0)
+    }
+
+    @Test
+    fun `DH 조건 스킬은 어느 타자 카드든 DH 배치 줄을 두고 DH 카드는 나누지 않는다`() {
+        // M_044 본 투 히트. 좌익수 카드도 DH에 세우면 추가 보너스를 받는다.
+        val repository = mock(ScoreSkillRepository::class.java)
+        `when`(repository.findAll()).thenReturn(
+            listOf(
+                skillOf(
+                    "G_001", "본 투 히트",
+                    ScoreEffect(stat = "파워", condition = "ALWAYS", values = "12/12/12/12/12/12/12/12/12"),
+                    ScoreEffect(stat = "파워", condition = "포지션_DH", values = "6/6/6/6/6/6/6/6/6"),
+                ),
+            ),
+        )
+        val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
+
+        val left = service.buildScoreTable(ScoreTableRequest(position = "LF", battingOrder = 3), 0).tiers[0].entries
+        assertThat(left).extracting("variant").containsExactly("DH 배치", "LF 배치")
+        assertThat(left).extracting("score").containsExactly(18.0, 12.0)
+
+        // 세부 포지션을 모르면 수비 자리 쪽 이름을 `DH 외 배치`로 적는다.
+        val any = service.buildScoreTable(request(), 0).tiers[0].entries
+        assertThat(any).extracting("variant").containsExactly("DH 배치", "DH 외 배치")
+
+        // DH 카드는 DH에만 서므로 이미 정해진 것이다.
+        val dh = service.buildScoreTable(ScoreTableRequest(position = "DH", battingOrder = 3), 0).tiers[0].entries
+        assertThat(dh).extracting("variant").containsExactly(null)
+        assertThat(dh).extracting("score").containsExactly(18.0)
+    }
+
+    @Test
+    fun `DH 전용 스킬은 세부 포지션을 몰라도 DH 배치 한 줄로 채점한다`() {
+        // BLACK_001 퓨어 히터. DH 카드에만 붙으니 DH가 아닌 자리에 설 일이 없다.
+        val repository = mock(ScoreSkillRepository::class.java)
+        `when`(repository.findAll()).thenReturn(
+            listOf(
+                skillOf(
+                    "G_001", "퓨어 히터",
+                    ScoreEffect(stat = "파워", condition = "ALWAYS", values = "4/4/4/4/4/4/4/4/4"),
+                    ScoreEffect(stat = "파워", condition = "포지션_DH", values = "6/6/6/6/6/6/6/6/6"),
+                ).copy(position = "DH"),
+            ),
+        )
+        val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
+
+        val entries = service.buildScoreTable(request(), 0).tiers[0].entries
+
+        assertThat(entries).extracting("variant").containsExactly("DH 배치")
+        assertThat(entries).extracting("score").containsExactly(10.0)
+    }
+
+    @Test
+    fun `자리 조건을 쓰지 않는 스킬은 배치로 나누지 않는다`() {
+        val repository = mock(ScoreSkillRepository::class.java)
+        `when`(repository.findAll()).thenReturn(listOf(skill("G_001", "평범", "5/5/5/5/5/5/5/5/5")))
+        val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0))
+
+        val entries = service.buildScoreTable(ScoreTableRequest(position = "LF", battingOrder = 3), 0).tiers[0].entries
+
+        assertThat(entries).extracting("variant").containsExactly(null)
+    }
+
+    @Test
     fun `상대 능력치 비교는 나누지 않고 발생 확률로 매기며 이름에 적지 않는다`() {
         // G_028 집중력. "상대 투수의 구위가 파워보다 높은 경우"는 상대에 따라 갈리므로 확률(0.35)이다.
         val repository = mock(ScoreSkillRepository::class.java)

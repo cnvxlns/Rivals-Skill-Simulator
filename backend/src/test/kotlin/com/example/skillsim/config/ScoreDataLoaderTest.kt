@@ -1,8 +1,10 @@
 package com.example.skillsim.config
 
+import com.example.skillsim.dto.ScoreTableRequest
 import com.example.skillsim.model.ScoreSkill
 import com.example.skillsim.repository.ScoreSkillRepository
 import com.example.skillsim.service.ScoreCalculator
+import com.example.skillsim.service.ScoreService
 import java.io.InputStreamReader
 import java.io.Reader
 import java.io.StringReader
@@ -12,6 +14,7 @@ import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.tuple
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 import org.springframework.core.io.ClassPathResource
 
 class ScoreDataLoaderTest {
@@ -471,6 +474,83 @@ class ScoreDataLoaderTest {
             assertThat(valuesFor(skills, "M_045", stat, "타석1")).containsExactly("12")
             assertThat(valuesFor(skills, "M_045", stat, "타석5")).containsExactly("4")
             assertThat(valuesFor(skills, "M_045", stat, "타석6_7")).containsExactly("2")
+        }
+    }
+
+    @Test
+    fun `October update moment skills appear for each role at their fixed grade`() {
+        val skillIds = setOf("M_046", "M_047", "M_048", "M_049")
+        val skills = readBundledScoreSkills().filter { it.skillKey in skillIds }
+        assertThat(skills).hasSize(4)
+        val repository = mock(ScoreSkillRepository::class.java)
+        `when`(repository.findAll()).thenReturn(skills)
+        for (pool in listOf("NORMAL", "MOMENT")) {
+            `when`(repository.findByCardTypeIgnoreCase(pool)).thenReturn(skills.filter { it.cardType == pool })
+        }
+        val weights = skills.flatMap { it.effects }.associate { it.stat to 1.0 }
+        val service = ScoreService(repository, ScoreCalculator(), weights)
+
+        for ((position, performerId, warId) in listOf(
+            Triple("BATTER", "M_046", "M_048"),
+            Triple("SP", "M_047", "M_049"),
+        )) {
+            val options = service.listSkills("MOMENT", null, position)
+            assertThat(options).extracting("skillId").containsExactly(performerId, warId)
+            assertThat(options).extracting("name").containsExactly("2026 퍼포머트리오", "WAR 리더")
+            assertThat(options).allSatisfy {
+                assertThat(it.cardType).isEqualTo("MOMENT")
+                assertThat(it.maxLevel).isEqualTo(1)
+                assertThat(it.levelLabels).containsExactly("S")
+            }
+
+            val moment = service.buildScoreTable(ScoreTableRequest(position = position), 0)
+                .tiers.first { it.tier == "moment" }
+            val entries = moment.entries.filter { it.skillId in setOf(performerId, warId) }
+            assertThat(entries).extracting("skillId").containsExactly(performerId, warId)
+            assertThat(entries).extracting("score").containsExactly(60.0, if (position == "BATTER") 39.0 else 36.0)
+            assertThat(entries).allSatisfy { assertThat(it.appliedGrade).isEqualTo("S") }
+        }
+    }
+
+    @Test
+    fun `2026 performer trio grants all six stats and adds the bonus in either announced mode`() {
+        val skills = readBundledScoreSkills()
+        val calculator = ScoreCalculator()
+        for ((skillId, stats) in listOf(
+            "M_046" to listOf("파워", "정확", "선구", "인내", "주루", "수비"),
+            "M_047" to listOf("구속", "구위", "변화", "제구", "지구력", "수비"),
+        )) {
+            val skill = skills.first { it.skillKey == skillId }
+            assertThat(skill.effects).hasSize(12)
+            for (stat in stats) {
+                assertThat(valuesFor(skills, skillId, stat, "ALWAYS")).containsExactly("10")
+                assertThat(valuesFor(skills, skillId, stat, "모드_리그+모드_라이브매치")).containsExactly("10")
+            }
+            for ((league, live) in listOf(0.0 to 0.0, 1.0 to 0.0, 0.0 to 1.0, 1.0 to 1.0)) {
+                val result = calculator.calculate(
+                    listOf(ScoreCalculator.Selection(skill, 1)),
+                    stats.associateWith { 1.0 },
+                    mapOf("모드_리그" to league, "모드_라이브매치" to live),
+                )
+                assertThat(result.total).isEqualTo(if (league == 0.0 && live == 0.0) 60.0 else 120.0)
+            }
+        }
+    }
+
+    @Test
+    fun `WAR leader grants role stats and opponent reductions at announced values`() {
+        val skills = readBundledScoreSkills()
+        for ((skillId, buffs, debuffs) in listOf(
+            Triple("M_048", listOf("파워", "정확", "선구"), listOf("변화", "구위")),
+            Triple("M_049", listOf("변화", "구위"), listOf("파워", "정확", "선구")),
+        )) {
+            assertThat(skills.first { it.skillKey == skillId }.effects).hasSize(5)
+            for (stat in buffs) {
+                assertThat(alwaysValues(skills, skillId, stat)).containsExactly("9")
+            }
+            for (stat in debuffs) {
+                assertThat(alwaysValues(skills, skillId, stat)).containsExactly("6")
+            }
         }
     }
 

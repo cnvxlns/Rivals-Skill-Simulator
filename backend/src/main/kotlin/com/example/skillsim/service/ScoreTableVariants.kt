@@ -18,6 +18,11 @@ import kotlin.math.floor
  *
  * 라인업에서 고르는 조건(타순·순번)은 조건이 하나도 걸리지 않는 경우의 줄을 만들지 않는다. 그 자리에
  * 이 스킬을 쓸 이유가 없어서다. 카드가 타고나는 투타는 걸리지 않는 경우도 남긴다(`스위치 히터 아님`).
+ *
+ * 타자의 수비 자리도 라인업에서 고른다. 요청 포지션은 카드의 포지션이고, 타자 카드는 그 자리 말고
+ * DH에도 설 수 있다. 그래서 자리 조건을 쓰는 스킬은 두 줄로 나눈다(`강한 어깨 (LF 배치)`,
+ * `강한 어깨 (DH 배치)`). 타순과 달리 조건이 꺼지는 줄도 남긴다 — 외야 보너스를 잃고 DH에 세우는
+ * 경우도 실제로 고르는 배치라서다.
  */
 internal object ScoreTableVariants {
 
@@ -87,7 +92,7 @@ internal object ScoreTableVariants {
     fun variants(
         skill: ScoreSkill,
         level: Int,
-        role: String,
+        position: String,
         battingOrder: Int?,
         pitcherSlot: Int?,
         batHand: Handedness?,
@@ -95,8 +100,9 @@ internal object ScoreTableVariants {
         probabilities: Map<String, Double>,
     ): List<Variant> {
         val usedTokens = skill.effects.flatMap { conditionTokens(it.condition) }.toSet()
-        val dimensions = dimensions(role, battingOrder, pitcherSlot, batHand, throwHand, probabilities) +
-            statDimensions(skill, level)
+        val dimensions =
+            dimensions(position, skill.position, battingOrder, pitcherSlot, batHand, throwHand, probabilities) +
+                statDimensions(skill, level)
 
         var result = listOf(Variant(null, emptyMap()))
         for (dimension in dimensions) {
@@ -141,15 +147,21 @@ internal object ScoreTableVariants {
      * 요청에서 나눌 수 있는 묶음. 요청이 이미 정한 값(타순·선발 순번·투타·기본 능력치)은 나누지 않는다.
      */
     private fun dimensions(
-        role: String,
+        position: String,
+        skillPosition: String?,
         battingOrder: Int?,
         pitcherSlot: Int?,
         batHand: Handedness?,
         throwHand: Handedness?,
         probabilities: Map<String, Double>,
     ): List<Dimension> = buildList {
+        val role = SkillRules.roleForPosition(position)
         if (role == "BATTER" && battingOrder == null) {
             add(Dimension((1..9).map { Case(battingOrderProbabilities(it)) }) { "타순 ${rangeLabel(it, 1)}" })
+        }
+        // DH 카드는 DH에만 선다.
+        if (role == "BATTER" && position != "DH") {
+            add(placementDimension(position, skillPosition))
         }
         if (pitcherSlot == null) {
             when (role) {
@@ -190,6 +202,28 @@ internal object ScoreTableVariants {
         },
     // 게임 표기("3, 4 선발 배치 시")처럼 순번을 앞에 둔다: `3~4 선발`, `3~5 중계`.
     ) { slotsInCase -> "${rangeLabel(slotsInCase, 1)} $prefix" }
+
+    /**
+     * 타자 카드가 설 수 있는 자리: 카드 포지션 그대로, 또는 DH. 세부 포지션 없이 `BATTER`로 오면
+     * 카드 포지션을 모르므로 그 줄의 자리 조건은 확률표처럼 모두 꺼져 있다(`DH 외 배치`).
+     *
+     * 다만 DH 전용 스킬(퓨어 히터 등)은 DH 카드에만 붙으므로 카드 포지션을 몰라도 DH에 선다.
+     * 그때는 DH 한 경우뿐이고, 걸리는 경우라 줄로 남아 `DH 배치`로 적힌다.
+     */
+    private fun placementDimension(position: String, skillPosition: String?): Dimension {
+        val dh = Case(ScoreCalculator.positionGates("DH"))
+        if (position == "BATTER" && SkillRules.normalizePosition(skillPosition) == "DH") {
+            return Dimension(listOf(dh)) { "DH 배치" }
+        }
+        val cases = listOf(Case(ScoreCalculator.positionGates(position)), dh)
+        return Dimension(cases, keepInactive = true) { indices ->
+            when {
+                indices != listOf(0) -> "DH 배치"
+                position == "BATTER" -> "DH 외 배치"
+                else -> "$position 배치"
+            }
+        }
+    }
 
     /**
      * 타자의 타석 방향. 토큰 값은 [ScoreCalculator]의 투타 게이트와 같다 — 스위치 히터는 좌타·우타

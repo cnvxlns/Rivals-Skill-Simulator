@@ -61,13 +61,13 @@ jobs:
         if: env.UPDATE_MODE == 'check-api'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ inputs.model || vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
+          GEMINI_MODEL: ${{ inputs.model || vars.GEMINI_MODEL }}
         run: python3 tools/update_skills_gemini.py --check-api --timeout 60 --attempts 3
       - name: Generate and validate skill changes
         if: env.UPDATE_MODE != 'check-api'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ inputs.model || vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
+          GEMINI_MODEL: ${{ inputs.model || vars.GEMINI_MODEL }}
         run: |
           args=(--cache .cache/gemini-responses --timeout 180 --attempts 3 --continue-on-review --review-report .cache/gemini-review-report.json)
           if [ "$UPDATE_MODE" = apply ]; then
@@ -85,7 +85,7 @@ jobs:
 
           report = json.loads(Path('.cache/gemini-review-report.json').read_text())
           counts = report['counts']
-          lines = [f"### Gemini notice update: {report['status']}",
+          lines = [f"### Gemini notice update: {report['status']}", f"Model: {report['model']}",
                    f"Mode: {'dry-run' if report['dry_run'] else 'apply'}; "
                    f"processed: {counts['processed']}; cached: {counts['cache_hits']}; "
                    f"pending manual review: {counts['pending_review']}.", '']
@@ -107,6 +107,7 @@ jobs:
         with:
           name: gemini-notice-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: .cache/gemini-review-report.json
+          include-hidden-files: true
           retention-days: 14
       - name: Save validated Gemini responses
         if: ${{ always() && env.UPDATE_MODE != 'check-api' && hashFiles('.cache/gemini-responses/**') != '' }}
@@ -145,6 +146,7 @@ jobs:
           report = json.loads(Path('.cache/gemini-review-report.json').read_text())
           pending = report['counts']['pending_review']
           lines = ['Supported official notice changes were interpreted with Gemini and validated.',
+                   f"Model: {report['model']}.",
                    'CSV validation, Python regression tests, and backend tests passed before this PR.',
                    f'Pending manual reviews: {pending}. Pending notices were not applied or marked processed.', '']
           for review in report['reviews']:

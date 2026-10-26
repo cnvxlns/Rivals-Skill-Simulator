@@ -34,7 +34,7 @@ FILES = {
 }
 PREFIX = {"IRON": "I", "BRONZE": "B", "SILVER": "S", "GOLD": "G",
           "MOMENT": "M", "WBC": "WBC", "BLACK": "BLACK", "HOF": "HOF"}
-DEFAULT_MODEL = "gemini-3.8-flash"
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_TIMEOUT = 180
 DEFAULT_ATTEMPTS = 3
 REVIEW_RULES_VERSION = 1
@@ -299,7 +299,8 @@ def review_cache_file(cache, fingerprint):
 
 def valid_review(record, url):
     fields = ("title", "date", "url", "body_hash", "request_fingerprint", "reason")
-    return (isinstance(record, dict) and all(isinstance(record.get(field), str) for field in fields)
+    return (isinstance(record, dict) and set(record) == set(fields)
+            and all(isinstance(record.get(field), str) for field in fields)
             and record["url"] == url and bool(record["reason"]))
 
 
@@ -510,7 +511,8 @@ def write_report(path, report):
 
 def run(resources, state_path, *, apply=False, model=DEFAULT_MODEL, timeout=DEFAULT_TIMEOUT,
         attempts=DEFAULT_ATTEMPTS, cache=None, continue_on_review=False, review_report=None):
-    report = {"status": "aborted", "dry_run": not apply, "written": False, "changed": [], "reviews": [],
+    report = {"status": "aborted", "model": model, "rules_version": REVIEW_RULES_VERSION,
+              "dry_run": not apply, "written": False, "changed": [], "reviews": [],
               "counts": {key: 0 for key in ("processed", "cache_hits", "pending_review", "new_reviews",
                                             "skipped_review", "skipped_processed", "scanned")}}
     state = {}
@@ -633,7 +635,7 @@ def main():
     parser.add_argument("--apply", action="store_true", help="Write validated CSVs and processed notice state")
     parser.add_argument("--resources", type=Path, default=validator.RESOURCES)
     parser.add_argument("--state", type=Path, default=STATE)
-    parser.add_argument("--model", default=os.environ.get("GEMINI_MODEL", DEFAULT_MODEL))
+    parser.add_argument("--model", default=os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL)
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="Per-attempt Gemini timeout, 1..600 seconds")
     parser.add_argument("--attempts", type=int, default=DEFAULT_ATTEMPTS, help="Maximum Gemini attempts, 1..5")
     parser.add_argument("--cache", type=Path, help="Optionally cache validated responses for resuming failed scans")

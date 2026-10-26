@@ -87,7 +87,7 @@ Rivals-Skill-Simulator/
 설정 방법:
 
 1. GitHub 저장소의 **Settings → Secrets and variables → Actions**에 `GEMINI_API_KEY` secret을 등록합니다. 키는 백엔드나 앱에 넣지 않습니다.
-2. 필요하면 repository variable `GEMINI_MODEL`로 사용할 모델을 지정합니다. 기본값은 `gemini-3.8-flash`이며 해당 키에서 사용할 수 있는 모델이어야 합니다. 수동 `check-api` 모드에서 모델 조회와 작은 구조화 응답 생성을 실제로 확인할 수 있습니다.
+2. 필요하면 repository variable `GEMINI_MODEL`로 사용할 모델을 지정합니다. 기본값은 `gemini-3.5-flash-lite`이며 해당 키에서 사용할 수 있는 모델이어야 합니다. 기본값은 Python 도구의 `DEFAULT_MODEL` 한 곳에서 관리합니다. 수동 `check-api` 모드에서 모델 조회와 작은 구조화 응답 생성을 실제로 확인할 수 있습니다.
 3. Actions의 **Allow GitHub Actions to create and approve pull requests**를 활성화합니다. 자동 병합도 사용하려면 저장소 **Allow auto-merge**와 squash merge를 활성화합니다. `develop`의 필수 검사·리뷰 정책도 충족해야 병합됩니다. 저장소 자동 병합이 꺼져 있으면 데이터 PR을 남기고 수동 병합을 기다립니다.
 4. PR 생성으로 다른 CI가 실행되어야 하는 저장소는 `SKILL_UPDATE_TOKEN` secret에 `develop` 및 자동화 브랜치의 Contents/Pull requests 쓰기 권한이 있는 토큰을 등록합니다. 생략하면 기본 `GITHUB_TOKEN`을 쓰며, 이 토큰으로 발생한 PR 이벤트는 일반적으로 다른 워크플로를 실행하지 않습니다. 업데이트 워크플로 자체에서는 병합 요청 전에 Python·데이터·백엔드 검사를 실행합니다.
 5. 워크플로 파일은 GitHub 기본 브랜치인 `deploy`에도 있어야 합니다. `develop`에만 병합하면 수동 실행 등록과 정기 실행이 되지 않습니다. 기존 `develop` → `deploy` 릴리즈 PR로 반영합니다.

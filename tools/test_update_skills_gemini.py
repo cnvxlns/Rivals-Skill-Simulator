@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import ssl
 import sys
 import tempfile
@@ -226,7 +227,7 @@ class UpdateTests(unittest.TestCase):
     def test_exhausted_timeouts_are_bounded_and_identify_phase(self):
         with patch.object(updater.urllib.request, 'urlopen', side_effect=TimeoutError('secret')) as call, \
              patch.object(updater.time, 'sleep') as sleep, contextlib.redirect_stdout(io.StringIO()) as logs:
-            with self.assertRaisesRegex(RuntimeError, 'Gemini generate model=gemini-3.8-flash.*attempt 3/3'):
+            with self.assertRaisesRegex(RuntimeError, rf'Gemini generate model={re.escape(updater.DEFAULT_MODEL)}.*attempt 3/3'):
                 updater.generate(POST, TEXT, self.data, 'secret', updater.DEFAULT_MODEL)
             self.assertEqual(call.call_count, 3)
             self.assertEqual(sleep.call_count, 2)
@@ -306,6 +307,13 @@ class UpdateTests(unittest.TestCase):
             self.assertEqual(metadata_request.full_url, updater.API + updater.DEFAULT_MODEL)
             probe = json.loads(call.call_args_list[1].args[0].data)
             self.assertEqual(probe['generationConfig']['responseJsonSchema']['properties'], {'ok': {'type': 'boolean'}})
+
+    def test_empty_model_env_uses_default(self):
+        with patch.dict(os.environ, GEMINI_API_KEY='secret', GEMINI_MODEL=''), \
+             patch.object(sys, 'argv', ['update', '--check-api']), \
+             patch.object(updater, 'check_api') as check:
+            self.assertEqual(updater.main(), 0)
+            self.assertEqual(check.call_args.args, ('secret', updater.DEFAULT_MODEL))
 
     def test_check_api_cli_does_not_touch_resources_state_or_cache(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -557,7 +565,7 @@ class ReviewTests(unittest.TestCase):
         invalid = ['not JSON', '[]']
         invalid.extend(json.dumps({**good, key: value}) for key, value in [
             ('url', 'another source'), ('body_hash', 'wrong'), ('request_fingerprint', 'wrong'),
-            ('title', 'wrong'), ('date', 'wrong'), ('reason', None)])
+            ('title', 'wrong'), ('date', 'wrong'), ('reason', None), ('proposal', {'skills': []})])
         for contents in invalid:
             with self.subTest(contents=contents):
                 path.write_text(contents)

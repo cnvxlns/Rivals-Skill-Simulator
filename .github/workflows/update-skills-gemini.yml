@@ -14,6 +14,10 @@ on:
           - check-api
           - dry-run
           - apply
+      model:
+        description: 'Optional model override for this run; repository model remains unchanged'
+        type: string
+        required: false
 
 permissions:
   contents: write
@@ -57,13 +61,13 @@ jobs:
         if: env.UPDATE_MODE == 'check-api'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
+          GEMINI_MODEL: ${{ inputs.model || vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
         run: python3 tools/update_skills_gemini.py --check-api --timeout 60 --attempts 3
       - name: Generate and validate skill changes
         if: env.UPDATE_MODE != 'check-api'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
+          GEMINI_MODEL: ${{ inputs.model || vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
         run: |
           args=(--cache .cache/gemini-responses --timeout 180 --attempts 3)
           if [ "$UPDATE_MODE" = apply ]; then

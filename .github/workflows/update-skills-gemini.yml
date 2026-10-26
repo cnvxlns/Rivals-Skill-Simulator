@@ -5,6 +5,15 @@ on:
     # Korean time 11:00; after the usual morning notices.
     - cron: '0 2 * * *'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'check-api: connection test; dry-run: analyze without publishing; apply: create data PR'
+        type: choice
+        default: check-api
+        options:
+          - check-api
+          - dry-run
+          - apply
 
 permissions:
   contents: write
@@ -17,34 +26,78 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UPDATE_MODE: ${{ github.event_name == 'schedule' && 'apply' || inputs.mode || 'check-api' }}
+      PYTHONUNBUFFERED: '1'
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: develop
+          # Manual checks must exercise the selected branch, including fixes before merge.
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || 'refs/heads/develop' }}
+      - name: Check update target
+        run: |
+          if [ "$UPDATE_MODE" = apply ] && [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$GITHUB_REF" != refs/heads/develop ]; then
+            echo '::error::Run apply from develop. Use check-api or dry-run to test another branch.'
+            exit 1
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Generate and validate skill changes
+      - name: Restore validated Gemini responses
+        if: env.UPDATE_MODE != 'check-api'
+        continue-on-error: true
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/gemini-responses
+          key: ${{ runner.os }}-gemini-responses-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-gemini-responses-v1-
+      - name: Check Gemini API and model
+        if: env.UPDATE_MODE == 'check-api'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
-        run: python3 tools/update_skills_gemini.py --apply
+        run: python3 tools/update_skills_gemini.py --check-api --timeout 60 --attempts 3
+      - name: Generate and validate skill changes
+        if: env.UPDATE_MODE != 'check-api'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
+        run: |
+          args=(--cache .cache/gemini-responses --timeout 180 --attempts 3)
+          if [ "$UPDATE_MODE" = apply ]; then
+            args+=(--apply)
+          fi
+          python3 tools/update_skills_gemini.py "${args[@]}"
+      - name: Save validated Gemini responses
+        if: ${{ always() && env.UPDATE_MODE != 'check-api' && hashFiles('.cache/gemini-responses/**') != '' }}
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/gemini-responses
+          key: ${{ runner.os }}-gemini-responses-v1-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Validate all data
+        if: env.UPDATE_MODE != 'check-api'
         run: |
           python3 tools/validate_skill_csv.py --warn
           python3 tools/validate_deck_data.py --warn
       - name: Run regression tests
+        if: env.UPDATE_MODE != 'check-api'
         working-directory: tools
         run: python3 -m unittest discover -p 'test_*.py'
       - name: Set up Java
+        if: env.UPDATE_MODE != 'check-api'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - name: Run backend tests
+        if: env.UPDATE_MODE != 'check-api'
         working-directory: backend
         run: bash gradlew test --no-daemon
       - name: Create update pull request
+        if: env.UPDATE_MODE == 'apply'
         id: pr
         uses: peter-evans/create-pull-request@v7
         with:
@@ -62,8 +115,19 @@ jobs:
             backend/src/main/resources/score_effects.csv
             backend/src/main/resources/skill_placeholders.csv
             tools/notice_update_state.json
-      - name: Enable automatic merge
+      - name: Check automatic merge availability
+        id: merge-settings
         if: steps.pr.outputs.pull-request-number && vars.SKILL_UPDATE_AUTO_MERGE != 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SKILL_UPDATE_TOKEN || github.token }}
+        run: |
+          enabled=$(gh api "repos/$GITHUB_REPOSITORY" --jq '.allow_auto_merge')
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+          if [ "$enabled" != true ]; then
+            echo '::notice::Repository auto-merge is disabled. The validated data PR remains available for review and manual merge.'
+          fi
+      - name: Enable automatic merge
+        if: steps.pr.outputs.pull-request-number && steps.merge-settings.outputs.enabled == 'true'
         env:
           GH_TOKEN: ${{ secrets.SKILL_UPDATE_TOKEN || github.token }}
           PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}

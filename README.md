@@ -74,8 +74,8 @@ Rivals-Skill-Simulator/
 
 | 브랜치 | 역할 |
 |---|---|
-| `deploy` | 배포 브랜치. Vercel(웹)이 이 브랜치를 바라보며, push 시 EAS OTA 업데이트도 나갑니다. 백엔드는 개인 서버에서 compose로 직접 띄웁니다. |
-| `develop` | 기본 브랜치. 일상 개발은 여기서 분기하고 여기로 머지합니다. |
+| `deploy` | GitHub 기본 브랜치이자 배포 브랜치. Vercel(웹)이 이 브랜치를 바라보며, push 시 EAS OTA 업데이트도 나갑니다. 백엔드는 개인 서버에서 compose로 직접 띄웁니다. |
+| `develop` | 개발 통합 브랜치. 일상 개발은 여기서 분기하고 여기로 머지합니다. |
 | `feat/*`, `fix/*`, `chore/*` | `develop`에서 분기해 작업 후 `develop`으로 PR. |
 
 릴리즈는 `develop` → `deploy` PR로 올립니다. `deploy`에 직접 커밋하지 않습니다.
@@ -87,16 +87,21 @@ Rivals-Skill-Simulator/
 설정 방법:
 
 1. GitHub 저장소의 **Settings → Secrets and variables → Actions**에 `GEMINI_API_KEY` secret을 등록합니다. 키는 백엔드나 앱에 넣지 않습니다.
-2. 필요하면 repository variable `GEMINI_MODEL`로 사용할 모델을 지정합니다. 기본값은 `gemini-3.8-flash`이며 해당 키에서 사용할 수 있는 모델이어야 합니다.
-3. Actions의 **Allow GitHub Actions to create and approve pull requests**와 저장소 **Allow auto-merge**, squash merge를 활성화합니다. `develop`의 필수 검사·리뷰 정책도 충족해야 병합됩니다.
+2. 필요하면 repository variable `GEMINI_MODEL`로 사용할 모델을 지정합니다. 기본값은 `gemini-3.8-flash`이며 해당 키에서 사용할 수 있는 모델이어야 합니다. 수동 `check-api` 모드에서 모델 조회와 작은 구조화 응답 생성을 실제로 확인할 수 있습니다.
+3. Actions의 **Allow GitHub Actions to create and approve pull requests**를 활성화합니다. 자동 병합도 사용하려면 저장소 **Allow auto-merge**와 squash merge를 활성화합니다. `develop`의 필수 검사·리뷰 정책도 충족해야 병합됩니다. 저장소 자동 병합이 꺼져 있으면 데이터 PR을 남기고 수동 병합을 기다립니다.
 4. PR 생성으로 다른 CI가 실행되어야 하는 저장소는 `SKILL_UPDATE_TOKEN` secret에 `develop` 및 자동화 브랜치의 Contents/Pull requests 쓰기 권한이 있는 토큰을 등록합니다. 생략하면 기본 `GITHUB_TOKEN`을 쓰며, 이 토큰으로 발생한 PR 이벤트는 일반적으로 다른 워크플로를 실행하지 않습니다. 업데이트 워크플로 자체에서는 병합 요청 전에 Python·데이터·백엔드 검사를 실행합니다.
-5. Actions에서 **Update skills with Gemini → Run workflow**로 첫 실행을 확인합니다. 자동 병합을 끄려면 repository variable `SKILL_UPDATE_AUTO_MERGE=false`를 설정합니다.
+5. 워크플로 파일은 GitHub 기본 브랜치인 `deploy`에도 있어야 합니다. `develop`에만 병합하면 수동 실행 등록과 정기 실행이 되지 않습니다. 기존 `develop` → `deploy` 릴리즈 PR로 반영합니다.
+6. Actions에서 **Update skills with Gemini → Run workflow**의 모드를 선택합니다. 기본 `check-api`는 키·모델·작은 생성 요청만 검사하고 CSV나 PR을 만들지 않습니다. `dry-run`은 공지를 분석·검증하되 CSV와 처리 상태를 쓰거나 PR을 만들지 않습니다. `apply`는 검증된 CSV와 처리 상태의 PR을 생성합니다. 수동 실행은 선택한 브랜치의 코드를 쓰며, `apply`는 `develop`에서만 실행할 수 있습니다. 정기 실행은 `develop`의 코드로 `apply`를 실행합니다. 자동 병합 요청을 끄려면 repository variable `SKILL_UPDATE_AUTO_MERGE=false`를 설정합니다.
 
-검증된 변경과 처리 기록은 `automation/gemini-skills` 브랜치의 PR로 생성되며 자동 병합을 요청합니다. `tools/notice_update_state.json`의 본문 해시로 같은 공지의 재호출을 막고, 기존 공지가 수정되면 재분석합니다. 스킬별 마지막 반영 날짜보다 오래된 공지가 최신 값을 덮어쓰지는 않습니다. 첫 실행은 최근 범위의 공지를 오래된 순서대로 모두 분석합니다. 상태 파일은 PR과 함께 병합되므로 PR이 미병합 상태이면 다음 실행에서 다시 분석할 수 있습니다.
+검증된 변경과 처리 기록은 `automation/gemini-skills` 브랜치의 PR로 생성됩니다. 자동 병합이 설정되어 있으면 병합을 요청합니다. `tools/notice_update_state.json`의 본문 해시로 같은 공지의 재호출을 막고, 기존 공지가 수정되면 재분석합니다. 스킬별 마지막 반영 날짜보다 오래된 공지가 최신 값을 덮어쓰지는 않습니다. 첫 실행은 최근 범위의 공지를 오래된 순서대로 모두 분석합니다. 상태 파일은 PR과 함께 병합됩니다.
+
+요청에는 공지에 이름이 나오는 기존 스킬과 연결된 효과·설명 변수만 포함합니다. Gemini 3 모델은 `thinkingLevel=low`로 요청합니다. 기본 요청 타임아웃은 180초이며, 읽기 타임아웃·연결 오류·HTTP 408/429/500/502/503/504는 최대 3회 시도합니다. HTTP 429/503의 `Retry-After`는 최대 60초까지 반영합니다. 인증·권한·모델 오류 같은 영구 오류는 즉시 중단합니다. 로그에는 단계, 모델, 요청 크기, 시도 횟수와 경과 시간이 표시되며 키와 API 오류 본문은 출력하지 않습니다.
+
+Actions는 공지별 검증을 통과한 응답을 별도 캐시에 저장합니다. 이후 공지에서 실패하거나 데이터 PR이 미병합 상태여도, 모델과 요청 내용이 같은 응답은 재호출 없이 재검증해 사용합니다. 캐시가 없거나 만료되면 다시 분석할 수 있습니다. 전체 공지 검증이 완료되기 전에는 CSV와 처리 상태를 저장하지 않으며, 캐시를 읽을 때도 검증을 생략하지 않습니다. `스킬명` 표가 있는 미처리 공지가 없으면 분석용 Gemini 생성 요청은 보내지 않습니다. `check-api`는 명시적인 API 검사이므로 항상 작은 생성 요청을 보냅니다.
 
 수치나 카드 종류가 불명확하거나, 지원하지 않는 조건·팀 버프·비스탯 효과가 있으면 자동 처리를 중단하고 Actions 로그에 검토 사유를 남깁니다. Gemini 응답의 출처 문구, 스키마, ID, 유한 수치, 레벨 사다리, 설명 변수와 기존 CSV 규칙을 검사하며, 생성·조회·검증 실패 시 CSV와 처리 기록을 쓰지 않습니다. 구조 검증이 모델의 의미 해석 정확성을 보장하지는 않으므로 생성 PR의 diff와 공지 출처를 확인할 수 있습니다. 워크북 유래 `excel_skill_scores.csv`와 팀 버프 데이터는 이 도구가 변경하지 않습니다.
 
-로컬 실행은 환경 변수 `GEMINI_API_KEY`를 설정한 뒤 `python tools/update_skills_gemini.py`로 미리 확인하고, 파일을 쓰려면 `python tools/update_skills_gemini.py --apply`를 사용합니다. 미리 확인도 Gemini API를 호출하며 과금될 수 있습니다.
+로컬 실행은 환경 변수 `GEMINI_API_KEY`를 설정한 뒤 `python tools/update_skills_gemini.py --check-api`로 연결을 검사하고, `python tools/update_skills_gemini.py`로 공지 분석을 미리 확인합니다. 파일을 쓰려면 `--apply`를 사용합니다. `--timeout 180 --attempts 3`으로 요청 한도와 시도 횟수를 지정하고, `--cache .cache/gemini-responses`로 응답 재사용을 활성화할 수 있습니다. 연결 검사·미리 확인·재시도도 Gemini API를 호출하며 과금될 수 있습니다.
 
 이 자동화의 반영 지점은 `develop`의 CSV입니다. 운영 적용은 기존 `develop` → `deploy` 릴리즈 후 개인 서버에서 백엔드를 다시 빌드하고 재시작해야 합니다. 실행 중인 서버의 데이터를 직접 바꾸거나 서버 배포를 자동 실행하지는 않습니다.
 

@@ -125,6 +125,21 @@ class UpdateTests(unittest.TestCase):
         self.assertNotIn('\n', message)
         self.assertLess(len(message), 500)
 
+    def test_known_unsupported_skill_shapes_are_detected_without_model_judgment(self):
+        rows = [('컴백 플래그', '팀 타자 전체의 파워가 3 증가합니다.'),
+                ('팀 버프', '팀\xa0전체의 능력치가 증가합니다.'),
+                ('레버리지 릴리퍼', '등판 후 아웃 카운트 3개를 처리할 때까지 파워 7 감소')]
+        reasons = updater.unsupported_skill_reasons(rows)
+        self.assertEqual(len(reasons), 3)
+        self.assertIn('team-wide buff', reasons[0])
+        self.assertIn('컴백 플래그', reasons[0])
+        self.assertIn('아웃 카운트 3개', reasons[2])
+        self.assertIn('not batter count', reasons[2])
+        self.assertEqual(updater.unsupported_skill_reasons([
+            ('자기 강화', '자신의 모든 능력치가 5 증가합니다.'),
+            ('팀 비교', '우리 팀 덱스코어가 낮은 경우 구위가 5 증가합니다.'),
+            ('타자 수', '등판 후 3타자까지 제구가 5 증가합니다.')]), [])
+
     def test_nonfinite_or_large_values_rejected(self):
         for value in ['nan', 'inf', '155', '1/2', '']:
             with self.subTest(value=value), self.assertRaises(ValueError):
@@ -477,6 +492,99 @@ class ReviewTests(unittest.TestCase):
 
     def positive_entries(self):
         return [path for path in self.cache.glob('*.json') if not path.name.endswith('.review.json')]
+
+    def test_team_guard_holds_notice_before_apparently_valid_model_can_drop_buff(self):
+        self.bodies[self.first['url']] = self.bodies[self.first['url']].replace('파워 5 증가', '팀 타자 전체의 파워 5 증가')
+        report = self.run_update(continue_on_review=True)
+        self.generate.assert_not_called()
+        self.assert_unchanged()
+        self.assertEqual(report['status'], 'partial-review')
+        self.assertIn('Unsupported team-wide buff', report['reviews'][0]['reason'])
+        self.assertEqual(self.positive_entries(), [])
+        self.assertTrue(all(not rows['after'] for rows in report['changes'].values()))
+
+    def test_out_count_guard_is_strict_before_model_or_cache_access(self):
+        self.bodies[self.first['url']] = self.bodies[self.first['url']].replace(
+            '파워 5 증가', '등판 후 아웃 카운트 3개를 처리할 때까지 파워 5 증가')
+        with patch.object(updater, 'read_cache') as read, self.assertRaisesRegex(ValueError, 'Unsupported out-count duration'):
+            self.run_update(apply=True)
+        self.generate.assert_not_called()
+        read.assert_not_called()
+        self.assert_unchanged()
+
+    def test_team_guard_cannot_be_bypassed_by_positive_cache_or_processed_hash(self):
+        body = self.bodies[self.first['url']].replace('파워 5 증가', '팀 전체의 파워 5 증가')
+        self.bodies[self.first['url']] = body
+        text = updater.notice_text(body)
+        data = {key: updater.validator.load(self.resources / filename) for key, (filename, _) in updater.FILES.items()}
+        with patch.object(updater, 'REVIEW_RULES_VERSION', 1):
+            old = updater.cache_file(self.cache, self.first, text, data, updater.DEFAULT_MODEL)
+        current = updater.cache_file(self.cache, self.first, text, data, updater.DEFAULT_MODEL)
+        self.assertNotEqual(old, current)
+        updater.write_cache(old, self.results[self.first['url']])
+        updater.write_cache(current, self.results[self.first['url']])
+        self.state.write_text(json.dumps({'posts': {self.first['url']: hashlib.sha256(text.encode()).hexdigest()},
+                                         'skills': {}, 'reviews': {}}))
+        with patch.object(updater, 'read_cache') as read:
+            report = self.run_update(apply=True, continue_on_review=True)
+        read.assert_not_called()
+        self.generate.assert_not_called()
+        self.assertEqual(report['counts']['skipped_processed'], 0)
+        self.assertEqual(report['counts']['cache_hits'], 0)
+        self.assertNotIn(self.first['url'], json.loads(self.state.read_text())['posts'])
+        self.assertEqual({path.name: path.read_bytes() for path in self.resources.iterdir()}, self.before)
+
+    def test_one_unsupported_row_holds_all_skills_in_notice(self):
+        self.bodies[self.first['url']] = self.bodies[self.first['url']].replace(
+            '</table>', '<tr><td>팀 스킬</td><td>팀 타자 전체의 파워 5 증가</td></tr></table>')
+        report = self.run_update(apply=True, continue_on_review=True)
+        self.generate.assert_not_called()
+        self.assertEqual(report['counts']['processed'], 0)
+        self.assertEqual(report['counts']['pending_review'], 1)
+        self.assertEqual({path.name: path.read_bytes() for path in self.resources.iterdir()}, self.before)
+
+    def test_unsupported_words_outside_skill_descriptions_do_not_trigger_guard(self):
+        self.bodies[self.first['url']] += '<p>다른 콘텐츠의 팀 전체 안내, 아웃 카운트 3개를 처리할 때까지</p>'
+        report = self.run_update(continue_on_review=True)
+        self.generate.assert_called_once()
+        self.assertEqual(report['status'], 'complete')
+
+    def test_dry_run_preview_contains_only_accepted_changed_skill_rows(self):
+        report = self.run_update(continue_on_review=True)
+        self.assert_unchanged()
+        self.assertEqual(len(report['changes']['skills']['after']), 1)
+        sid = report['changes']['skills']['after'][0]['skill_id']
+        self.assertEqual(report['changes']['skills']['before'], [])
+        self.assertEqual(report['changes']['effects']['before'], [])
+        self.assertEqual(len(report['changes']['effects']['after']), 1)
+        self.assertEqual(report['changes']['effects']['after'][0]['skill_id'], sid)
+        self.assertEqual(report['changes']['placeholders'], {'before': [], 'after': []})
+        self.assertTrue(report['dry_run'])
+        self.assertFalse(report['written'])
+
+    def test_existing_skill_preview_excludes_unrelated_rows(self):
+        existing = next(row for row in updater.validator.load(self.resources / 'score_skills.csv')
+                        if row['card_type'] == 'NORMAL' and row['skill_id'].startswith('G_'))
+        self.bodies[self.first['url']] = self.bodies[self.first['url']].replace('검토 스킬', existing['name'])
+        self.results[self.first['url']] = proposal(skill_id=existing['skill_id'], name=existing['name'],
+                                                 position=existing['position'], evidence=existing['name'])
+        report = self.run_update(continue_on_review=True)
+        self.assert_unchanged()
+        self.assertEqual(report['changes']['skills']['before'], [existing])
+        for changes in report['changes'].values():
+            for rows in changes.values():
+                self.assertTrue(all(row['skill_id'] == existing['skill_id'] for row in rows))
+
+    def test_aborted_run_does_not_publish_preview_of_uncommitted_partial_results(self):
+        later = self.add_post('지원 스킬', 2)
+        self.results[later['url']] = RuntimeError('API 503')
+        with self.assertRaisesRegex(RuntimeError, 'API 503'):
+            self.run_update(continue_on_review=True)
+        report = json.loads(self.report.read_text())
+        self.assertEqual(report['status'], 'aborted')
+        self.assertEqual(report['changed'], [])
+        self.assertTrue(all(not rows for group in report['changes'].values() for rows in group.values()))
+        self.assert_unchanged()
 
     def test_supported_notices_before_and_after_review_are_applied(self):
         middle = self.add_post('보류 스킬', 2)

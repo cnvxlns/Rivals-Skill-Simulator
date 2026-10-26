@@ -37,7 +37,7 @@ PREFIX = {"IRON": "I", "BRONZE": "B", "SILVER": "S", "GOLD": "G",
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_TIMEOUT = 180
 DEFAULT_ATTEMPTS = 3
-REVIEW_RULES_VERSION = 1
+REVIEW_RULES_VERSION = 2
 API = "https://generativelanguage.googleapis.com/v1beta/models/"
 
 
@@ -470,6 +470,45 @@ def validate(data, resources):
         raise ValueError("CSV validation failed: " + "; ".join(f"{p.code}: {p.message}" for p in errors))
 
 
+def unsupported_skill_reasons(rows):
+    """Guard known unsupported shapes in skill descriptions, not arbitrary page text."""
+    reasons = []
+    for name, description in rows:
+        compact = re.sub(r"\s+", "", description)
+        if re.search(r"팀(?:타자|투수|선수)?(?:전체|전원)", compact):
+            reasons.append(f"Unsupported team-wide buff: skill={name[:80]!r} excerpt={description[:240]!r}")
+        if re.search(r"아웃카운트\d+개(?:를)?처리할때까지", compact):
+            reasons.append(f"Unsupported out-count duration (not batter count): "
+                           f"skill={name[:80]!r} excerpt={description[:240]!r}")
+    return reasons
+
+
+def changed_rows(before, after):
+    changes = {}
+    for key in FILES:
+        groups = []
+        for data in (before, after):
+            grouped = {}
+            for row in data[key]:
+                grouped.setdefault(row["skill_id"], []).append(row)
+            groups.append(grouped)
+        old, new = groups
+        ids = {sid for sid in old.keys() | new.keys() if old.get(sid, []) != new.get(sid, [])}
+        changes[key] = {"before": [row for row in before[key] if row["skill_id"] in ids],
+                        "after": [row for row in after[key] if row["skill_id"] in ids]}
+    return changes
+
+
+def hold_for_review(state, post, digest, fingerprint, reason, path, counts):
+    url = post["url"]
+    state["reviews"][url] = {"title": post["title"], "date": post["date"], "url": url,
+                             "body_hash": digest, "request_fingerprint": fingerprint, "reason": reason[:2000]}
+    state["posts"].pop(url, None)
+    write_cache(path, state["reviews"][url])
+    counts["new_reviews"] += 1
+    print(f"Notice held for review: {url}: {reason[:2000]}", flush=True)
+
+
 def load_state(state_path):
     state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {"posts": {}, "skills": {}}
     if not isinstance(state, dict):
@@ -513,6 +552,7 @@ def run(resources, state_path, *, apply=False, model=DEFAULT_MODEL, timeout=DEFA
         attempts=DEFAULT_ATTEMPTS, cache=None, continue_on_review=False, review_report=None):
     report = {"status": "aborted", "model": model, "rules_version": REVIEW_RULES_VERSION,
               "dry_run": not apply, "written": False, "changed": [], "reviews": [],
+              "changes": {key: {"before": [], "after": []} for key in FILES},
               "counts": {key: 0 for key in ("processed", "cache_hits", "pending_review", "new_reviews",
                                             "skipped_review", "skipped_processed", "scanned")}}
     state = {}
@@ -541,11 +581,15 @@ def run(resources, state_path, *, apply=False, model=DEFAULT_MODEL, timeout=DEFA
             time.sleep(notices.DELAY)
             report["counts"]["scanned"] += 1
             text = notice_text(body)
-            if not notices.extract_skills(body):
+            skill_rows = notices.extract_skills(body)
+            if not skill_rows:
                 continue
             digest = hashlib.sha256(text.encode()).hexdigest()
             url = post["url"]
-            if state["posts"].get(url) == digest and url not in state["reviews"]:
+            unsupported = unsupported_skill_reasons(skill_rows)
+            if unsupported and not continue_on_review:
+                raise ValueError(f"Manual review required: {unsupported}")
+            if not unsupported and state["posts"].get(url) == digest and url not in state["reviews"]:
                 report["counts"]["skipped_processed"] += 1
                 continue
             fingerprint = review_fingerprint(post, text, data, model)
@@ -562,6 +606,10 @@ def run(resources, state_path, *, apply=False, model=DEFAULT_MODEL, timeout=DEFA
                 state["posts"].pop(url, None)
                 report["counts"]["skipped_review"] += 1
                 continue
+            if unsupported:
+                hold_for_review(state, post, digest, fingerprint, "; ".join(unsupported),
+                                review_path, report["counts"])
+                continue
             print(f"Analyzing {post['date']} {url}", flush=True)
             path = cache_file(cache, post, text, data, model)
             result = read_cache(path)
@@ -574,20 +622,14 @@ def run(resources, state_path, *, apply=False, model=DEFAULT_MODEL, timeout=DEFA
             try:
                 apply_result(proposed_data, result, text, post, proposed_state)
                 known = {notices._key(row["name"]) for row in proposed_data["skills"]}
-                omitted = [name for name, _ in notices.extract_skills(body) if notices._key(name) not in known]
+                omitted = [name for name, _ in skill_rows if notices._key(name) not in known]
                 if omitted:
                     raise ValueError(f"Gemini omitted unknown skills: {omitted}")
                 validate(proposed_data, resources)
             except ValueError as exc:
                 if not continue_on_review:
                     raise
-                reason = str(exc)[:2000]
-                state["reviews"][url] = {"title": post["title"], "date": post["date"], "url": url,
-                                         "body_hash": digest, "request_fingerprint": fingerprint, "reason": reason}
-                state["posts"].pop(url, None)
-                write_cache(review_path, state["reviews"][url])
-                report["counts"]["new_reviews"] += 1
-                print(f"Notice held for review: {url}: {reason}", flush=True)
+                hold_for_review(state, post, digest, fingerprint, str(exc), review_path, report["counts"])
                 continue
             data, state = proposed_data, proposed_state
             state["reviews"].pop(url, None)
@@ -598,6 +640,7 @@ def run(resources, state_path, *, apply=False, model=DEFAULT_MODEL, timeout=DEFA
         validate(data, resources)
         changed = [key for key in FILES if data[key] != original[key]]
         report["changed"] = changed
+        report["changes"] = changed_rows(original, data)
         pending = len(state["reviews"])
         report["status"] = "partial-review" if pending else "complete"
         print(f"Validated changes: {', '.join(changed) or 'none'} ({'apply' if apply else 'dry-run'})", flush=True)

@@ -37,6 +37,7 @@ PREFIX = {"IRON": "I", "BRONZE": "B", "SILVER": "S", "GOLD": "G",
 DEFAULT_MODEL = "gemini-3.8-flash"
 DEFAULT_TIMEOUT = 180
 DEFAULT_ATTEMPTS = 3
+REVIEW_RULES_VERSION = 1
 API = "https://generativelanguage.googleapis.com/v1beta/models/"
 
 
@@ -277,9 +278,55 @@ def check_api(api_key, model, *, timeout=DEFAULT_TIMEOUT, attempts=DEFAULT_ATTEM
     print(f"Gemini API check passed: model={model}", flush=True)
 
 
+def request_fingerprint(post, text, data, model):
+    return hashlib.sha256(encoded({"model": model, "payload": build_payload(post, text, data, model),
+                                  "rules": REVIEW_RULES_VERSION})).hexdigest()
+
+
 def cache_file(cache, post, text, data, model):
-    digest = hashlib.sha256(encoded({"model": model, "payload": build_payload(post, text, data, model)})).hexdigest()
+    digest = request_fingerprint(post, text, data, model)
     return Path(cache) / f"{digest}.json" if cache is not None else None
+
+
+def review_fingerprint(post, text, data, model):
+    return hashlib.sha256(encoded({"request": request_fingerprint(post, text, data, model),
+                                  "rules": REVIEW_RULES_VERSION})).hexdigest()
+
+
+def review_cache_file(cache, fingerprint):
+    return Path(cache) / f"{fingerprint}.review.json" if cache is not None else None
+
+
+def valid_review(record, url):
+    fields = ("title", "date", "url", "body_hash", "request_fingerprint", "reason")
+    return (isinstance(record, dict) and all(isinstance(record.get(field), str) for field in fields)
+            and record["url"] == url and bool(record["reason"]))
+
+
+def read_review_cache(path, post, digest, fingerprint):
+    if path is None:
+        return None
+    try:
+        if not path.exists():
+            return None
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if (valid_review(record, post["url"]) and record["body_hash"] == digest
+                and record["request_fingerprint"] == fingerprint
+                and record["title"] == post["title"] and record["date"] == post["date"]):
+            print(f"Review metadata cache hit: {post['url']}", flush=True)
+            return record
+    except (OSError, ValueError):
+        pass
+    print("Review metadata cache ignored: invalid or mismatched record", flush=True)
+    return None
+
+
+def remove_review_cache(path):
+    if path is not None:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            print("Review metadata cache could not be removed", flush=True)
 
 
 def read_cache(path):
@@ -422,62 +469,163 @@ def validate(data, resources):
         raise ValueError("CSV validation failed: " + "; ".join(f"{p.code}: {p.message}" for p in errors))
 
 
-def run(resources, state_path, *, apply=False, model=DEFAULT_MODEL, timeout=DEFAULT_TIMEOUT,
-        attempts=DEFAULT_ATTEMPTS, cache=None):
-    settings(model, timeout, attempts)
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        raise ValueError("Set GEMINI_API_KEY")
-    original = {key: validator.load(resources / filename) for key, (filename, _) in FILES.items()}
-    data = copy.deepcopy(original)
+def load_state(state_path):
     state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {"posts": {}, "skills": {}}
-    posts = {}
-    # Keep generated data in memory until the whole scan validates.
-    for board in notices.BOARDS:
-        print(f"Fetching notice list: board={board}", flush=True)
-        for post in notices.fetch_board(board):
-            posts[post["url"]] = post
-        time.sleep(notices.DELAY)
-    if not posts:
-        raise ValueError("No notices fetched")
-    for post in sorted(posts.values(), key=lambda p: (p["date"], p["url"])):
-        print(f"Fetching notice body: {post['url']}", flush=True)
-        body = notices._get(post["url"])
-        time.sleep(notices.DELAY)
-        text = notice_text(body)
-        # Preserve the existing monitor's scope: textual skill tables only.
-        if not notices.extract_skills(body):
-            continue
-        digest = hashlib.sha256(text.encode()).hexdigest()
-        if state["posts"].get(post["url"]) == digest:
-            continue
-        print(f"Analyzing {post['date']} {post['url']}", flush=True)
-        path = cache_file(cache, post, text, data, model)
-        result = read_cache(path)
-        if result is None:
-            result = generate(post, text, data, api_key, model, timeout=timeout, attempts=attempts)
-        apply_result(data, result, text, post, state)
-        known = {notices._key(row["name"]) for row in data["skills"]}
-        omitted = [name for name, _ in notices.extract_skills(body) if notices._key(name) not in known]
-        if omitted:
-            raise ValueError(f"Gemini omitted unknown skills: {omitted}")
+    if not isinstance(state, dict):
+        raise ValueError("Invalid notice state")
+    for key in ("posts", "skills"):
+        if not isinstance(state.get(key), dict) or any(
+            not isinstance(k, str) or not isinstance(v, str) for k, v in state[key].items()
+        ):
+            raise ValueError(f"Invalid notice state: {key}")
+    reviews = state.setdefault("reviews", {})
+    if not isinstance(reviews, dict):
+        raise ValueError("Invalid notice state: reviews")
+    for url, record in reviews.items():
+        if not isinstance(url, str) or not valid_review(record, url):
+            raise ValueError("Invalid notice state: review record")
+    return state
+
+
+def write_report(path, report):
+    if path is None:
+        return
+    path = Path(path)
+    temporary = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".report-", delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(encoded(report) + b"\n")
+        temporary.replace(path)
+    except OSError:
+        raise RuntimeError(f"Could not write review report: {path}") from None
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def run(resources, state_path, *, apply=False, model=DEFAULT_MODEL, timeout=DEFAULT_TIMEOUT,
+        attempts=DEFAULT_ATTEMPTS, cache=None, continue_on_review=False, review_report=None):
+    report = {"status": "aborted", "dry_run": not apply, "written": False, "changed": [], "reviews": [],
+              "counts": {key: 0 for key in ("processed", "cache_hits", "pending_review", "new_reviews",
+                                            "skipped_review", "skipped_processed", "scanned")}}
+    state = {}
+    primary_error = None
+    try:
+        settings(model, timeout, attempts)
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        if not api_key:
+            raise ValueError("Set GEMINI_API_KEY")
+        original = {key: validator.load(resources / filename) for key, (filename, _) in FILES.items()}
+        validate(original, resources)  # Existing corruption is a global failure, never a review item.
+        data = copy.deepcopy(original)
+        state = load_state(state_path)
+        posts = {}
+        # Keep all CSV/state changes in memory until every network request has succeeded.
+        for board in notices.BOARDS:
+            print(f"Fetching notice list: board={board}", flush=True)
+            for post in notices.fetch_board(board):
+                posts[post["url"]] = post
+            time.sleep(notices.DELAY)
+        if not posts:
+            raise ValueError("No notices fetched")
+        for post in sorted(posts.values(), key=lambda p: (p["date"], p["url"])):
+            print(f"Fetching notice body: {post['url']}", flush=True)
+            body = notices._get(post["url"])
+            time.sleep(notices.DELAY)
+            report["counts"]["scanned"] += 1
+            text = notice_text(body)
+            if not notices.extract_skills(body):
+                continue
+            digest = hashlib.sha256(text.encode()).hexdigest()
+            url = post["url"]
+            if state["posts"].get(url) == digest and url not in state["reviews"]:
+                report["counts"]["skipped_processed"] += 1
+                continue
+            fingerprint = review_fingerprint(post, text, data, model)
+            review_path = review_cache_file(cache, fingerprint) if continue_on_review else None
+            prior_review = state["reviews"].get(url)
+            if continue_on_review and prior_review and prior_review["request_fingerprint"] == fingerprint:
+                report["counts"]["skipped_review"] += 1
+                write_cache(review_path, prior_review)
+                print(f"Review still pending (unchanged request): {url}", flush=True)
+                continue
+            cached_review = read_review_cache(review_path, post, digest, fingerprint)
+            if cached_review is not None:
+                state["reviews"][url] = cached_review
+                state["posts"].pop(url, None)
+                report["counts"]["skipped_review"] += 1
+                continue
+            print(f"Analyzing {post['date']} {url}", flush=True)
+            path = cache_file(cache, post, text, data, model)
+            result = read_cache(path)
+            if result is None:
+                # API/transport/envelope failures remain fatal, outside the review handler.
+                result = generate(post, text, data, api_key, model, timeout=timeout, attempts=attempts)
+            else:
+                report["counts"]["cache_hits"] += 1
+            proposed_data, proposed_state = copy.deepcopy(data), copy.deepcopy(state)
+            try:
+                apply_result(proposed_data, result, text, post, proposed_state)
+                known = {notices._key(row["name"]) for row in proposed_data["skills"]}
+                omitted = [name for name, _ in notices.extract_skills(body) if notices._key(name) not in known]
+                if omitted:
+                    raise ValueError(f"Gemini omitted unknown skills: {omitted}")
+                validate(proposed_data, resources)
+            except ValueError as exc:
+                if not continue_on_review:
+                    raise
+                reason = str(exc)[:2000]
+                state["reviews"][url] = {"title": post["title"], "date": post["date"], "url": url,
+                                         "body_hash": digest, "request_fingerprint": fingerprint, "reason": reason}
+                state["posts"].pop(url, None)
+                write_cache(review_path, state["reviews"][url])
+                report["counts"]["new_reviews"] += 1
+                print(f"Notice held for review: {url}: {reason}", flush=True)
+                continue
+            data, state = proposed_data, proposed_state
+            state["reviews"].pop(url, None)
+            remove_review_cache(review_path)
+            write_cache(path, result)
+            state["posts"][url] = digest
+            report["counts"]["processed"] += 1
         validate(data, resources)
-        # Reuse only responses that passed all current validation, including on cache hits.
-        write_cache(path, result)
-        state["posts"][post["url"]] = digest
-    validate(data, resources)
-    changed = [key for key in FILES if data[key] != original[key]]
-    print(f"Validated changes: {', '.join(changed) or 'none'} ({'apply' if apply else 'dry-run'})", flush=True)
-    if apply:
-        # Validation/model/network errors above cannot partially update any CSV.
-        for key in changed:
-            filename, fields = FILES[key]
-            buffer = io.StringIO(newline="")
-            writer = csv.DictWriter(buffer, fieldnames=fields, lineterminator="\n")
-            writer.writeheader()
-            writer.writerows(data[key])
-            (resources / filename).write_bytes(buffer.getvalue().encode("utf-8"))
-        state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        changed = [key for key in FILES if data[key] != original[key]]
+        report["changed"] = changed
+        pending = len(state["reviews"])
+        report["status"] = "partial-review" if pending else "complete"
+        print(f"Validated changes: {', '.join(changed) or 'none'} ({'apply' if apply else 'dry-run'})", flush=True)
+        if pending:
+            print(f"Partial update; {pending} notices require review (including outside the current scan)", flush=True)
+        if apply:
+            for key in changed:
+                filename, fields = FILES[key]
+                buffer = io.StringIO(newline="")
+                writer = csv.DictWriter(buffer, fieldnames=fields, lineterminator="\n")
+                writer.writeheader()
+                writer.writerows(data[key])
+                (resources / filename).write_bytes(buffer.getvalue().encode("utf-8"))
+            state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            report["written"] = True
+        return report
+    except (ValueError, RuntimeError, OSError, KeyError, TypeError) as exc:
+        primary_error = exc
+        report["status"] = "aborted"
+        report["error"] = str(exc)[:2000]
+        raise
+    finally:
+        report["reviews"] = sorted(state.get("reviews", {}).values(), key=lambda record: record["url"])
+        report["counts"]["pending_review"] = len(report["reviews"])
+        try:
+            write_report(review_report, report)
+        except RuntimeError as report_error:
+            if primary_error is not None:
+                raise RuntimeError(f"{primary_error}; additionally, {report_error}") from primary_error
+            raise
 
 
 def main():
@@ -490,6 +638,8 @@ def main():
     parser.add_argument("--attempts", type=int, default=DEFAULT_ATTEMPTS, help="Maximum Gemini attempts, 1..5")
     parser.add_argument("--cache", type=Path, help="Optionally cache validated responses for resuming failed scans")
     parser.add_argument("--check-api", action="store_true", help="Check model access and structured generation, then exit without data writes")
+    parser.add_argument("--continue-on-review", action="store_true", help="Hold unsupported notices for review and continue validating other notices")
+    parser.add_argument("--review-report", type=Path, help="Write an explicit JSON status/review report, including on failure")
     args = parser.parse_args()
     try:
         settings(args.model, args.timeout, args.attempts)
@@ -500,7 +650,8 @@ def main():
             check_api(api_key, args.model, timeout=args.timeout, attempts=args.attempts)
         else:
             run(args.resources, args.state, apply=args.apply, model=args.model,
-                timeout=args.timeout, attempts=args.attempts, cache=args.cache)
+                timeout=args.timeout, attempts=args.attempts, cache=args.cache,
+                continue_on_review=args.continue_on_review, review_report=args.review_report)
     except (ValueError, RuntimeError, OSError, KeyError, TypeError) as exc:
         print(f"Update aborted: {exc}", file=sys.stderr, flush=True)
         return 1

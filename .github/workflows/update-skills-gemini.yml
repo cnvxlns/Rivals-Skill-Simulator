@@ -69,11 +69,45 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ inputs.model || vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
         run: |
-          args=(--cache .cache/gemini-responses --timeout 180 --attempts 3)
+          args=(--cache .cache/gemini-responses --timeout 180 --attempts 3 --continue-on-review --review-report .cache/gemini-review-report.json)
           if [ "$UPDATE_MODE" = apply ]; then
             args+=(--apply)
           fi
           python3 tools/update_skills_gemini.py "${args[@]}"
+      - name: Report notice processing and manual reviews
+        if: ${{ always() && env.UPDATE_MODE != 'check-api' && hashFiles('.cache/gemini-review-report.json') != '' }}
+        run: |
+          python3 - <<'PY'
+          import html
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path('.cache/gemini-review-report.json').read_text())
+          counts = report['counts']
+          lines = [f"### Gemini notice update: {report['status']}",
+                   f"Mode: {'dry-run' if report['dry_run'] else 'apply'}; "
+                   f"processed: {counts['processed']}; cached: {counts['cache_hits']}; "
+                   f"pending manual review: {counts['pending_review']}.", '']
+          if report['status'] == 'partial-review':
+              lines.append('Supported notices were validated. Pending notices were not applied and still require manual review.')
+              print('::warning::Notice processing completed with pending manual reviews. See the run summary and JSON report.')
+          if report['status'] == 'aborted':
+              lines.append('The run aborted. CSV and processed-notice state were not published.')
+          for review in report['reviews']:
+              lines.extend([f"- [{review['date']} notice]({review['url']})",
+                            '<pre>' + html.escape(review['reason'][:500]) + '</pre>'])
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a', encoding='utf-8') as handle:
+              handle.write('\n'.join(lines) + '\n')
+          PY
+      - name: Upload notice processing report
+        if: ${{ always() && env.UPDATE_MODE != 'check-api' && hashFiles('.cache/gemini-review-report.json') != '' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-notice-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .cache/gemini-review-report.json
+          retention-days: 14
       - name: Save validated Gemini responses
         if: ${{ always() && env.UPDATE_MODE != 'check-api' && hashFiles('.cache/gemini-responses/**') != '' }}
         continue-on-error: true
@@ -100,6 +134,24 @@ jobs:
         if: env.UPDATE_MODE != 'check-api'
         working-directory: backend
         run: bash gradlew test --no-daemon
+      - name: Prepare data pull request description
+        if: env.UPDATE_MODE == 'apply'
+        run: |
+          python3 - <<'PY'
+          import html
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path('.cache/gemini-review-report.json').read_text())
+          pending = report['counts']['pending_review']
+          lines = ['Supported official notice changes were interpreted with Gemini and validated.',
+                   'CSV validation, Python regression tests, and backend tests passed before this PR.',
+                   f'Pending manual reviews: {pending}. Pending notices were not applied or marked processed.', '']
+          for review in report['reviews']:
+              lines.extend([f"- [{review['date']} notice]({review['url']})",
+                            '<pre>' + html.escape(review['reason'][:500]) + '</pre>'])
+          Path('.cache/gemini-pr-body.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
       - name: Create update pull request
         if: env.UPDATE_MODE == 'apply'
         id: pr
@@ -110,10 +162,7 @@ jobs:
           base: develop
           commit-message: 'data: update skills from official notices with Gemini'
           title: 'data: update skills from official notices with Gemini'
-          body: |
-            Official notice skill tables were interpreted with Gemini and validated.
-            CSV validation, Python regression tests, and backend tests passed before this PR.
-            The processed notice hashes prevent duplicate processing; unsupported changes stop the job.
+          body-path: .cache/gemini-pr-body.md
           add-paths: |
             backend/src/main/resources/score_skills.csv
             backend/src/main/resources/score_effects.csv

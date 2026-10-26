@@ -91,7 +91,7 @@ Rivals-Skill-Simulator/
 3. Actions의 **Allow GitHub Actions to create and approve pull requests**를 활성화합니다. 자동 병합도 사용하려면 저장소 **Allow auto-merge**와 squash merge를 활성화합니다. `develop`의 필수 검사·리뷰 정책도 충족해야 병합됩니다. 저장소 자동 병합이 꺼져 있으면 데이터 PR을 남기고 수동 병합을 기다립니다.
 4. PR 생성으로 다른 CI가 실행되어야 하는 저장소는 `SKILL_UPDATE_TOKEN` secret에 `develop` 및 자동화 브랜치의 Contents/Pull requests 쓰기 권한이 있는 토큰을 등록합니다. 생략하면 기본 `GITHUB_TOKEN`을 쓰며, 이 토큰으로 발생한 PR 이벤트는 일반적으로 다른 워크플로를 실행하지 않습니다. 업데이트 워크플로 자체에서는 병합 요청 전에 Python·데이터·백엔드 검사를 실행합니다.
 5. 워크플로 파일은 GitHub 기본 브랜치인 `deploy`에도 있어야 합니다. `develop`에만 병합하면 수동 실행 등록과 정기 실행이 되지 않습니다. 기존 `develop` → `deploy` 릴리즈 PR로 반영합니다.
-6. Actions에서 **Update skills with Gemini → Run workflow**의 모드를 선택합니다. 기본 `check-api`는 키·모델·작은 생성 요청만 검사하고 CSV나 PR을 만들지 않습니다. `dry-run`은 공지를 분석·검증하되 CSV와 처리 상태를 쓰거나 PR을 만들지 않습니다. `apply`는 검증된 CSV와 처리 상태의 PR을 생성합니다. 수동 실행은 선택한 브랜치의 코드를 쓰며, `apply`는 `develop`에서만 실행할 수 있습니다. 정기 실행은 `develop`의 코드로 `apply`를 실행합니다. 자동 병합 요청을 끄려면 repository variable `SKILL_UPDATE_AUTO_MERGE=false`를 설정합니다.
+6. Actions에서 **Update skills with Gemini → Run workflow**의 모드를 선택합니다. 기본 `check-api`는 키·모델·작은 생성 요청만 검사하고 CSV나 PR을 만들지 않습니다. `dry-run`은 공지를 분석·검증하되 CSV와 처리 상태를 쓰거나 PR을 만들지 않습니다. `apply`는 검증된 CSV와 처리 상태의 PR을 생성합니다. 수동 실행은 선택한 브랜치의 코드를 쓰며, `apply`는 `develop`에서만 실행할 수 있습니다. 정기 실행은 `develop`의 코드로 `apply`를 실행합니다. Actions의 분석은 검토 대기 공지를 분리하고 정상 공지를 계속 처리합니다. 자동 병합 요청을 끄려면 repository variable `SKILL_UPDATE_AUTO_MERGE=false`를 설정합니다.
 
 수동 실행의 선택 항목 `model`로 해당 실행의 모델만 바꿔 비교할 수 있습니다. 비워 두면 repository variable `GEMINI_MODEL`, 그다음 기본 모델을 사용합니다. 이 입력은 저장소 변수나 이후 정기 실행 모델을 변경하지 않습니다.
 
@@ -101,9 +101,13 @@ Rivals-Skill-Simulator/
 
 Actions는 공지별 검증을 통과한 응답을 별도 캐시에 저장합니다. 이후 공지에서 실패하거나 데이터 PR이 미병합 상태여도, 모델과 요청 내용이 같은 응답은 재호출 없이 재검증해 사용합니다. 캐시가 없거나 만료되면 다시 분석할 수 있습니다. 전체 공지 검증이 완료되기 전에는 CSV와 처리 상태를 저장하지 않으며, 캐시를 읽을 때도 검증을 생략하지 않습니다. `스킬명` 표가 있는 미처리 공지가 없으면 분석용 Gemini 생성 요청은 보내지 않습니다. `check-api`는 명시적인 API 검사이므로 항상 작은 생성 요청을 보냅니다.
 
-수치나 카드 종류가 불명확하거나, 지원하지 않는 조건·팀 버프·비스탯 효과가 있으면 자동 처리를 중단하고 Actions 로그에 검토 사유를 남깁니다. Gemini 응답의 출처 문구, 스키마, ID, 유한 수치, 레벨 사다리, 설명 변수와 기존 CSV 규칙을 검사하며, 생성·조회·검증 실패 시 CSV와 처리 기록을 쓰지 않습니다. 구조 검증이 모델의 의미 해석 정확성을 보장하지는 않으므로 생성 PR의 diff와 공지 출처를 확인할 수 있습니다. 워크북 유래 `excel_skill_scores.csv`와 팀 버프 데이터는 이 도구가 변경하지 않습니다.
+수치나 카드 종류가 불명확하거나 지원하지 않는 조건·팀 버프·비스탯 효과가 있으면 해당 공지 전체를 검토 대기로 남깁니다. 근거·스키마·ID·유한 수치·레벨 사다리·설명 변수·CSV 검증에 실패한 제안도 적용하지 않습니다. 공지별 복사본을 검증한 뒤에만 정상 변경을 채택하므로, 한 공지의 일부 스킬만 적용되는 일은 없습니다. 근거 비교에서는 줄바꿈·Unicode 공백 차이만 허용하며 단어·수치·문장부호는 정확히 일치해야 합니다.
 
-로컬 실행은 환경 변수 `GEMINI_API_KEY`를 설정한 뒤 `python tools/update_skills_gemini.py --check-api`로 연결을 검사하고, `python tools/update_skills_gemini.py`로 공지 분석을 미리 확인합니다. 파일을 쓰려면 `--apply`를 사용합니다. `--timeout 180 --attempts 3`으로 요청 한도와 시도 횟수를 지정하고, `--cache .cache/gemini-responses`로 응답 재사용을 활성화할 수 있습니다. 연결 검사·미리 확인·재시도도 Gemini API를 호출하며 과금될 수 있습니다.
+검토 대기는 처리 완료로 표시하지 않습니다. `tools/notice_update_state.json`의 `reviews`에 출처와 사유를 저장하고, 본문·모델·관련 CSV·프롬프트·검토 규칙 버전이 같으면 API 재호출 없이 계속 보고합니다. PR 미병합·반복 dry-run에도 재사용할 수 있도록 출처·지문·사유만 별도 `.review.json` 캐시에 저장하며, 검증에 실패한 모델 제안은 정상 응답 캐시에 넣지 않습니다. 입력이나 규칙이 바뀌면 재검사하고, 검증에 성공하면 보류 기록을 지웁니다. 검토 규칙을 수정할 때는 도구의 `REVIEW_RULES_VERSION`도 올립니다. 조회·API·인증·응답 형식 오류나 기존 CSV 손상은 계속 실행 실패로 처리하며 CSV와 처리 상태를 저장하지 않습니다.
+
+Actions 요약·JSON 보고서 artifact·데이터 PR 본문에 검토 대기 목록을 표시합니다. 검토 대기가 있으면 보고서 상태는 `partial-review`이며, 전체 공지를 자동 반영했다는 뜻이 아닙니다. 네트워크 등으로 중단되면 `aborted`입니다. 구조 검증이 모델의 의미 해석 정확성을 보장하지는 않으므로 생성 PR의 diff와 공지 출처를 확인해야 합니다. 워크북 유래 `excel_skill_scores.csv`와 팀 버프 데이터는 이 도구가 변경하지 않습니다.
+
+로컬 실행은 환경 변수 `GEMINI_API_KEY`를 설정한 뒤 `python tools/update_skills_gemini.py --check-api`로 연결을 검사하고, `python tools/update_skills_gemini.py`로 공지 분석을 미리 확인합니다. 단독 실행의 기본값은 검증 실패·검토 필요 시 전체 실행을 중단하는 strict 모드입니다. `--continue-on-review`를 명시하면 Actions처럼 공지별 검토 대기를 분리합니다. `--review-report .cache/gemini-review-report.json`은 dry-run에서도 명시한 보고서 파일을 생성하지만 CSV·처리 상태는 변경하지 않습니다. CSV와 처리 상태를 쓰려면 `--apply`를 사용합니다. `--timeout 180 --attempts 3`으로 요청 한도와 시도 횟수를 지정하고, `--cache .cache/gemini-responses`로 응답 재사용을 활성화할 수 있습니다. 연결 검사·미리 확인·재시도도 Gemini API를 호출하며 과금될 수 있습니다.
 
 이 자동화의 반영 지점은 `develop`의 CSV입니다. 운영 적용은 기존 `develop` → `deploy` 릴리즈 후 개인 서버에서 백엔드를 다시 빌드하고 재시작해야 합니다. 실행 중인 서버의 데이터를 직접 바꾸거나 서버 배포를 자동 실행하지는 않습니다.
 

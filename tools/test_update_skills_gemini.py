@@ -312,7 +312,8 @@ class UpdateTests(unittest.TestCase):
             root = Path(directory)
             with patch.dict(os.environ, GEMINI_API_KEY='secret'), \
                  patch.object(sys, 'argv', ['update', '--check-api', '--apply', '--resources', str(root),
-                                           '--state', str(root / 'state.json'), '--cache', str(root / 'cache')]), \
+                                           '--state', str(root / 'state.json'), '--cache', str(root / 'cache'),
+                                           '--continue-on-review', '--review-report', str(root / 'report.json')]), \
                  patch.object(updater, 'check_api') as check, patch.object(updater, 'run') as run:
                 self.assertEqual(updater.main(), 0)
                 check.assert_called_once()
@@ -332,6 +333,8 @@ class UpdateTests(unittest.TestCase):
 
     def test_cache_keys_follow_payload_model_and_relevant_data(self):
         path = updater.cache_file(Path('cache'), POST, TEXT, self.data, updater.DEFAULT_MODEL)
+        with patch.object(updater, 'REVIEW_RULES_VERSION', updater.REVIEW_RULES_VERSION + 1):
+            self.assertNotEqual(path, updater.cache_file(Path('cache'), POST, TEXT, self.data, updater.DEFAULT_MODEL))
         self.assertNotEqual(path, updater.cache_file(Path('cache'), POST, TEXT + ' changed', self.data, updater.DEFAULT_MODEL))
         self.assertNotEqual(path, updater.cache_file(Path('cache'), POST, TEXT, self.data, 'gemini-3.6-flash'))
         self.apply(proposal())
@@ -416,6 +419,285 @@ class UpdateTests(unittest.TestCase):
                 generate.reset_mock()
                 updater.run(root, state_path, apply=True)
                 generate.assert_not_called()
+
+
+class ReviewTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.resources = self.root / 'resources'
+        self.resources.mkdir()
+        for filename in [item[0] for item in updater.FILES.values()] + ['stat_weights.csv']:
+            (self.resources / filename).write_bytes((updater.validator.RESOURCES / filename).read_bytes())
+        self.before = {path.name: path.read_bytes() for path in self.resources.iterdir()}
+        self.state = self.root / 'state.json'
+        self.cache = self.root / 'cache'
+        self.report = self.root / 'review.json'
+        self.posts, self.bodies, self.results = [], {}, {}
+        self.first = self.add_post('검토 스킬', 1)
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(patch.dict(os.environ, GEMINI_API_KEY='test'))
+        stack.enter_context(patch.object(updater.notices, 'BOARDS', (9,)))
+        stack.enter_context(patch.object(updater.notices, 'fetch_board', side_effect=lambda board: self.posts))
+        stack.enter_context(patch.object(updater.notices, '_get', side_effect=lambda url: self.bodies[url]))
+        stack.enter_context(patch.object(updater.time, 'sleep'))
+        stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+        self.generate = stack.enter_context(patch.object(updater, 'generate', side_effect=self.generated))
+
+    def add_post(self, name, index):
+        post = {**POST, 'date': f'2026-10-{index:02d} 10:00:00', 'url': POST['url'] + str(index)}
+        self.posts.append(post)
+        self.bodies[post['url']] = ('<table><tr><td>스킬명</td><td>설명</td></tr>'
+                                    f'<tr><td>{name}</td><td>파워 5 증가</td></tr></table>')
+        self.results[post['url']] = proposal(name=name, evidence=name)
+        return post
+
+    def generated(self, post, *args, **kwargs):
+        result = self.results[post['url']]
+        if isinstance(result, Exception):
+            raise result
+        return copy.deepcopy(result)
+
+    def run_update(self, **kwargs):
+        return updater.run(self.resources, self.state, cache=self.cache, review_report=self.report, **kwargs)
+
+    def assert_unchanged(self):
+        self.assertEqual({path.name: path.read_bytes() for path in self.resources.iterdir()}, self.before)
+        self.assertFalse(self.state.exists())
+
+    def positive_entries(self):
+        return [path for path in self.cache.glob('*.json') if not path.name.endswith('.review.json')]
+
+    def test_supported_notices_before_and_after_review_are_applied(self):
+        middle = self.add_post('보류 스킬', 2)
+        last = self.add_post('지원 스킬', 3)
+        self.results[middle['url']] = {'skills': [], 'review_reasons': ['team buff requires support']}
+        report = self.run_update(apply=True, continue_on_review=True)
+        state = json.loads(self.state.read_text())
+        self.assertEqual(set(state['posts']), {self.first['url'], last['url']})
+        self.assertEqual(set(state['reviews']), {middle['url']})
+        self.assertEqual(report['status'], 'partial-review')
+        self.assertEqual(report['counts']['processed'], 2)
+        self.assertEqual(report['counts']['pending_review'], 1)
+        self.assertTrue(report['written'])
+        self.assertFalse(report['dry_run'])
+        self.assertEqual(len(self.positive_entries()), 2)
+        names = {row['name'] for row in updater.validator.load(self.resources / 'score_skills.csv')}
+        self.assertTrue({'검토 스킬', '지원 스킬'} <= names)
+        self.assertNotIn('보류 스킬', names)
+        self.assertEqual(json.loads(self.report.read_text()), report)
+
+    def test_multiskill_rejected_notice_rolls_back_earlier_mutations(self):
+        self.bodies[self.first['url']] += '<p>오류 스킬</p>'
+        self.results[self.first['url']]['skills'].append(proposal(name='오류 스킬', evidence='오류 스킬',
+            effects=[dict(stat='파워', condition='ALWAYS', values='nan', base_stat='')])['skills'][0])
+        report = self.run_update(apply=True, continue_on_review=True)
+        self.assertEqual({path.name: path.read_bytes() for path in self.resources.iterdir()}, self.before)
+        state = json.loads(self.state.read_text())
+        self.assertEqual(state['posts'], {})
+        self.assertEqual(state['skills'], {})
+        self.assertEqual(len(state['reviews']), 1)
+        self.assertEqual(report['counts']['processed'], 0)
+        self.assertEqual(self.positive_entries(), [])
+
+    def test_strict_mode_still_aborts_without_publishing(self):
+        self.results[self.first['url']] = {'skills': [], 'review_reasons': ['unsupported team buff']}
+        with self.assertRaisesRegex(ValueError, 'Manual review required'):
+            self.run_update(apply=True)
+        self.assert_unchanged()
+        report = json.loads(self.report.read_text())
+        self.assertEqual(report['status'], 'aborted')
+        self.assertFalse(report['written'])
+
+    def test_unchanged_pending_review_skips_api_and_remains_visible(self):
+        self.results[self.first['url']] = {'skills': [], 'review_reasons': ['unsupported team buff']}
+        self.run_update(apply=True, continue_on_review=True)
+        self.generate.reset_mock()
+        report = self.run_update(apply=True, continue_on_review=True)
+        self.generate.assert_not_called()
+        self.assertEqual(report['counts']['skipped_review'], 1)
+        self.assertEqual(report['counts']['pending_review'], 1)
+        self.assertEqual(report['status'], 'partial-review')
+        self.assertEqual(self.positive_entries(), [])
+
+    def test_review_metadata_avoids_paid_repeat_before_state_pr_is_merged(self):
+        pending = self.add_post('보류 스킬', 2)
+        self.results[pending['url']] = {'skills': [], 'review_reasons': ['unsupported team buff']}
+        self.run_update(apply=True, continue_on_review=True)
+        self.state.unlink()
+        for name, contents in self.before.items():
+            (self.resources / name).write_bytes(contents)
+        self.generate.reset_mock()
+        report = self.run_update(apply=True, continue_on_review=True)
+        self.generate.assert_not_called()
+        self.assertEqual(report['counts']['cache_hits'], 1)
+        self.assertEqual(report['counts']['skipped_review'], 1)
+        self.assertEqual(report['status'], 'partial-review')
+        metadata = json.loads(next(self.cache.glob('*.review.json')).read_text())
+        self.assertEqual(set(metadata), {'title', 'date', 'url', 'body_hash', 'request_fingerprint', 'reason'})
+        self.assertEqual(metadata['url'], pending['url'])
+
+    def test_repeated_dry_run_reuses_review_metadata_without_state_write(self):
+        self.results[self.first['url']] = {'skills': [], 'review_reasons': ['unsupported team buff']}
+        self.run_update(continue_on_review=True)
+        self.generate.reset_mock()
+        report = self.run_update(continue_on_review=True)
+        self.generate.assert_not_called()
+        self.assertFalse(self.state.exists())
+        self.assertEqual(report['counts']['skipped_review'], 1)
+        self.assertEqual(report['counts']['pending_review'], 1)
+
+    def test_invalid_or_mismatched_review_metadata_is_ignored(self):
+        self.results[self.first['url']] = {'skills': [], 'review_reasons': ['unsupported team buff']}
+        self.run_update(continue_on_review=True)
+        path = next(self.cache.glob('*.review.json'))
+        good = json.loads(path.read_text())
+        invalid = ['not JSON', '[]']
+        invalid.extend(json.dumps({**good, key: value}) for key, value in [
+            ('url', 'another source'), ('body_hash', 'wrong'), ('request_fingerprint', 'wrong'),
+            ('title', 'wrong'), ('date', 'wrong'), ('reason', None)])
+        for contents in invalid:
+            with self.subTest(contents=contents):
+                path.write_text(contents)
+                self.generate.reset_mock()
+                report = self.run_update(continue_on_review=True)
+                self.generate.assert_called_once()
+                self.assertEqual(report['counts']['new_reviews'], 1)
+                self.assertEqual(self.positive_entries(), [])
+
+    def test_review_metadata_retries_changed_body_model_and_rules(self):
+        self.results[self.first['url']] = {'skills': [], 'review_reasons': ['unsupported team buff']}
+        self.run_update(continue_on_review=True)
+        self.bodies[self.first['url']] += '<p>공지 수정</p>'
+        self.generate.reset_mock()
+        self.run_update(continue_on_review=True)
+        self.generate.assert_called_once()
+        self.generate.reset_mock()
+        self.run_update(continue_on_review=True, model='gemini-3.6-flash')
+        self.generate.assert_called_once()
+        self.generate.reset_mock()
+        with (self.resources / 'score_skills.csv').open('a') as handle:
+            handle.write('G_999,NORMAL,BATTER,검토 스킬,파워 5 증가\n')
+        with (self.resources / 'score_effects.csv').open('a') as handle:
+            handle.write('G_999,파워,ALWAYS,5,\n')
+        self.run_update(continue_on_review=True, model='gemini-3.6-flash')
+        self.generate.assert_called_once()
+        self.generate.reset_mock()
+        with patch.object(updater, 'REVIEW_RULES_VERSION', updater.REVIEW_RULES_VERSION + 1):
+            self.run_update(continue_on_review=True, model='gemini-3.6-flash')
+        self.generate.assert_called_once()
+        self.assertFalse(self.state.exists())
+
+    def test_strict_mode_ignores_review_metadata_cache(self):
+        self.results[self.first['url']] = {'skills': [], 'review_reasons': ['unsupported team buff']}
+        self.run_update(continue_on_review=True)
+        self.generate.reset_mock()
+        with self.assertRaisesRegex(ValueError, 'Manual review required'):
+            self.run_update()
+        self.generate.assert_called_once()
+        self.assert_unchanged()
+
+    def test_pending_review_retries_after_source_model_csv_or_rules_change(self):
+        self.results[self.first['url']] = {'skills': [], 'review_reasons': ['unsupported team buff']}
+        self.run_update(apply=True, continue_on_review=True)
+        self.generate.reset_mock()
+        self.bodies[self.first['url']] += '<p>공지 수정</p>'
+        self.run_update(apply=True, continue_on_review=True)
+        self.generate.assert_called_once()
+        self.generate.reset_mock()
+        self.run_update(apply=True, continue_on_review=True, model='gemini-3.6-flash')
+        self.generate.assert_called_once()
+        self.generate.reset_mock()
+        skills = self.resources / 'score_skills.csv'
+        effects = self.resources / 'score_effects.csv'
+        with skills.open('a') as handle:
+            handle.write('G_999,NORMAL,BATTER,검토 스킬,파워 5 증가\n')
+        with effects.open('a') as handle:
+            handle.write('G_999,파워,ALWAYS,5,\n')
+        self.run_update(apply=True, continue_on_review=True, model='gemini-3.6-flash')
+        self.generate.assert_called_once()
+        self.generate.reset_mock()
+        with patch.object(updater, 'REVIEW_RULES_VERSION', updater.REVIEW_RULES_VERSION + 1):
+            self.run_update(apply=True, continue_on_review=True, model='gemini-3.6-flash')
+        self.generate.assert_called_once()
+
+    def test_repaired_notice_clears_review_and_marks_processed(self):
+        good = self.results[self.first['url']]
+        self.results[self.first['url']] = {'skills': [], 'review_reasons': ['unsupported team buff']}
+        self.run_update(apply=True, continue_on_review=True)
+        self.bodies[self.first['url']] += '<p>정보 보완</p>'
+        self.results[self.first['url']] = good
+        report = self.run_update(apply=True, continue_on_review=True)
+        state = json.loads(self.state.read_text())
+        self.assertEqual(state['reviews'], {})
+        self.assertIn(self.first['url'], state['posts'])
+        self.assertEqual(report['status'], 'complete')
+        self.assertEqual(report['counts']['pending_review'], 0)
+
+    def test_pending_review_outside_current_window_is_preserved(self):
+        self.results[self.first['url']] = {'skills': [], 'review_reasons': ['unsupported team buff']}
+        self.run_update(apply=True, continue_on_review=True)
+        last = self.add_post('지원 스킬', 3)
+        self.posts = [last]
+        report = self.run_update(apply=True, continue_on_review=True)
+        self.assertEqual(report['counts']['pending_review'], 1)
+        self.assertEqual(report['counts']['new_reviews'], 0)
+        self.assertEqual(report['reviews'][0]['url'], self.first['url'])
+
+    def test_network_or_malformed_api_failure_is_not_hidden_as_review(self):
+        for failure in (RuntimeError('Gemini HTTP 503'), ValueError('Gemini response has invalid candidates')):
+            self.results[self.first['url']] = failure
+            with self.subTest(failure=str(failure)), self.assertRaises(type(failure)):
+                self.run_update(apply=True, continue_on_review=True)
+            self.assert_unchanged()
+            report = json.loads(self.report.read_text())
+            self.assertEqual(report['status'], 'aborted')
+            self.assertEqual(report['counts']['pending_review'], 0)
+            self.assertEqual(list(self.cache.glob('*.json')), [])
+
+    def test_preexisting_csv_error_is_fatal_before_api(self):
+        with (self.resources / 'score_effects.csv').open('a') as handle:
+            handle.write('DOES_NOT_EXIST,파워,ALWAYS,5,\n')
+        with self.assertRaisesRegex(ValueError, 'CSV validation failed'):
+            self.run_update(apply=True, continue_on_review=True)
+        self.generate.assert_not_called()
+        self.assertFalse(self.state.exists())
+        self.assertEqual(json.loads(self.report.read_text())['status'], 'aborted')
+
+    def test_dry_run_reports_pending_without_writing_csv_or_state(self):
+        self.results[self.first['url']] = {'skills': [], 'review_reasons': ['unsupported team buff']}
+        report = self.run_update(continue_on_review=True)
+        self.assert_unchanged()
+        self.assertTrue(report['dry_run'])
+        self.assertFalse(report['written'])
+        self.assertEqual(report['status'], 'partial-review')
+        self.assertEqual(report['counts']['pending_review'], 1)
+
+    def test_invalid_review_state_is_fatal_and_report_write_errors_are_clear(self):
+        self.state.write_text(json.dumps({'posts': {}, 'skills': {}, 'reviews': []}))
+        with self.assertRaisesRegex(ValueError, 'Invalid notice state: reviews'):
+            self.run_update(continue_on_review=True)
+        self.generate.assert_not_called()
+        with self.assertRaisesRegex(RuntimeError, 'Could not write review report'):
+            updater.write_report(self.resources, {'status': 'complete'})
+
+    def test_report_failure_preserves_original_api_failure_diagnostic(self):
+        self.results[self.first['url']] = RuntimeError('ORIGINAL API 503')
+        self.report = self.resources
+        with self.assertRaises(RuntimeError) as caught:
+            self.run_update(continue_on_review=True)
+        message = str(caught.exception)
+        self.assertIn('ORIGINAL API 503', message)
+        self.assertIn('Could not write review report', message)
+        self.assert_unchanged()
+
+    def test_report_write_failure_without_other_error_still_fails(self):
+        self.report = self.resources
+        with self.assertRaisesRegex(RuntimeError, 'Could not write review report'):
+            self.run_update(continue_on_review=True)
+        self.assert_unchanged()
 
 
 if __name__ == '__main__':

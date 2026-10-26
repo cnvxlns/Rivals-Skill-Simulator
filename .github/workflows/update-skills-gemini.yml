@@ -1,0 +1,71 @@
+name: Update skills with Gemini
+
+on:
+  schedule:
+    # Korean time 11:00; after the usual morning notices.
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: gemini-skill-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate and validate skill changes
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
+        run: python3 tools/update_skills_gemini.py --apply
+      - name: Validate all data
+        run: |
+          python3 tools/validate_skill_csv.py --warn
+          python3 tools/validate_deck_data.py --warn
+      - name: Run regression tests
+        working-directory: tools
+        run: python3 -m unittest discover -p 'test_*.py'
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Run backend tests
+        working-directory: backend
+        run: bash gradlew test --no-daemon
+      - name: Create update pull request
+        id: pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.SKILL_UPDATE_TOKEN || github.token }}
+          branch: automation/gemini-skills
+          base: develop
+          commit-message: 'data: update skills from official notices with Gemini'
+          title: 'data: update skills from official notices with Gemini'
+          body: |
+            Official notice skill tables were interpreted with Gemini and validated.
+            CSV validation, Python regression tests, and backend tests passed before this PR.
+            The processed notice hashes prevent duplicate processing; unsupported changes stop the job.
+          add-paths: |
+            backend/src/main/resources/score_skills.csv
+            backend/src/main/resources/score_effects.csv
+            backend/src/main/resources/skill_placeholders.csv
+            tools/notice_update_state.json
+      - name: Enable automatic merge
+        if: steps.pr.outputs.pull-request-number && vars.SKILL_UPDATE_AUTO_MERGE != 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SKILL_UPDATE_TOKEN || github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+          GH_REPO: ${{ github.repository }}
+        run: gh pr merge "$PR_NUMBER" --auto --squash

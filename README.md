@@ -80,6 +80,28 @@ Rivals-Skill-Simulator/
 
 릴리즈는 `develop` → `deploy` PR로 올립니다. `deploy`에 직접 커밋하지 않습니다.
 
+### Gemini 공지 기반 스킬 자동 업데이트
+
+`Update skills with Gemini` 워크플로는 매일 한국 시간 오전 11시에 공식 버전 업데이트·Live 업데이트·공지사항 게시판의 최근 글을 각각 8개씩 확인합니다. `스킬명` 표가 있는 글의 본문을 Gemini에 보내 신규 스킬과 명시적으로 변경된 기존 스킬을 추출하고, `score_skills.csv`, `score_effects.csv`, `skill_placeholders.csv`를 함께 갱신합니다. 기존 스킬 ID는 유지하고 신규 ID는 도구가 티어별로 발급합니다. 이미지로만 제공된 정보는 처리하지 않습니다.
+
+설정 방법:
+
+1. GitHub 저장소의 **Settings → Secrets and variables → Actions**에 `GEMINI_API_KEY` secret을 등록합니다. 키는 백엔드나 앱에 넣지 않습니다.
+2. 필요하면 repository variable `GEMINI_MODEL`로 사용할 모델을 지정합니다. 기본값은 `gemini-3.8-flash`이며 해당 키에서 사용할 수 있는 모델이어야 합니다.
+3. Actions의 **Allow GitHub Actions to create and approve pull requests**와 저장소 **Allow auto-merge**, squash merge를 활성화합니다. `develop`의 필수 검사·리뷰 정책도 충족해야 병합됩니다.
+4. PR 생성으로 다른 CI가 실행되어야 하는 저장소는 `SKILL_UPDATE_TOKEN` secret에 `develop` 및 자동화 브랜치의 Contents/Pull requests 쓰기 권한이 있는 토큰을 등록합니다. 생략하면 기본 `GITHUB_TOKEN`을 쓰며, 이 토큰으로 발생한 PR 이벤트는 일반적으로 다른 워크플로를 실행하지 않습니다. 업데이트 워크플로 자체에서는 병합 요청 전에 Python·데이터·백엔드 검사를 실행합니다.
+5. Actions에서 **Update skills with Gemini → Run workflow**로 첫 실행을 확인합니다. 자동 병합을 끄려면 repository variable `SKILL_UPDATE_AUTO_MERGE=false`를 설정합니다.
+
+검증된 변경과 처리 기록은 `automation/gemini-skills` 브랜치의 PR로 생성되며 자동 병합을 요청합니다. `tools/notice_update_state.json`의 본문 해시로 같은 공지의 재호출을 막고, 기존 공지가 수정되면 재분석합니다. 스킬별 마지막 반영 날짜보다 오래된 공지가 최신 값을 덮어쓰지는 않습니다. 첫 실행은 최근 범위의 공지를 오래된 순서대로 모두 분석합니다. 상태 파일은 PR과 함께 병합되므로 PR이 미병합 상태이면 다음 실행에서 다시 분석할 수 있습니다.
+
+수치나 카드 종류가 불명확하거나, 지원하지 않는 조건·팀 버프·비스탯 효과가 있으면 자동 처리를 중단하고 Actions 로그에 검토 사유를 남깁니다. Gemini 응답의 출처 문구, 스키마, ID, 유한 수치, 레벨 사다리, 설명 변수와 기존 CSV 규칙을 검사하며, 생성·조회·검증 실패 시 CSV와 처리 기록을 쓰지 않습니다. 구조 검증이 모델의 의미 해석 정확성을 보장하지는 않으므로 생성 PR의 diff와 공지 출처를 확인할 수 있습니다. 워크북 유래 `excel_skill_scores.csv`와 팀 버프 데이터는 이 도구가 변경하지 않습니다.
+
+로컬 실행은 환경 변수 `GEMINI_API_KEY`를 설정한 뒤 `python tools/update_skills_gemini.py`로 미리 확인하고, 파일을 쓰려면 `python tools/update_skills_gemini.py --apply`를 사용합니다. 미리 확인도 Gemini API를 호출하며 과금될 수 있습니다.
+
+이 자동화의 반영 지점은 `develop`의 CSV입니다. 운영 적용은 기존 `develop` → `deploy` 릴리즈 후 개인 서버에서 백엔드를 다시 빌드하고 재시작해야 합니다. 실행 중인 서버의 데이터를 직접 바꾸거나 서버 배포를 자동 실행하지는 않습니다.
+
+API 구현 참고: [Google Gemini generateContent](https://ai.google.dev/api/generate-content), [구조화된 JSON 출력](https://ai.google.dev/gemini-api/docs/structured-output).
+
 ## 실행 방법
 ### 1) Backend (Spring Boot)
 1. 필수: JDK 17 (Gradle Wrapper 포함)

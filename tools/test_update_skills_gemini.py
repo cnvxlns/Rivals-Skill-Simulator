@@ -1,6 +1,7 @@
 """Gemini updates: identity preservation, validation, failure isolation and deduplication."""
 import copy
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -44,6 +45,37 @@ class UpdateTests(unittest.TestCase):
 
     def apply(self, result):
         updater.apply_result(self.data, result, TEXT, POST, self.state)
+
+    def test_notice_body_hash_and_cache_ignore_site_views_and_comments(self):
+        article = ('<div class="post_cont"><p>신규 스킬 안내</p><div><div>타자<br>변경</div></div>'
+                   '<table><tr><td>스킬명</td><td>설명</td></tr>'
+                   '<tr><td>새 스킬</td><td>파워 5 증가</td></tr></table></div>')
+        def page(views, comments):
+            return (f'<header>사이트 메뉴</header><article><div class="title_wrap">'
+                    f'<span class="i_hit">{views}</span></div>{article}'
+                    f'<div class="comments">{comments}</div></article>')
+        first = updater.notice_text(page('2,716', '댓글 하나'))
+        second = updater.notice_text(page('2,717', '댓글 변경'))
+        self.assertEqual(first, second)
+        self.assertEqual(hashlib.sha256(first.encode()).hexdigest(), hashlib.sha256(second.encode()).hexdigest())
+        key = updater.cache_file('cache', POST, first, self.data, updater.DEFAULT_MODEL)
+        self.assertEqual(key, updater.cache_file('cache', POST, second, self.data, updater.DEFAULT_MODEL))
+        for old, new in [('신규 스킬 안내', '기존 스킬 변경 안내'), ('파워 5 증가', '파워 6 증가')]:
+            changed = updater.notice_text(page('2,716', '댓글 하나').replace(old, new))
+            self.assertNotEqual(first, changed)
+            self.assertNotEqual(key, updater.cache_file('cache', POST, changed, self.data, updater.DEFAULT_MODEL))
+        for excluded in ('사이트 메뉴', '2,716', '댓글 하나'):
+            self.assertNotIn(excluded, first)
+        self.assertIn('새 스킬', first)
+        self.assertIn('파워 5 증가', first)
+
+    def test_notice_body_preserves_nested_divs_and_excludes_scripts_styles(self):
+        markup = ('<div class="other post_cont extra"><p>본문 시작</p><div><div>중첩<br>다음 줄'
+                  '<img src="image.png"><br/></div><script>hidden script</script>'
+                  '<style>.hidden {}</style><p>중첩 끝</p></div><p>본문 끝</p></div>'
+                  '<div>외부 텍스트</div>')
+        self.assertEqual(updater.notice_text(markup), '본문 시작\n중첩\n다음 줄\n중첩 끝\n본문 끝')
+        self.assertEqual(updater.notice_text('<p>일반 본문<br>다음 줄</p><script>hidden</script>'), '일반 본문\n다음 줄')
 
     def test_new_id_and_existing_replacement(self):
         self.apply(proposal())
@@ -183,6 +215,29 @@ class UpdateTests(unittest.TestCase):
             self.assertEqual(updater.retry_delay(1, 'Thu, 01 Jan 1970 00:00:30 GMT'), 30)
             for bad in ('secret malformed', 'inf', 'nan', '-1'):
                 self.assertEqual(updater.retry_delay(1, bad), 2)
+
+    def test_overload_waits_longer_and_transport_retries_keep_short_backoff(self):
+        for status, waits in ((429, [15, 30]), (503, [15, 30]), (500, [2, 4]), (None, [2, 4])):
+            failures = [urllib.error.HTTPError('secret-url', status, 'secret', {}, None)
+                        if status is not None else TimeoutError('secret') for _ in range(2)]
+            with self.subTest(status=status), \
+                 patch.object(updater.urllib.request, 'urlopen', side_effect=[*failures, generated(proposal())]), \
+                 patch.object(updater.random, 'uniform', return_value=0), \
+                 patch.object(updater.time, 'sleep') as sleep, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(updater.generate(POST, TEXT, self.data, 'secret', updater.DEFAULT_MODEL), proposal())
+                self.assertEqual([call.args[0] for call in sleep.call_args_list], waits)
+        with patch.object(updater.random, 'uniform', return_value=0.5):
+            self.assertEqual(updater.retry_delay(3, status=503), 60)
+            self.assertEqual(updater.retry_delay(1, '45', status=429), 45)
+            self.assertEqual(updater.retry_delay(1, '2', status=503), 15.5)
+
+    def test_overload_status_is_reset_before_a_later_transport_failure(self):
+        overload = urllib.error.HTTPError('secret-url', 503, 'secret', {}, None)
+        with patch.object(updater.urllib.request, 'urlopen', side_effect=[overload, TimeoutError('secret'), generated(proposal())]), \
+             patch.object(updater.random, 'uniform', return_value=0), \
+             patch.object(updater.time, 'sleep') as sleep, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(updater.generate(POST, TEXT, self.data, 'secret', updater.DEFAULT_MODEL), proposal())
+            self.assertEqual([call.args[0] for call in sleep.call_args_list], [15, 4])
 
     def test_invalid_limits_fail_before_network(self):
         with patch.object(updater.urllib.request, 'urlopen') as call:

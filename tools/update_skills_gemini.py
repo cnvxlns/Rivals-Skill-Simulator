@@ -41,33 +41,51 @@ API = "https://generativelanguage.googleapis.com/v1beta/models/"
 
 
 class NoticeText(HTMLParser):
-    """Retain paragraph boundaries and table context, omit scripts/styles."""
+    """Prefer the article body, retaining text fixtures without site wrappers."""
     def __init__(self):
         super().__init__()
         self.parts = []
+        self.post_parts = []
+        self.post_depth = 0
+        self.found_post = False
         self.hidden = 0
 
+    def append(self, text):
+        self.parts.append(text)
+        if self.post_depth:
+            self.post_parts.append(text)
+
     def handle_starttag(self, tag, attrs):
+        if tag == "div":
+            if self.post_depth:
+                self.post_depth += 1
+            elif not self.found_post and "post_cont" in (dict(attrs).get("class") or "").split():
+                self.found_post = True
+                self.post_depth = 1
         if tag in ("script", "style"):
             self.hidden += 1
-        if tag in ("p", "tr", "br", "h1", "h2", "h3"):
-            self.parts.append("\n")
+        if tag in ("p", "tr", "br", "h1", "h2", "h3") or (tag == "div" and self.post_depth):
+            self.append("\n")
         elif tag in ("td", "th"):
-            self.parts.append(" | ")
+            self.append(" | ")
 
     def handle_endtag(self, tag):
         if tag in ("script", "style"):
             self.hidden = max(0, self.hidden - 1)
+        if tag == "div" and self.post_depth:
+            self.append("\n")
+            self.post_depth -= 1
 
     def handle_data(self, data):
         if not self.hidden:
-            self.parts.append(data)
+            self.append(data)
 
 
 def notice_text(body):
     parser = NoticeText()
     parser.feed(body)
-    return "\n".join(line.strip() for line in "".join(parser.parts).splitlines() if line.strip())
+    parts = parser.post_parts if parser.found_post else parser.parts
+    return "\n".join(line.strip() for line in "".join(parts).splitlines() if line.strip())
 
 
 def object_schema(fields):
@@ -123,8 +141,11 @@ def generation_config(model, schema):
     return config
 
 
-def retry_delay(attempt, retry_after=None):
-    delay = min(2 ** attempt, 30) + random.uniform(0, 1)
+def retry_delay(attempt, retry_after=None, *, status=None):
+    if status in (429, 503):
+        delay = min(15 * 2 ** (attempt - 1) + random.uniform(0, 1), 60)
+    else:
+        delay = min(2 ** attempt, 30) + random.uniform(0, 1)
     if not isinstance(retry_after, str) or len(retry_after) > 128:
         return delay
     try:
@@ -152,6 +173,7 @@ def request_json(model, api_key, *, payload=None, timeout=DEFAULT_TIMEOUT,
               f"attempt={attempt}/{attempts} timeout={timeout}s", flush=True)
         retryable = True
         retry_after = None
+        status = None
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 try:
@@ -163,6 +185,7 @@ def request_json(model, api_key, *, payload=None, timeout=DEFAULT_TIMEOUT,
             print(f"Gemini {phase}: response received in {time.monotonic() - started:.1f}s", flush=True)
             return result
         except urllib.error.HTTPError as exc:
+            status = exc.code
             reason = f"HTTP {exc.code}"
             retryable = exc.code in (408, 429, 500, 502, 503, 504)
             if exc.code in (429, 503) and exc.headers is not None:
@@ -186,7 +209,7 @@ def request_json(model, api_key, *, payload=None, timeout=DEFAULT_TIMEOUT,
         message = f"Gemini {phase} model={model}: {reason} after {elapsed:.1f}s (attempt {attempt}/{attempts})"
         if not retryable or attempt == attempts:
             raise RuntimeError(message) from None
-        delay = retry_delay(attempt, retry_after)
+        delay = retry_delay(attempt, retry_after, status=status)
         print(f"{message}; retrying in {delay:.1f}s", flush=True)
         time.sleep(delay)
 

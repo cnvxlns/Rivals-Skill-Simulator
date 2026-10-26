@@ -140,6 +140,56 @@ class UpdateTests(unittest.TestCase):
             ('팀 비교', '우리 팀 덱스코어가 낮은 경우 구위가 5 증가합니다.'),
             ('타자 수', '등판 후 3타자까지 제구가 5 증가합니다.')]), [])
 
+    def existing_description_proposal(self, description):
+        self.data = {
+            'skills': [dict(skill_id='HOF_047', card_type='HOF', position='BATTER', name='리틀 빅맨',
+                            description='좌타자로 출전 시 구위가 5 감소합니다')],
+            'effects': [dict(skill_id='HOF_047', stat='구위', condition='좌타', values='5', base_stat='')],
+            'placeholders': [],
+        }
+        return proposal(skill_id='HOF_047', card_type='HOF', tier='HOF', position='BATTER', name='리틀 빅맨',
+                        description=description, evidence='리틀 빅맨',
+                        effects=[dict(stat='구위', condition='좌타', values='5', base_stat='')])
+
+    def test_existing_description_only_meaning_change_requires_review(self):
+        result = self.existing_description_proposal('좌타석/우타석 타격 시 구위가 5 감소합니다')
+        before = copy.deepcopy(self.data)
+        with self.assertRaisesRegex(ValueError, 'Description-only rewrite requires manual review.*HOF_047') as caught:
+            updater.apply_result(self.data, result, '리틀 빅맨 좌타자로 출전 시 구위가 5 감소합니다', POST, self.state)
+        self.assertEqual(self.data, before)
+        self.assertIn('before=', str(caught.exception))
+        self.assertIn('after=', str(caught.exception))
+
+    def test_description_guard_ignores_row_order_ids_numeric_format_and_and_token_order(self):
+        result = self.existing_description_proposal('다른 조건으로 출전 시 구위 x, 파워 y 증가')
+        self.data['skills'][0]['description'] = '좌타자로 출전 시 구위 x, 파워 y 증가'
+        self.data['effects'] = [dict(skill_id='HOF_047', stat='구위', condition='좌타+타순2', values='1/2/3', base_stat=''),
+                                dict(skill_id='HOF_047', stat='파워', condition='ALWAYS', values='5', base_stat='')]
+        self.data['placeholders'] = [dict(skill_id='HOF_047', letter='x', values='1/2/3'),
+                                     dict(skill_id='HOF_047', letter='y', values='5')]
+        result['skills'][0]['effects'] = [dict(stat='파워', condition='ALWAYS', values='5.00', base_stat=''),
+                                          dict(stat='구위', condition=' 타순2 + 좌타 ', values='1.0/2.00/3.000', base_stat='')]
+        result['skills'][0]['placeholders'] = [dict(letter='y', values='5.0'), dict(letter='x', values='1.0/2.0/3.0')]
+        with self.assertRaisesRegex(ValueError, 'Description-only rewrite requires manual review'):
+            updater.apply_result(self.data, result, '리틀 빅맨 안내', POST, self.state)
+
+    def test_whitespace_only_description_retains_existing_verbatim(self):
+        result = self.existing_description_proposal('좌타자로\n출전\xa0시 구위가\t5 감소합니다')
+        updater.apply_result(self.data, result, '리틀 빅맨 안내', POST, self.state)
+        self.assertEqual(self.data['skills'][0]['description'], '좌타자로 출전 시 구위가 5 감소합니다')
+
+    def test_numeric_effect_update_with_original_description_is_allowed(self):
+        result = self.existing_description_proposal('좌타자로 출전 시 구위가 5 감소합니다')
+        result['skills'][0]['effects'][0]['values'] = '6'
+        updater.apply_result(self.data, result, '리틀 빅맨 안내', POST, self.state)
+        self.assertEqual(self.data['effects'][0]['values'], '6')
+
+    def test_explicit_structured_condition_change_remains_allowed(self):
+        result = self.existing_description_proposal('우타자로 출전 시 구위가 5 감소합니다')
+        result['skills'][0]['effects'][0]['condition'] = '우타'
+        updater.apply_result(self.data, result, '리틀 빅맨 안내', POST, self.state)
+        self.assertEqual(self.data['effects'][0]['condition'], '우타')
+
     def test_nonfinite_or_large_values_rejected(self):
         for value in ['nan', 'inf', '155', '1/2', '']:
             with self.subTest(value=value), self.assertRaises(ValueError):
@@ -585,6 +635,26 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(report['changed'], [])
         self.assertTrue(all(not rows for group in report['changes'].values() for rows in group.values()))
         self.assert_unchanged()
+
+    def test_description_only_rewrite_rolls_back_whole_notice_and_reports_review(self):
+        with (self.resources / 'score_skills.csv').open('a') as handle:
+            handle.write('G_999,NORMAL,BATTER,기존 스킬,파워 5 증가\n')
+        with (self.resources / 'score_effects.csv').open('a') as handle:
+            handle.write('G_999,파워,ALWAYS,5,\n')
+        self.before = {path.name: path.read_bytes() for path in self.resources.iterdir()}
+        self.bodies[self.first['url']] += '<p>기존 스킬</p>'
+        self.results[self.first['url']]['skills'].append(proposal(skill_id='G_999', name='기존 스킬',
+            description='모든 상황에서 파워가 5 증가', evidence='기존 스킬')['skills'][0])
+        report = self.run_update(apply=True, continue_on_review=True)
+        self.assertEqual({path.name: path.read_bytes() for path in self.resources.iterdir()}, self.before)
+        state = json.loads(self.state.read_text())
+        self.assertEqual(state['posts'], {})
+        self.assertEqual(state['skills'], {})
+        self.assertEqual(report['status'], 'partial-review')
+        self.assertIn('Description-only rewrite requires manual review', report['reviews'][0]['reason'])
+        self.assertEqual(report['changed'], [])
+        self.assertTrue(all(not rows for group in report['changes'].values() for rows in group.values()))
+        self.assertEqual(self.positive_entries(), [])
 
     def test_supported_notices_before_and_after_review_are_applied(self):
         middle = self.add_post('보류 스킬', 2)

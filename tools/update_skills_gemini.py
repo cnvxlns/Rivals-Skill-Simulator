@@ -335,18 +335,23 @@ def apply_result(data, result, text, post, state):
         raise ValueError(f"Manual review required: {result['review_reasons']}")
     if not isinstance(result["skills"], list):
         raise ValueError("skills must be an array")
+    normalized_text = re.sub(r"\s+", "", text)
     seen = set()
     for proposed in result["skills"]:
         require_fields(proposed, SCHEMA["properties"]["skills"]["items"]["properties"])
         for key in ["skill_id", "card_type", "tier", "position", "name", "description", "evidence"]:
             if not isinstance(proposed[key], str) or (key != "skill_id" and not proposed[key].strip()):
                 raise ValueError(f"Invalid {key}")
-        if proposed["evidence"] not in text:
-            raise ValueError("Evidence is not in notice")
+        evidence = re.sub(r"\s+", "", proposed["evidence"])
+        if not evidence or evidence not in normalized_text:
+            raise ValueError(
+                f"Evidence is not in notice: name={proposed['name'][:80]!r} "
+                f"card={proposed['card_type'][:30]!r} position={proposed['position'][:50]!r} "
+                f"excerpt={proposed['evidence'][:160]!r}")
         canonical_name = notices._key(proposed["name"])
         spellings = [canonical_name] + [alias for alias, target in notices.NAME_ALIASES.items()
                                        if target == canonical_name]
-        if not any(spelling in re.sub(r"\s+", "", text) for spelling in spellings):
+        if not any(spelling in normalized_text for spelling in spellings):
             raise ValueError("Skill name is not in notice")
         card, tier = proposed["card_type"], proposed["tier"]
         if tier not in PREFIX or card not in validator.CARD_TYPES or (

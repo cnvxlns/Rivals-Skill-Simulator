@@ -96,6 +96,34 @@ class UpdateTests(unittest.TestCase):
             with self.subTest(result=result), self.assertRaises(ValueError):
                 self.apply(result)
 
+    def test_evidence_ignores_only_unicode_whitespace(self):
+        cases = [(TEXT, '파워\n능력치가\t5 증가합니다'),
+                 (TEXT.replace(' ', '\xa0'), '파워 능력치가 5\u2003증가합니다'),
+                 (updater.notice_text('<table><tr><td>새 스킬</td><td>파워 5 증가</td></tr></table>'),
+                  '새\n스킬\t|\xa0파워\u20035 증가')]
+        for text, evidence in cases:
+            with self.subTest(evidence=evidence):
+                data = {key: [] for key in updater.FILES}
+                state = {'posts': {}, 'skills': {}}
+                updater.apply_result(data, proposal(evidence=evidence), text, POST, state)
+                self.assertEqual(len(data['skills']), 1)
+
+    def test_evidence_still_rejects_changed_facts_punctuation_and_empty_text(self):
+        for evidence in ['파워 능력치가 6 증가합니다', '파워 능력치가 5 감소합니다',
+                         '파워 능력치가 5 증가합니다.', '없는 스킬 설명', '\xa0\n\t\u2003']:
+            with self.subTest(evidence=evidence), self.assertRaises(ValueError):
+                self.apply(proposal(evidence=evidence))
+
+    def test_evidence_failure_diagnostic_is_bounded_and_identifies_skill(self):
+        evidence = 'missing\n' + '가' * 500
+        with self.assertRaisesRegex(ValueError, 'Evidence is not in notice') as caught:
+            self.apply(proposal(evidence=evidence))
+        message = str(caught.exception)
+        for part in ("name='새 스킬'", "card='NORMAL'", "position='BATTER'", repr(evidence[:160])):
+            self.assertIn(part, message)
+        self.assertNotIn('\n', message)
+        self.assertLess(len(message), 500)
+
     def test_nonfinite_or_large_values_rejected(self):
         for value in ['nan', 'inf', '155', '1/2', '']:
             with self.subTest(value=value), self.assertRaises(ValueError):

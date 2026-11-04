@@ -73,6 +73,9 @@ docs/*
 # ===========================
 __pycache__/
 *.py[cod]
+.cache/gemini-responses/
+.cache/gemini-review-report.json
+.cache/gemini-pr-body.md
 
 # ===========================
 # Environment files

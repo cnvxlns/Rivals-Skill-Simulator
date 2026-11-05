@@ -11,7 +11,7 @@ import com.example.skillsim.model.TeamBuffSkill
  *
  * 게임 설명문이 "라인업에 등록된 모든 타자/투수", "팀 타자 전체"라고 적은 스킬이다 — 타자·투수
  * 케미스트리, WBC 에이스 둘, 커맨더, 포수 리드, 리더십, 타선지원, 퍼포머트리오(투수),
- * 리그의 지배자 둘. 이 효과는 `score_effects.csv`에 두지 않는다. 계산기와 점수표는 보유자
+ * 리그의 지배자 둘, 컴백 플래그. 이 효과는 `score_effects.csv`에 두지 않는다. 계산기와 점수표는 보유자
  * 본인의 효과만 채점하고, 팀 효과는 여기서 라인업에만 준다.
  *
  * 워크북은 같은 것을 팀 설정 드롭다운으로 따로 받는다. 우리는 드롭다운을 두지 않는다 —
@@ -81,7 +81,7 @@ internal class TeamBuffResolver(
             val buffs = teamBuffSkills.getValue(skillId)
             val given = LinkedHashMap<String, Double>()
             for (buff in buffs) {
-                val amount = buff.at(level) * modeFactor(buff.condition)
+                val amount = buff.at(level) * conditionFactor(buff.condition, player)
                 if (amount == 0.0) continue
                 val target = if (buff.scope == TeamBuffSkill.Scope.BATTER) batter else pitcher
                 target.merge(buff.stat, amount, Double::plus)
@@ -100,14 +100,14 @@ internal class TeamBuffResolver(
         return Result(batter, pitcher, sources)
     }
 
-    /**
-     * 버프가 걸리는 모드의 확률. 리그의 지배자처럼 "리그 모드에서"만 주는 팀 버프는 랭킹대전
-     * 기준 0이다. 자리 조건(`포지션_C`)은 [givesFrom]이 따로 본다.
-     */
-    private fun modeFactor(condition: String): Double {
-        val modes = condition.split("+").map(String::trim).filter { it.startsWith("모드_") }
-        if (modes.isEmpty()) return 1.0
-        return modes.maxOf { ScoreCalculator.modeProbabilities[it] ?: 0.0 }
+    /** 보유자의 자리와 경기 상황을 본다. 모드 OR·자리 게이트는 개인 효과와 같은 규칙이다. */
+    private fun conditionFactor(condition: String, player: DeckPlayer): Double {
+        val probabilities = ScoreCalculator.conditionProbabilitiesForPosition(
+            position = DeckRules.positionForSlot(player.slot) ?: player.position,
+            battingOrder = player.battingOrder,
+            pitcherSlot = DeckRules.pitcherSlotNumber(player.slot),
+        )
+        return ScoreCalculator().conditionProbability(condition, probabilities)
     }
 
     /**
@@ -117,6 +117,8 @@ internal class TeamBuffResolver(
      * 팀 투수를 올려 주지 않는다.
      */
     private fun givesFrom(player: DeckPlayer, buffs: List<TeamBuffSkill>): Boolean {
+        // 자리 게이트를 만족하지 않는 보유자가 최고 레벨 중복 제거에서 다른 보유자를 가리지 않는다.
+        if (buffs.none { conditionFactor(it.condition, player) > 0.0 }) return false
         val required = buffs.firstNotNullOfOrNull { it.requiresSlot } ?: return true
         return player.slot == required
     }

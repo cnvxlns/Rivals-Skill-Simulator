@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.tuple
+import org.assertj.core.api.Assertions.within
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
@@ -20,6 +21,67 @@ import org.springframework.core.io.ClassPathResource
 class ScoreDataLoaderTest {
 
     private val loader = ScoreDataLoader(mock(ScoreSkillRepository::class.java))
+
+    @Test
+    fun `black relief skills use the official seven levels and RP only scoring`() {
+        val bundled = readBundledScoreSkills()
+        val ids = listOf("BLACK_025", "BLACK_026", "BLACK_027")
+        val relief = bundled.filter { it.skillKey in ids }
+        val base = listOf(2, 3, 3, 4, 4, 6, 9)
+        val early = listOf(7, 8, 9, 10, 11, 13, 16)
+        val lead = listOf(4, 5, 6, 7, 8, 10, 13)
+        val trail = listOf(2, 3, 4, 5, 6, 8, 11)
+        val calculator = ScoreCalculator()
+        val weights = resourceReader("stat_weights.csv").use(loader::readStatWeights)
+        assertThat(relief).hasSize(3)
+        for (skill in relief) {
+            assertThat(skill.cardType).isEqualTo("BLACK")
+            assertThat(skill.position).isEqualTo("RP")
+            assertThat(skill.effects).allSatisfy { assertThat(it.values.split("/")).hasSize(7) }
+            for (level in 1..7) {
+                val index = level - 1
+                val expected = when (skill.skillKey) {
+                    "BLACK_025" -> base[index] * 2.4 + early[index] * 2.0 * 0.75
+                    "BLACK_026" -> base[index] * 2.35 + lead[index] * 2.4 * 0.63
+                    else -> base[index] * 2.35 + trail[index] * 2.35 * 0.63
+                }
+                val result = calculator.calculate(listOf(ScoreCalculator.Selection(skill, level)), weights,
+                    ScoreCalculator.conditionProbabilitiesForPosition("RP"))
+                assertThat(result.total).describedAs("%s level %s", skill.skillKey, level)
+                    .isCloseTo(expected, within(0.0051))
+            }
+            for (position in listOf("SP", "CP", "BATTER")) {
+                val result = calculator.calculate(listOf(ScoreCalculator.Selection(skill, 5)), weights,
+                    ScoreCalculator.conditionProbabilitiesForPosition(position))
+                assertThat(result.total).isEqualTo(0.0)
+            }
+        }
+        // 3아웃까지는 3타자 동안과 다르다. 0·1·2아웃 세 구간(각 1/4)만 켜진다.
+        val leverage = relief.single { it.skillKey == "BLACK_025" }
+        assertThat(leverage.effects.filter { it.condition.contains("처리아웃") }).hasSize(9)
+        assertThat(leverage.effects).noneSatisfy { assertThat(it.condition).contains("처리아웃3") }
+        // 팀 타자의 파워·정확 증가는 투수 개인 점수에 상대 디버프로 들어가지 않는다.
+        assertThat(relief.single { it.skillKey == "BLACK_027" }.effects)
+            .allSatisfy { assertThat(it.stat).isIn("구위", "변화") }
+
+        val repository = mock(ScoreSkillRepository::class.java)
+        `when`(repository.findAll()).thenReturn(relief)
+        `when`(repository.findByCardTypeIgnoreCase("BLACK")).thenReturn(relief)
+        val service = ScoreService(repository, calculator, weights)
+        assertThat(service.listSkills("SIGNATURE_BLACK", null, "RP")).extracting("skillId")
+            .containsAll(ids)
+        assertThat(service.listSkills("SIGNATURE_BLACK", null, "RP")).filteredOn { it.skillId in ids }
+            .allSatisfy { assertThat(it.maxLevel).isEqualTo(7) }
+        for (position in listOf("SP", "CP", "BATTER")) {
+            assertThat(service.listSkills("SIGNATURE_BLACK", null, position)).extracting("skillId")
+                .doesNotContain(*ids.toTypedArray())
+        }
+        val entries = service.buildScoreTable(ScoreTableRequest(position = "RP"), 0)
+            .tiers.single { it.tier == "black" }.entries.associateBy { it.skillId }
+        for ((id, score) in mapOf("BLACK_025" to 26.10, "BLACK_026" to 21.50, "BLACK_027" to 18.28)) {
+            assertThat(entries.getValue(id).score).isEqualTo(score)
+        }
+    }
 
     @Test
     fun `swift handling uses the four out relief average at all nine levels`() {

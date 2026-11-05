@@ -2,6 +2,7 @@ import csv
 import re
 import unittest
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
 
 from skill_parser import SkillRow, build_effect_rows, expand_value, _all_stats_for, _condition_for
@@ -31,6 +32,26 @@ def _effects_by_skill() -> dict[str, list[tuple[str, str, str]]]:
 
 
 class SkillParserTest(unittest.TestCase):
+    def test_black_relief_effects_regenerate_without_turning_team_buffs_into_debuffs(self):
+        variables = defaultdict(dict)
+        with (RESOURCES / "skill_placeholders.csv").open(encoding="utf-8-sig", newline="") as fp:
+            for row in csv.DictReader(fp):
+                variables[row["skill_id"]][row["letter"]] = row["values"]
+        for skill in _skills():
+            if skill.skill_id not in {"BLACK_025", "BLACK_026", "BLACK_027"}:
+                continue
+            skill = replace(skill, variables=variables[skill.skill_id])
+            effects, notes = build_effect_rows(skill)
+            self.assertEqual(notes, [])
+            self.assertEqual([(e.stat, e.condition, e.values) for e in effects],
+                             _effects_by_skill()[skill.skill_id])
+            self.assertTrue(all(len(e.values.split("/")) == 7 for e in effects))
+            if skill.skill_id == "BLACK_027":
+                self.assertEqual({e.stat for e in effects}, {"구위", "변화"})
+            if skill.skill_id == "BLACK_025":
+                self.assertEqual({e.condition for e in effects if "처리아웃" in e.condition},
+                                 {f"포지션_RP+처리아웃{i}" for i in range(3)})
+
     def test_swift_handling_regenerates_integer_out_intervals_from_official_ladder(self):
         skill = next(row for row in _skills() if row.skill_id == "G_077")
         effects, notes = build_effect_rows(skill)

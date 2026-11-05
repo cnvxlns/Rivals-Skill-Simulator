@@ -60,12 +60,18 @@ class FetchBoardTests(unittest.TestCase):
         self.assertIn(2, notices.BOARDS)
 
     def test_korean_request_and_post_limit(self):
-        raw = json.dumps({"contents_list": {"list": [API_ITEM] * 10}})
+        raw = json.dumps({"list": {"list": [API_ITEM] * 10}})
         with patch.object(notices, "_get", return_value=raw) as get:
             posts = notices.fetch_board(9)
         self.assertEqual(posts, [POST] * notices.POSTS_PER_BOARD)
         request = get.call_args
-        self.assertEqual(parse_qs(request.kwargs["data"].decode())["board_idx"], ["9"])
+        self.assertEqual(request.args[0],
+                         f"{notices.BASE}/MLB9IRIVALS/board/list/getGeneralPostList")
+        self.assertEqual(parse_qs(request.kwargs["data"].decode()), {
+            "page": ["1"], "board_idx": ["9"], "board_comment": ["1"],
+            "boardtype1_preview_image": ["1"], "is_mobile": ["0"],
+            "sort_type": ["1"], "header": ["0"],
+        })
         self.assertEqual(request.kwargs["referer"], f"{notices.BASE}/MLB9IRIVALS/ko/board/9")
 
     def test_get_sends_korean_language_and_user_agent(self):
@@ -80,10 +86,11 @@ class FetchBoardTests(unittest.TestCase):
         self.assertEqual(headers["referer"], "https://example.test/ko")
 
     def test_invalid_or_empty_lists_are_errors(self):
-        for response in [None, [], {}, {"contents_list": None},
-                         {"contents_list": {}}, {"contents_list": {"list": None}},
-                         {"contents_list": {"list": {}}},
-                         {"contents_list": {"list": []}}]:
+        for response in [None, [], {}, {"list": None},
+                         {"list": {}}, {"list": {"list": None}},
+                         {"list": {"list": {}}},
+                         {"list": {"list": []}},
+                         {"contents_list": {"list": [API_ITEM]}}]:
             with self.subTest(response=response):
                 with patch.object(notices, "_get", return_value=json.dumps(response)):
                     with self.assertRaises(ValueError):
@@ -93,7 +100,7 @@ class FetchBoardTests(unittest.TestCase):
         for item in [None, {}, {**API_ITEM, "idx": None}, {**API_ITEM, "idx": -1},
                      {**API_ITEM, "title": " "}, {**API_ITEM, "regdate": None}]:
             with self.subTest(item=item):
-                raw = json.dumps({"contents_list": {"list": [item]}})
+                raw = json.dumps({"list": {"list": [item]}})
                 with patch.object(notices, "_get", return_value=raw):
                     with self.assertRaises(ValueError):
                         notices.fetch_board(9)

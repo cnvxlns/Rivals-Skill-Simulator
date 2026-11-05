@@ -29,7 +29,9 @@ class ScoreDataLoaderTest {
         assertThat(skill.effects).hasSize(8)
         val calculator = ScoreCalculator()
         val weights = resourceReader("stat_weights.csv").use(loader::readStatWeights)
-        val expectedScores = listOf(10.58, 15.28, 19.98, 24.68, 29.38, 34.08, 38.78, 43.48, 48.18)
+        // 기존 계산기는 효과별 Double 기여도를 더한 뒤 소수 둘째 자리로 반올림한다.
+        // 일부 .005 경계는 부동소수점 누적 오차로 아래쪽 센트가 된다.
+        val expectedScores = listOf(10.58, 15.27, 19.98, 24.67, 29.38, 34.07, 38.78, 43.47, 48.18)
         for (level in 1..9) {
             val result = calculator.calculate(
                 listOf(ScoreCalculator.Selection(skill, level)), weights,

@@ -31,6 +31,18 @@ def _effects_by_skill() -> dict[str, list[tuple[str, str, str]]]:
 
 
 class SkillParserTest(unittest.TestCase):
+    def test_swift_handling_regenerates_integer_out_intervals_from_official_ladder(self):
+        skill = next(row for row in _skills() if row.skill_id == "G_077")
+        effects, notes = build_effect_rows(skill)
+        self.assertEqual(notes, [])
+        self.assertEqual([(effect.stat, effect.condition, effect.values) for effect in effects],
+                         _effects_by_skill()["G_077"])
+        for level, initial in enumerate(range(6, 23, 2)):
+            for stat in ("구위", "변화"):
+                values = [float(effect.values.split("/")[level]) for effect in effects if effect.stat == stat]
+                self.assertEqual(values, [max(2, initial - outs) for outs in range(4)])
+                self.assertEqual(sum(values) / 4, initial - 1.5)
+
     def test_expand_x_expressions_to_nine_levels(self):
         self.assertEqual(expand_value("x+1", {}), "2/3/4/5/6/7/8/9/10")
         self.assertEqual(expand_value("3*x", {}), "3/6/9/12/15/18/21/24/27")

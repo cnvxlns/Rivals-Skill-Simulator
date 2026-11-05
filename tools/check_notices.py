@@ -95,17 +95,17 @@ def fetch_board(board: int) -> list[dict[str, str]]:
     """목록 API. 한국어 글을 받으려면 ko Referer가 필요하다(영문 글은 idx가 다르다)."""
     payload = urllib.parse.urlencode(
         {
-            "page": 1, "board_idx": board, "board_type": 1, "board_comment": 0,
-            "is_mobile": 0, "select_type": 1, "view_type": "list",
+            "page": 1, "board_idx": board, "board_comment": 1,
+            "boardtype1_preview_image": 1, "is_mobile": 0, "sort_type": 1, "header": 0,
         }
     ).encode()
     raw = _get(
-        f"{BASE}/MLB9IRIVALS/board/list/getBoardList",
+        f"{BASE}/MLB9IRIVALS/board/list/getGeneralPostList",
         data=payload,
         referer=f"{BASE}/MLB9IRIVALS/ko/board/{board}",
     )
     result = json.loads(raw)
-    contents = result.get("contents_list") if isinstance(result, dict) else None
+    contents = result.get("list") if isinstance(result, dict) else None
     items = contents.get("list") if isinstance(contents, dict) else None
     if not isinstance(items, list) or not items:
         raise ValueError("공지 목록이 없거나 응답 형식이 잘못되었습니다")

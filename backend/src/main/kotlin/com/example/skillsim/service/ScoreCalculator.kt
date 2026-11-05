@@ -417,6 +417,7 @@ private object HandednessGateResolver : ConditionResolver {
 /** 배치 자리 게이트. [position]은 정규화된 값이다. */
 private fun positionGateValues(position: String): Map<String, Double> = mapOf(
     "포지션_SP" to gate(position == "SP"),
+    "포지션_RP" to gate(position == "RP"),
     "포지션_RP_CP" to gate(position in setOf("RP", "CP")),
     "포지션_DH" to gate(position == "DH"),
     "포지션_2B" to gate(position == "2B"),
@@ -571,6 +572,18 @@ private object MaestroCumulativeResolver : ConditionResolver {
     }
 }
 
+/** 신속한 처리: 중계 4아웃을 잡기 전의 0·1·2·3아웃 구간을 같은 비중으로 평균한다. */
+private object ProcessedOutResolver : ConditionResolver {
+    override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
+        val outs = EXPECTED_OUTS_BY_ROLE.getValue("RP")
+        // CSV는 4아웃 모델의 네 구간을 담는다. 가정을 바꾸면 효과 행도 함께 갱신해야 한다.
+        check(outs == 4) { "Processed-out effects require the four-out relief model" }
+        for (processed in 0 until outs) {
+            probabilities["처리아웃$processed"] = 1.0 / outs
+        }
+    }
+}
+
 private object InningResolver : ConditionResolver {
     override fun apply(probabilities: MutableMap<String, Double>, context: ConditionContext) {
         val inningWeights = INNING_WEIGHTS_BY_ROLE[context.role]
@@ -641,6 +654,7 @@ private val CONDITION_RESOLVERS = listOf(
     DurationResolver,
     PreviousResultResolver,
     MaestroCumulativeResolver,
+    ProcessedOutResolver,
     StatComparisonResolver,
     BaseStatThresholdResolver,
     CardGradeResolver,

@@ -120,6 +120,13 @@ internal object ConditionScenario {
         gameStatePartition(probabilities)?.let(::add)
         previousBatterPartition(probabilities)?.let(::add)
         previousPlatePartition(probabilities)?.let(::add)
+        val outTokens = (0..3).map { "처리아웃$it" }
+        if (outTokens.all { it in probabilities }) {
+            add(Partition(
+                outTokens.map { probabilities.getValue(it) }.toDoubleArray(),
+                outTokens.mapIndexed { index, token -> token to setOf(index) }.toMap(),
+            ))
+        }
         for ((left, right) in COMPLEMENT_PAIRS) {
             val p = probabilities[left] ?: continue
             val tokens = mutableMapOf(left to setOf(0), right to setOf(1))

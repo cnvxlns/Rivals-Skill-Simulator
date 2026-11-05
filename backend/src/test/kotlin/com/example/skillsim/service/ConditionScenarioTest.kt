@@ -6,6 +6,18 @@ import org.junit.jupiter.api.Test
 
 class ConditionScenarioTest {
 
+    @Test
+    fun `처리 아웃 구간을 못박으면 나머지 구간은 배타적으로 조정된다`() {
+        val active = forced("처리아웃1", true, "RP")
+        assertThat((0..3).map { active.getValue("처리아웃$it") })
+            .containsExactly(0.0, 1.0, 0.0, 0.0)
+        val inactive = forced("처리아웃1", false, "RP")
+        assertThat(inactive["처리아웃1"]).isEqualTo(0.0)
+        for (outs in listOf(0, 2, 3)) {
+            assertThat(inactive["처리아웃$outs"]).isCloseTo(1.0 / 3.0, within(1e-9))
+        }
+    }
+
     private fun forced(token: String, active: Boolean, position: String = "BATTER", order: Int? = 3) =
         ScoreCalculator.conditionProbabilitiesForPosition(position, order).also {
             ConditionScenario.apply(it, token, active, SkillRules.roleForPosition(position), order)

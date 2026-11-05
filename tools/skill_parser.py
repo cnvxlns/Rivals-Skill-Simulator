@@ -193,6 +193,16 @@ def build_effect_rows(row: SkillRow) -> tuple[list[EffectRow], list[ReviewNote]]
 
 
 def _manual_effect_rows(row: SkillRow) -> list[EffectRow] | None:
+    if row.skill_id == "G_077":
+        initial = row.variables.get("x") or "6/8/10/12/14/16/18/20/22"
+        # RP 4아웃 모델: 각 아웃을 잡기 전 효과를 정수로 저장해 엔진의 floor를 피한다.
+        return [
+            EffectRow(row.skill_id, stat, f"포지션_RP+처리아웃{outs}",
+                      "/".join(_format_number(max(2, float(value) - outs))
+                               for value in initial.split("/")))
+            for outs in range(4)
+            for stat in ("구위", "변화")
+        ]
     if row.skill_id == "M_042":
         return [
             *(EffectRow(row.skill_id, stat, "ALWAYS", "11") for stat in BATTER_STATS),

@@ -78,6 +78,7 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "모드_타점배틀" to "condition_mode_rbi_battle",
     "모드_랭킹슬러거" to "condition_mode_ranking_slugger",
     "포지션_SP" to "condition_gate_position_sp",
+    "포지션_RP" to "condition_gate_position_rp",
     "포지션_RP_CP" to "condition_gate_position_rp_cp",
     "포지션_DH" to "condition_gate_position_dh",
     "포지션_2B" to "condition_gate_position_2b",
@@ -96,10 +97,14 @@ private val CONDITION_DESCRIPTION_KEYS = mapOf(
     "좌타" to "condition_left_handed_bat",
     "우타" to "condition_right_handed_bat",
     "스위치타" to "condition_switch_hitter",
+    "처리아웃0" to "condition_processed_outs_0",
+    "처리아웃1" to "condition_processed_outs_1",
+    "처리아웃2" to "condition_processed_outs_2",
+    "처리아웃3" to "condition_processed_outs_3",
 )
 
 private val GATE_TOKENS = listOf(
-    "포지션_SP", "포지션_RP_CP", "포지션_DH", "포지션_2B", "포지션_SS", "포지션_OF", "포지션_CF", "포지션_C",
+    "포지션_SP", "포지션_RP", "포지션_RP_CP", "포지션_DH", "포지션_2B", "포지션_SS", "포지션_OF", "포지션_CF", "포지션_C",
     "선발1", "선발1_2", "선발3_4", "선발3_4_5", "선발4_5", "중계3_4_5",
     "좌완", "우완", "좌타", "우타", "스위치타",
     // 카드 고유 능력치 임계. baseStats가 오면 0/1로 확정되므로 게이트로 다룬다.
@@ -147,6 +152,7 @@ class MethodologyService(
             // 가중치 미정 조건. 설명 문구가 "(잠정)"으로 끝나 화면에서 가려 볼 수 있다.
             ScoreCalculator.pendingConditionProbabilities,
             previousResultProbabilities,
+            ScoreCalculator.conditionProbabilitiesForPosition("RP").filterKeys { it.startsWith("처리아웃") },
             ScoreCalculator.plateSituationProbabilities,
             ScoreCalculator.gameStateProbabilities,
             ScoreCalculator.modeProbabilities,

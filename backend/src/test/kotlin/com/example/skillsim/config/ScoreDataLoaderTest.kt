@@ -22,6 +22,50 @@ class ScoreDataLoaderTest {
     private val loader = ScoreDataLoader(mock(ScoreSkillRepository::class.java))
 
     @Test
+    fun `swift handling uses the four out relief average at all nine levels`() {
+        val skill = readBundledScoreSkills().first { it.skillKey == "G_077" }
+        assertThat(skill.position).isEqualTo("RP")
+        assertThat(skill.cardType).isEqualTo("NORMAL")
+        assertThat(skill.effects).hasSize(8)
+        val calculator = ScoreCalculator()
+        val weights = resourceReader("stat_weights.csv").use(loader::readStatWeights)
+        // 기존 계산기는 효과별 Double 기여도를 더한 뒤 소수 둘째 자리로 반올림한다.
+        // 일부 .005 경계는 부동소수점 누적 오차로 아래쪽 센트가 된다.
+        val expectedScores = listOf(10.58, 15.27, 19.98, 24.67, 29.38, 34.07, 38.78, 43.47, 48.18)
+        for (level in 1..9) {
+            val result = calculator.calculate(
+                listOf(ScoreCalculator.Selection(skill, level)), weights,
+                ScoreCalculator.conditionProbabilitiesForPosition("RP"),
+            )
+            assertThat(result.total).describedAs("level %s", level).isEqualTo(expectedScores[level - 1])
+            val expectedMean = (6 + (level - 1) * 2) - 1.5
+            for (stat in listOf("구위", "변화")) {
+                assertThat(result.perSkill.single().breakdown.filter { it.stat == stat }
+                    .sumOf { it.value * it.conditionProbability }).isEqualTo(expectedMean)
+            }
+        }
+        for (position in listOf("SP", "CP", "BATTER")) {
+            val result = calculator.calculate(
+                listOf(ScoreCalculator.Selection(skill, 5)), weights,
+                ScoreCalculator.conditionProbabilitiesForPosition(position),
+            )
+            assertThat(result.total).describedAs("position %s", position).isEqualTo(0.0)
+        }
+
+        val repository = mock(ScoreSkillRepository::class.java)
+        `when`(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(listOf(skill))
+        `when`(repository.findAll()).thenReturn(listOf(skill))
+        val service = ScoreService(repository, calculator, weights)
+        assertThat(service.listSkills("SIGNATURE", null, "RP")).extracting("skillId").contains("G_077")
+        for (position in listOf("SP", "CP", "BATTER")) {
+            assertThat(service.listSkills("SIGNATURE", null, position)).extracting("skillId").doesNotContain("G_077")
+        }
+        val entry = service.buildScoreTable(ScoreTableRequest(position = "RP"), 0)
+            .tiers.first { it.tier == "gold" }.entries.first { it.skillId == "G_077" }
+        assertThat(entry.score).isEqualTo(29.38)
+    }
+
+    @Test
     fun `readScoreSkills links effects by skill key`() {
         val skillsCsv = """
             skill_id,card_type,position,name,description

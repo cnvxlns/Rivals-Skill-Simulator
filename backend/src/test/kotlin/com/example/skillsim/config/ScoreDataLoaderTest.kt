@@ -54,6 +54,7 @@ class ScoreDataLoaderTest {
 
         val repository = mock(ScoreSkillRepository::class.java)
         `when`(repository.findByCardTypeIgnoreCase("NORMAL")).thenReturn(listOf(skill))
+        `when`(repository.findAll()).thenReturn(listOf(skill))
         val service = ScoreService(repository, calculator, weights)
         assertThat(service.listSkills("SIGNATURE", null, "RP")).extracting("skillId").contains("G_077")
         for (position in listOf("SP", "CP", "BATTER")) {

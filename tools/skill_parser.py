@@ -193,6 +193,26 @@ def build_effect_rows(row: SkillRow) -> tuple[list[EffectRow], list[ReviewNote]]
 
 
 def _manual_effect_rows(row: SkillRow) -> list[EffectRow] | None:
+    if row.skill_id in {"BLACK_025", "BLACK_026", "BLACK_027"}:
+        base = row.variables.get("y") or "2/3/3/4/4/6/9"
+        if row.skill_id == "BLACK_025":
+            early = row.variables.get("z") or "7/8/9/10/11/13/16"
+            # 3타자가 아니라 3아웃까지다. 기존 RP 4아웃 모델의 앞 세 구간만 센다.
+            return [
+                *(EffectRow(row.skill_id, stat, "포지션_RP", base)
+                  for stat in ("파워", "정확", "선구")),
+                *(EffectRow(row.skill_id, stat, f"포지션_RP+처리아웃{outs}", early)
+                  for outs in range(3) for stat in ("파워", "정확", "인내")),
+            ]
+        lead = row.skill_id == "BLACK_026"
+        condition = "비김또는리드" if lead else "비김또는열세"
+        extra = row.variables.get("z") or ("4/5/6/7/8/10/13" if lead else "2/3/4/5/6/8/11")
+        # 컴백 플래그의 팀 타자 버프는 team_buff_skills.csv에서 덱에만 적용한다.
+        return [
+            *(EffectRow(row.skill_id, stat, "포지션_RP", base) for stat in ("구위", "변화")),
+            *(EffectRow(row.skill_id, stat, f"포지션_RP+{condition}", extra)
+              for stat in (("파워", "정확", "선구") if lead else ("구위", "변화"))),
+        ]
     if row.skill_id == "G_077":
         initial = row.variables.get("x") or "6/8/10/12/14/16/18/20/22"
         # RP 4아웃 모델: 각 아웃을 잡기 전 효과를 정수로 저장해 엔진의 floor를 피한다.

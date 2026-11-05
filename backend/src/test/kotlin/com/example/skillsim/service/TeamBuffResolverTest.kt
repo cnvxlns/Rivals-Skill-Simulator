@@ -137,6 +137,32 @@ class TeamBuffResolverTest {
     }
 
     @Test
+    fun `컴백 플래그는 RP가 보유할 때 동점 또는 열세 비율만큼 팀 타자를 올린다`() {
+        val ladder = listOf(1, 1, 2, 2, 3, 3, 4)
+        for (level in 1..7) {
+            val result = resolver().resolve(roster(player("RP1", "BLACK_027" to level)), PositionTraining.EMPTY)
+            val expected = ladder[level - 1] * ScoreCalculator.gameStateProbabilities.getValue("비김또는열세")
+            assertThat(result.batter.getValue("파워")).isCloseTo(expected, within(1e-9))
+            assertThat(result.batter.getValue("정확")).isCloseTo(expected, within(1e-9))
+            assertThat(result.pitcher).isEmpty()
+            assertThat(result.forPlayer("C")).isEqualTo(result.batter)
+            assertThat(result.forPlayer("RP1")).isEmpty()
+        }
+        for (slot in listOf("SP1", "CP1", "C")) {
+            val result = resolver().resolve(roster(player(slot, "BLACK_027" to 5)), PositionTraining.EMPTY)
+            assertThat(result.batter).isEmpty()
+            assertThat(result.sources).isEmpty()
+        }
+        val mixed = resolver().resolve(
+            roster(player("SP1", "BLACK_027" to 7), player("RP1", "BLACK_027" to 5)),
+            PositionTraining.EMPTY,
+        )
+        assertThat(mixed.sources.single().slot).isEqualTo("RP1")
+        assertThat(mixed.batter.getValue("파워")).isCloseTo(1.89, within(1e-9))
+
+    }
+
+    @Test
     fun `팀 버프 행은 보유자 본인의 효과에 들어 있지 않다`() {
         // 계산기와 점수표는 본인 효과만 채점한다. 팀 효과가 효과행에도 있으면 거기서 보유자 점수로 잡힌다.
         for ((skillId, buffs) in deckData.teamBuffSkills) {
@@ -197,7 +223,7 @@ class TeamBuffResolverTest {
     fun `팀 버프 표가 팀 전체 효과를 가진 스킬을 모두 덮는다`() {
         assertThat(deckData.teamBuffSkills.keys).containsExactlyInAnyOrder(
             "HOF_012", "HOF_031", "WBC_005", "WBC_011", "M_014", "G_027",
-            "M_006", "M_026", "G_041", "HOF_003", "HOF_021",
+            "M_006", "M_026", "G_041", "HOF_003", "HOF_021", "BLACK_027",
         )
         assertThat(deckData.teamBuffSkills.values.flatten())
             .allSatisfy { assertThat(it.scope).isIn(*TeamBuffSkill.Scope.entries.toTypedArray()) }

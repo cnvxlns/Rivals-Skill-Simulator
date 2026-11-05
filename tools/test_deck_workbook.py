@@ -371,6 +371,13 @@ class CommittedDataTest(unittest.TestCase):
                 target,
             )
 
+    def test_comeback_flag_team_buff_export_preserves_the_relief_and_game_state_gates(self):
+        rows = D.build_team_buffs(D.read_skill_meta(RESOURCES))
+        self.assertEqual([row for row in rows if row[0] == "BLACK_027"], [
+            ["BLACK_027", "BATTER", "", stat, "포지션_RP+비김또는열세", "1/1/2/2/3/3/4"]
+            for stat in ("파워", "정확")
+        ])
+
     def test_team_buff_rows_are_not_owner_effects(self):
         """팀 버프는 team_buff_skills.csv에만 있고 보유자 본인 효과(score_effects.csv)에는 없다.
         계산기·점수표는 본인 효과만 채점하고 팀 효과는 라인업에서만 준다."""

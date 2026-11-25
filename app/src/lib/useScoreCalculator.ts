@@ -23,15 +23,13 @@ import {
 const DEFAULT_BATTING_ORDER = 1;
 
 /**
- * 빈 슬롯에 스킬을 처음 넣었을 때의 레벨.
- *
- * 점수표가 S 기준으로 채점하므로 계산기도 같은 지점에서 시작해야 두 화면의 숫자를
- * 바로 비교할 수 있다. levelLabels는 그 스킬이 실제로 갈 수 있는 등급만 담고 있어서,
- * S가 없으면(사다리가 D 하나뿐인 스킬 등) 백엔드와 같게 그 스킬의 최대 등급으로 내린다.
+ * 계산기에서 직접 고르는 기본 레벨은 S까지다. 레벨 번호는 풀별 사다리의 순서를
+ * 유지하므로 WBC·모먼트에서는 S가 1이다.
  */
-const defaultLevelFor = (skill: ScoreSkillOption) => {
-  const index = skill.levelLabels?.indexOf('S') ?? -1;
-  return index >= 0 ? index + 1 : Math.max(1, skill.maxLevel);
+const baseLevelsOnly = (skill: ScoreSkillOption): ScoreSkillOption => {
+  const sIndex = skill.levelLabels?.indexOf('S') ?? -1;
+  const maxLevel = Math.min(skill.maxLevel, sIndex < 0 ? 5 : sIndex + 1);
+  return { ...skill, maxLevel, levelLabels: skill.levelLabels?.slice(0, maxLevel) };
 };
 const DEFAULT_USER_STAT = 120;
 const DEFAULT_DECK_SCORE = 500;
@@ -124,6 +122,7 @@ export function useScoreCalculator() {
   const [selectedTicketScope, setTicketScope] = useState<TicketScope>('all');
   // 포지션특훈이 이 자리에 붙여 준 스킬 레벨 보너스. 계정에 저장된 구단 설정과 섞지 않는다.
   const [trainingBonuses, setTrainingBonuses] = useState<SkillLevelBonus[]>(emptyTrainingBonuses);
+  const [hasTranscended, setHasTranscended] = useState(false);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,8 +133,19 @@ export function useScoreCalculator() {
   const [pitcherSlot, setPitcherSlot] = useState<number | null>(null);
   const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
   const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);
+  const calcSeq = useRef(0);
 
   const slotCount = useMemo(() => slotCountFor(cardGrade), [cardGrade]);
+  // HOF·시그니처는 9초월에서 첫 슬롯 +1, 시그니처 블랙은 기본 +1에서 9초월 달성 시 +2가 된다.
+  const canTranscendFirstSlot =
+    cardGrade === CardGrade.HOF ||
+    cardGrade === CardGrade.SIGNATURE ||
+    cardGrade === CardGrade.SIGNATURE_BLACK;
+  const baseFirstSlotBonus = cardGrade === CardGrade.SIGNATURE_BLACK ? 1 : 0;
+  const nineTranscendenceBonus =
+    cardGrade === CardGrade.SIGNATURE_BLACK ? 2 : canTranscendFirstSlot ? 1 : 0;
+  const firstSlotBonus = hasTranscended ? nineTranscendenceBonus : baseFirstSlotBonus;
+  const transcendenceLevel = hasTranscended && canTranscendFirstSlot ? 9 : undefined;
   /** 비교가 꺼져 있으면 A만 본다. */
   const activeCount = compare ? SET_COUNT : 1;
 
@@ -146,6 +156,8 @@ export function useScoreCalculator() {
 
   /** 조건이 바뀌면 모든 벌의 결과가 낡는다. */
   const clearResults = useCallback(() => {
+    calcSeq.current++;
+    setCalculating(false);
     setSets((prev) => prev.map((set) => (set.result ? { ...set, result: null } : set)));
   }, []);
 
@@ -156,7 +168,6 @@ export function useScoreCalculator() {
   // calculateWithStats의 신원이 바뀌어 스탯 재계산 경로가 불필요하게 다시 만들어진다.
   const setsRef = useRef(sets);
   setsRef.current = sets;
-  const calcSeq = useRef(0);
   const scorePosition = subPosition;
   const visibleStats = useMemo(
     () => [...(position === Position.PITCHER ? PITCHER_STATS : BATTER_STATS), ...DECK_STATS],
@@ -274,7 +285,7 @@ export function useScoreCalculator() {
         setError(null);
         const loadedSkills = await fetchScoreSkills(cardGrade, cardVariant, scorePosition);
         if (cancelled) return;
-        setSkills(loadedSkills);
+        setSkills(loadedSkills.map(baseLevelsOnly));
         // 고른 스킬은 건드리지 않는다. 비우는 것은 포지션이 바뀔 때뿐이다(위 효과).
         clearResults();
       } catch {
@@ -303,14 +314,14 @@ export function useScoreCalculator() {
         if (idx !== slotIndex) return selection;
         const nextSkill = skills.find((skill) => skill.skillId === skillId);
         if (!nextSkill) return { skillId, level: 1 };
-        // 빈 슬롯에 처음 넣을 때만 기본값을 준다. 이미 고른 슬롯에서 스킬만 바꾸는 경우는
-        // 사용자가 정한 레벨이므로 유지한다(넘치면 새 스킬의 최대 등급으로 내린다).
-        return {
-          skillId,
-          level: selection.skillId
-            ? Math.min(selection.level, nextSkill.maxLevel) || 1
-            : defaultLevelFor(nextSkill),
-        };
+        if (!selection.skillId) return { skillId, level: nextSkill.maxLevel };
+        const previousSkill = skills.find((skill) => skill.skillId === selection.skillId);
+        // 이전 카드 등급·변형에서만 쓰이던 스킬을 교체할 때는 S(최대 기본 등급)로 시작한다.
+        // WBC·모먼트의 level=1(S)이 일반 스킬의 level=1(D)로 잘못 옮겨지지 않게 한다.
+        if (!previousSkill) return { skillId, level: nextSkill.maxLevel };
+        const previousLabel = previousSkill.levelLabels?.[selection.level - 1];
+        const sameLevel = previousLabel ? (nextSkill.levelLabels?.indexOf(previousLabel) ?? -1) + 1 : 0;
+        return { skillId, level: sameLevel || Math.min(selection.level, nextSkill.maxLevel) };
       }),
     }));
   }, [patchSet, skills]);
@@ -337,6 +348,24 @@ export function useScoreCalculator() {
     );
     clearResults();
   }, [clearResults]);
+
+  const updateTranscendence = useCallback((achieved: boolean) => {
+    if (achieved === hasTranscended) return;
+    setHasTranscended(achieved);
+    clearResults();
+  }, [hasTranscended, clearResults]);
+
+  const selectCardGrade = useCallback((grade: CardGrade) => {
+    if (grade === cardGrade) return;
+    setCardGrade(grade);
+    clearResults();
+  }, [cardGrade, clearResults]);
+
+  const selectCardVariant = useCallback((variant: CardVariant) => {
+    if (variant === cardVariant) return;
+    setCardVariant(variant);
+    clearResults();
+  }, [cardVariant, clearResults]);
 
   const updateLevel = useCallback((setIndex: number, slotIndex: number, level: number) => {
     patchSet(setIndex, (set) => ({
@@ -401,6 +430,7 @@ export function useScoreCalculator() {
       // 다 채웠을 때만 보낸다. 일부만 오면 서버가 어차피 표본 확률로 떨어진다.
       baseStats: Object.keys(base).length > 0 ? base : undefined,
       trainingBonuses: activeTrainingBonuses.length ? activeTrainingBonuses : undefined,
+      transcendenceLevel,
     });
 
     // 늦게 온 이전 요청이 나중 결과를 덮지 않게 한다. 스탯을 연달아 고치면
@@ -424,7 +454,7 @@ export function useScoreCalculator() {
     // 방향을 바꾸고 계산을 누르면 이전 방향으로 요청이 나갔다.
   }, [
     battingOrder, pitcherSlot, canCalculate, hasUnavailableSkill, cardGrade, cardVariant,
-    position, scorePosition, activeCount, throwHand, batHand, activeTrainingBonuses, baseStats,
+    position, scorePosition, activeCount, throwHand, batHand, activeTrainingBonuses, baseStats, transcendenceLevel,
   ]);
 
   // 조건이 바뀌면 화면에 남은 결과는 더 이상 그 조건의 결과가 아니다. updatePitcherSlot과
@@ -473,10 +503,11 @@ export function useScoreCalculator() {
       lockSlotOne: ticketScope === 'lockFirst',
       rerollFirstSlotOnly: ticketScope === 'firstOnly' || undefined,
       trainingBonuses: activeTrainingBonuses.length ? activeTrainingBonuses : undefined,
+      transcendenceLevel,
     };
   }, [
     ticketSelections, ticketHasUnavailableSkill, scorePosition, cardGrade, cardVariant, position,
-    battingOrder, pitcherSlot, throwHand, batHand, userStats, baseStats, ticketScope, activeTrainingBonuses,
+    battingOrder, pitcherSlot, throwHand, batHand, userStats, baseStats, ticketScope, activeTrainingBonuses, transcendenceLevel,
   ]);
 
   // 요청 당시의 A 슬롯과 설정이 화면과 같을 때만 응답을 표시한다.
@@ -551,9 +582,9 @@ export function useScoreCalculator() {
 
   return {
     cardGrade,
-    setCardGrade,
+    setCardGrade: selectCardGrade,
     cardVariant,
-    setCardVariant,
+    setCardVariant: selectCardVariant,
     position,
     setPosition,
     subPosition,
@@ -583,6 +614,12 @@ export function useScoreCalculator() {
     trainingSkills,
     updateTrainingBonus,
     clearTrainingBonus,
+    hasTranscended,
+    canTranscendFirstSlot,
+    baseFirstSlotBonus,
+    nineTranscendenceBonus,
+    firstSlotBonus,
+    updateTranscendence,
     selectedSkillIds,
     visibleStats,
     userStats,

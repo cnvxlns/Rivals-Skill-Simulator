@@ -15,8 +15,11 @@ class TicketExpectationSolver {
         val tier: SkillTier,
         /** 레벨 보너스를 반영한 반올림 전 점수. */
         val scoresByLevel: Map<Level, Double>,
+        /** 첫 슬롯에만 초월 보너스가 더 붙는 경우의 점수. */
+        val firstSlotScoresByLevel: Map<Level, Double>? = null,
     ) {
-        fun scoreAt(level: Level): Double = scoresByLevel[level] ?: 0.0
+        fun scoreAt(level: Level, firstSlot: Boolean = false): Double =
+            (if (firstSlot) firstSlotScoresByLevel ?: scoresByLevel else scoresByLevel)[level] ?: 0.0
     }
 
     data class ProblemInput(
@@ -47,15 +50,17 @@ class TicketExpectationSolver {
         val improveChance: Double,
         val averageGain: Double?,
         val averageTotal: Double,
-        /** 순서를 구분하는 상위 조합. 개선 통계에는 여기에 표시되지 않는 조합도 모두 포함한다. */
+        /** 순서가 무관한 슬롯 순열을 하나로 합친 상위 조합. 개선 통계에는 여기에 표시되지 않는 조합도 모두 포함한다. */
         val betterCombinations: List<BetterCombination>,
+        /** 0부터 세는 슬롯 중 위치가 고정되거나 첫 슬롯 보너스로 구분되는 인덱스. */
+        val pinnedSlots: Set<Int> = emptySet(),
     )
 
     fun solve(input: ProblemInput): Solution = Search(input).solve()
 
     private class Bucket(val index: Int, val tier: SkillTier, val skills: List<SkillCandidate>)
     private data class Draw(val pool: String, val tier: SkillTier, val chance: Double, val levels: Map<Level, Double>)
-    private data class SlotGroup(val bucket: Bucket?, val levels: Map<Level, Double>)
+    private data class SlotGroup(val bucket: Bucket?, val levels: Map<Level, Double>, val firstSlot: Boolean)
     private data class Choice(val skillKey: String?, val level: Level, val score: Double, val weight: Double)
 
     private data class Half(val first: Choice?, val second: Choice?) {
@@ -132,8 +137,41 @@ class TicketExpectationSolver {
             putAll(input.fixedSlots)
         }
         private val fixedKeys = fixed.values.mapNotNull { it.first?.skillKey }.toSet()
-        private val fixedScore = fixed.values.sumOf { (skill, level) -> skill?.scoreAt(level) ?: 0.0 }
+        private val fixedScore = fixed.entries.sumOf { (index, selection) ->
+            val (skill, level) = selection
+            skill?.scoreAt(level, firstSlot = index == 0) ?: 0.0
+        }
+        private val hasFirstSlotScores = input.candidates.any { it.firstSlotScoresByLevel != null }
+        private val candidateByKey = input.candidates.associateBy { it.skillKey }
         private val open = (0 until input.slotCount).filterNot { it in fixed }
+        /**
+         * 순서가 바뀌어도 점수와 적용 등급이 같은 슬롯들.
+         *
+         * 첫 슬롯 보너스가 있으면 0번 슬롯은 보너스를 받는 자리라 구분하고 1번 이후만 묶는다.
+         * 첫 슬롯 보너스가 없으면 열린 슬롯 전체를 하나의 조합으로 묶는다.
+         */
+        private val permutableSlots = open.filter { it != 0 || !hasFirstSlotScores }
+        private val pinnedSlots: Set<Int> =
+            if (permutableSlots.size <= 1) (0 until input.slotCount).toSet()
+            else (0 until input.slotCount).filterNot { it in permutableSlots }.toSet()
+        private val slotOrder: Comparator<CombinationSlot> = Comparator { a, b ->
+            when {
+                a.skillKey == b.skillKey -> b.level.ordinal.compareTo(a.level.ordinal)
+                a.skillKey == null -> 1
+                b.skillKey == null -> -1
+                else -> {
+                    val skillA = candidateByKey.getValue(a.skillKey)
+                    val skillB = candidateByKey.getValue(b.skillKey)
+                    val momentCmp = (skillB.pool == "MOMENT").compareTo(skillA.pool == "MOMENT")
+                    if (momentCmp != 0) return@Comparator momentCmp
+                    val scoreCmp = skillB.scoreAt(b.level).compareTo(skillA.scoreAt(a.level))
+                    if (scoreCmp != 0) return@Comparator scoreCmp
+                    val tierCmp = skillB.tier.ordinal.compareTo(skillA.tier.ordinal)
+                    if (tierCmp != 0) return@Comparator tierCmp
+                    a.skillKey.compareTo(b.skillKey)
+                }
+            }
+        }
         private val split = open.size / 2
         private val currentCents = cents(input.currentTotal)
         private val pools: Map<String, List<Bucket>>
@@ -175,13 +213,15 @@ class TicketExpectationSolver {
             for ((chance, draws) in scenarios) {
                 visitRoutes(draws, mutableListOf(), chance)
             }
+            val combinations = best.map {
+                BetterCombination(it.slots, cents(it.score) / 100.0, chanceOf(it.slots))
+            }.sortedWith(compareByDescending<BetterCombination> { it.total }.thenByDescending { it.chance })
             return Solution(
                 improveChance = improveChance.coerceIn(0.0, 1.0),
                 averageGain = if (improveChance > 0.0) improvedMoment / improveChance else null,
                 averageTotal = averageTotal,
-                betterCombinations = best.sortedByDescending { it.score }.map {
-                    BetterCombination(it.slots, cents(it.score) / 100.0, chanceOf(it.slots))
-                },
+                betterCombinations = combinations,
+                pinnedSlots = pinnedSlots,
             )
         }
 
@@ -230,21 +270,22 @@ class TicketExpectationSolver {
          * 실제 티어가 정해지면 중복을 뺀 추첨 분모는 이미 그 티어에서 고른 개수로 결정된다.
          * 요청한 티어가 소진되면 풀 전체의 남은 스킬에 같은 확률을 부여한다.
          */
-        private fun steps(draws: List<Draw>): Map<SlotGroup, Double> = buildMap {
+        private fun steps(draws: List<Draw>, slotIndex: Int): Map<SlotGroup, Double> = buildMap {
+            val firstSlot = slotIndex == 0 && hasFirstSlotScores
             for (draw in draws) {
                 val pool = pools[draw.pool].orEmpty()
                 val matching = pool.firstOrNull { it.tier == draw.tier && remaining(it) > 0 }
                 if (matching != null) {
-                    addStep(SlotGroup(matching, draw.levels), draw.chance / remaining(matching))
+                    addStep(SlotGroup(matching, draw.levels, firstSlot), draw.chance / remaining(matching))
                     continue
                 }
                 val available = pool.sumOf(::remaining)
                 if (available == 0) {
-                    addStep(SlotGroup(null, draw.levels), draw.chance)
+                    addStep(SlotGroup(null, draw.levels, firstSlot), draw.chance)
                     continue
                 }
                 for (bucket in pool) {
-                    if (remaining(bucket) > 0) addStep(SlotGroup(bucket, draw.levels), draw.chance / available)
+                    if (remaining(bucket) > 0) addStep(SlotGroup(bucket, draw.levels, firstSlot), draw.chance / available)
                 }
             }
         }
@@ -260,7 +301,7 @@ class TicketExpectationSolver {
                 evaluateRoute(route, chance)
                 return
             }
-            for ((group, weight) in steps(draws[route.size])) {
+            for ((group, weight) in steps(draws[route.size], open[route.size])) {
                 val index = group.bucket?.index
                 if (index != null) used[index]++
                 route.add(group)
@@ -274,7 +315,7 @@ class TicketExpectationSolver {
             val skills = group.bucket?.skills ?: listOf(null)
             skills.flatMap { skill ->
                 group.levels.map { (level, weight) ->
-                    Choice(skill?.skillKey, level, skill?.scoreAt(level) ?: 0.0, weight)
+                    Choice(skill?.skillKey, level, skill?.scoreAt(level, group.firstSlot) ?: 0.0, weight)
                 }
             }
         }
@@ -344,29 +385,86 @@ class TicketExpectationSolver {
                     if (!canAdd(total)) break
                     if (right.has(left.firstKey) || right.has(left.secondKey)) continue
                     val choices = listOfNotNull(left.first, left.second, right.first, right.second).iterator()
-                    val slots = List(input.slotCount) { slot ->
+                    val rawSlots = List(input.slotCount) { slot ->
                         val fixedSlot = fixed[slot]
                         if (fixedSlot != null) CombinationSlot(fixedSlot.first?.skillKey, fixedSlot.second)
                         else choices.next().let { CombinationSlot(it.skillKey, it.level) }
                     }
-                    if (!bestSlots.add(slots)) continue
+                    val slots = canonicalize(rawSlots)
+                    if (slots in bestSlots) continue
+                    val canonicalTotal = scoreOf(slots)
+                    if (!canAdd(canonicalTotal)) continue
+                    bestSlots.add(slots)
                     if (best.size == DISPLAY_LIMIT) bestSlots.remove(best.remove().slots)
-                    best.add(RankedCombination(slots, total))
+                    best.add(RankedCombination(slots, canonicalTotal))
                 }
             }
         }
 
+        private fun canonicalize(rawSlots: List<CombinationSlot>): List<CombinationSlot> {
+            if (permutableSlots.size <= 1) return rawSlots
+            val sorted = permutableSlots.map { rawSlots[it] }.sortedWith(slotOrder)
+            val result = rawSlots.toMutableList()
+            for ((idx, slot) in permutableSlots.withIndex()) {
+                result[slot] = sorted[idx]
+            }
+            return result
+        }
+
+        private fun scoreOf(slots: List<CombinationSlot>): Double =
+            slots.withIndex().sumOf { (index, slot) ->
+                val candidate = slot.skillKey?.let(candidateByKey::get) ?: return@sumOf 0.0
+                candidate.scoreAt(slot.level, firstSlot = index == 0 && hasFirstSlotScores)
+            }
+
         private fun canAdd(score: Double): Boolean =
             cents(score) > currentCents && (best.size < DISPLAY_LIMIT || score > best.element().score)
 
-        /** 같은 조합이 여러 티어 폴백 경로에서 나와도 그 경로들의 확률을 전부 합친다. */
-        private fun chanceOf(slots: List<CombinationSlot>): Double = scenarios.sumOf { (chance, draws) ->
+        /** 순서가 무관한 슬롯들의 모든 고유 순열과 티어 폴백 경로의 확률을 합산한다. */
+        private fun chanceOf(canonicalSlots: List<CombinationSlot>): Double =
+            permutationsOf(canonicalSlots).sumOf(::orderedChanceOf)
+
+        private fun permutationsOf(canonicalSlots: List<CombinationSlot>): List<List<CombinationSlot>> {
+            if (permutableSlots.size <= 1) return listOf(canonicalSlots)
+            val current = permutableSlots.map { canonicalSlots[it] }.toMutableList()
+            val distinct = LinkedHashSet<List<CombinationSlot>>()
+            fun permute(start: Int) {
+                if (start == current.lastIndex) {
+                    distinct.add(current.toList())
+                    return
+                }
+                val seenAtStart = HashSet<CombinationSlot>()
+                for (i in start..current.lastIndex) {
+                    val candidate = current[i]
+                    if (!seenAtStart.add(candidate)) continue
+                    if (i != start) {
+                        current[i] = current[start]
+                        current[start] = candidate
+                    }
+                    permute(start + 1)
+                    if (i != start) {
+                        current[start] = current[i]
+                        current[i] = candidate
+                    }
+                }
+            }
+            permute(0)
+            return distinct.map { perm ->
+                val copy = canonicalSlots.toMutableList()
+                for ((idx, slot) in permutableSlots.withIndex()) {
+                    copy[slot] = perm[idx]
+                }
+                copy
+            }
+        }
+
+        private fun orderedChanceOf(slots: List<CombinationSlot>): Double = scenarios.sumOf { (chance, draws) ->
             used.fill(0)
             var product = chance
             for ((index, slot) in open.withIndex()) {
                 val chosen = slots[slot]
                 val bucket = chosen.skillKey?.let(skillBucket::getValue)
-                val weight = steps(draws[index]).entries.sumOf { (group, weight) ->
+                val weight = steps(draws[index], slot).entries.sumOf { (group, weight) ->
                     if (group.bucket === bucket) weight * group.levels.getOrDefault(chosen.level, 0.0) else 0.0
                 }
                 product *= weight

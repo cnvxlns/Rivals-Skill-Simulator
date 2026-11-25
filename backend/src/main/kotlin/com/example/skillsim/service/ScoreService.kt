@@ -76,6 +76,8 @@ class ScoreService private constructor(
         val poolCounts = mutableMapOf<String, Int>()
         val calculatorSelections = mutableListOf<ScoreCalculator.Selection>()
         val trainingBonuses = resolveTrainingBonuses(request.trainingBonuses, normalizedPosition)
+        validateTranscendenceLevel(request.transcendenceLevel)
+        val firstSlotBonus = CardRules.firstSlotTranscendenceBonus(card.grade, request.transcendenceLevel)
 
         selections.orEmpty().forEachIndexed { slotIndex, selection ->
             val skillId = normalizeRequiredOrThrow(selection.skillId, "Skill selection is required.")
@@ -106,7 +108,8 @@ class ScoreService private constructor(
                 throw badRequest("Skill level must be between 1 and $maxLevel.")
             }
 
-            calculatorSelections += ScoreCalculator.Selection(skill, level, trainingBonuses[skillId] ?: 0)
+            val bonus = (trainingBonuses[skillId] ?: 0) + if (slotIndex == 0) firstSlotBonus else 0
+            calculatorSelections += ScoreCalculator.Selection(skill, level, bonus)
         }
 
         return scoreSelections(
@@ -202,6 +205,15 @@ class ScoreService private constructor(
         PositionTrainingRules.resolve(bonuses, position, scoreSkillRepository::findBySkillKey)
     } catch (ex: IllegalArgumentException) {
         throw badRequest(ex.message ?: "Invalid position training bonus.")
+    }
+
+    internal fun validateTranscendenceLevel(transcendenceLevel: Int?) {
+        if (transcendenceLevel != null && transcendenceLevel !in DeckScoreRules.TRANSCENDENCE_LEVELS) {
+            throw badRequest(
+                "Transcendence level must be between ${DeckScoreRules.TRANSCENDENCE_LEVELS.first} " +
+                    "and ${DeckScoreRules.TRANSCENDENCE_LEVELS.last}.",
+            )
+        }
     }
 
     private fun validateBattingOrder(battingOrder: Int?): Int {
@@ -506,7 +518,7 @@ class ScoreService private constructor(
     }
 
     /** 보너스까지 반영한 레벨의 등급 라벨. 화면이 "S -> S2"를 보여 주는 데 쓴다. */
-    private fun appliedGradeLabel(selection: ScoreCalculator.Selection): String? {
+    internal fun appliedGradeLabel(selection: ScoreCalculator.Selection): String? {
         val skill = selection.skill
         return SkillRules.gradeLabels(skill.cardType, SkillRules.maxLevel(skill))
             .getOrNull(selection.effectiveLevel - 1)

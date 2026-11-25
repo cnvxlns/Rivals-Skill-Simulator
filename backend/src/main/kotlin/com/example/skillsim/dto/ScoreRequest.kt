@@ -43,4 +43,6 @@ data class ScoreRequest(
      */
     @field:Valid
     val trainingBonuses: List<SkillLevelBonus>? = null,
+    /** 카드 초월 레벨(0~15). 시그니처 블랙은 기본 +1·9초월 +2, HOF·시그니처는 9초월 +1을 첫 슬롯에 적용한다. */
+    val transcendenceLevel: Int? = null,
 )

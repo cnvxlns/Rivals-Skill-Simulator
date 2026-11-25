@@ -135,6 +135,21 @@ internal object CardRules {
         if (grade == "SIGNATURE_BLACK") 4 else SkillRules.DEFAULT_SLOT_COUNT
 
     /**
+     * 초월 상태에 따라 첫 슬롯에 붙는 스킬 레벨 보너스. 등급의 FA·WBC 변형에도 같은 값이 적용된다.
+     *
+     * 시그니처와 HOF는 9초월 달성 시 첫 슬롯이 +1이 된다. 시그니처 블랙은 9초월 시그니처가
+     * 진화한 형태라 기본적으로 첫 슬롯 +1이 유지되며, 블랙 자체 9초월 달성 시 +2가 된다.
+     */
+    fun firstSlotTranscendenceBonus(grade: String, transcendenceLevel: Int?): Int {
+        val achievedNine = transcendenceLevel != null && transcendenceLevel >= 9
+        return when (grade) {
+            "SIGNATURE_BLACK" -> if (achievedNine) 2 else 1
+            "HOF", "SIGNATURE" -> if (achievedNine) 1 else 0
+            else -> 0
+        }
+    }
+
+    /**
      * 이 풀의 스킬이 이 칸에 놓일 수 있는가.
      *
      * [RollTables]에서 확률이 0인 조합을 막는다. 지금 그런 규칙은 하나다 — 모먼트 전용

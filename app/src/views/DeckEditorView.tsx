@@ -511,11 +511,23 @@ export default function DeckEditorView({
               title={t('deck_score_title')}
               style={width >= 1000 ? { flex: 1, minWidth: 0 } : undefined}
             >
-              {editor.score ? (
+              {!editor.isComplete ? (
+                <View style={{ gap: spacing.md }}>
+                  <InfoBanner text={t('deck_score_roster_incomplete')} />
+                  <PrimaryActionButton
+                    text={t('deck_btn_fill_roster')}
+                    onPress={() => setSection('EDIT')}
+                  />
+                </View>
+              ) : editor.score ? (
                 <ScoreHero label={t('deck_score_title')} value={editor.score.total} />
-              ) : (
-                <InfoBanner text={t('deck_error_incomplete')} />
-              )}
+              ) : editor.scoring ? (
+                <Text style={{ ...typography.body, color: colors.secondaryText }}>
+                  {t('score_calculating')}
+                </Text>
+              ) : editor.error ? (
+                <InfoBanner text={editor.error} tone="error" />
+              ) : null}
               <Text style={{ ...typography.body, color: colors.secondaryText }}>
                 {editor.completedCount}
                 {t('deck_progress_middle')}

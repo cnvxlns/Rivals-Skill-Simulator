@@ -429,6 +429,8 @@ export const strings = {
   deck_error_load: '라인업을 불러오지 못했습니다.',
   deck_error_save: '라인업을 저장하지 못했습니다.',
   deck_error_incomplete: '아직 채우지 않은 자리가 있습니다.',
+  deck_score_roster_incomplete: '라인업이 아직 완성되지 않았습니다. 편집 탭에서 선수와 스킬을 확인해 주세요.',
+  deck_btn_fill_roster: '채우러 가기',
   deck_confirm_delete: '이 라인업을 삭제할까요?',
   deck_progress_prefix: '',
   deck_progress_middle: ' / ',

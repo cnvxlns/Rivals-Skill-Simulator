@@ -1,18 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import {
   InfoBanner,
   LabeledDropdown,
-  LinkAction,
   NumberField,
   PrimaryActionButton,
   SectionCard,
 } from '../components/ui';
 import { fetchScoreSkills } from '../lib/api';
 import { useTranslation } from '../lib/i18n';
-import { isBench, positionForSlot } from '../lib/useDeckEditor';
+import { positionForSlot } from '../lib/useDeckEditor';
 import {
   TRAINING_BATTER_STATS,
   TRAINING_PITCHER_STATS,
@@ -37,24 +36,17 @@ const BONUS_SKILL_GRADE = CardGrade.SIGNATURE;
  * 레벨별 수치표가 공개된 적이 없어 우리가 표를 흉내 내면 틀린 값을 퍼뜨리게 된다.
  */
 export default function DeckTrainingEditor({
-  slots: rosterSlots,
+  slot,
   state,
   signedIn,
 }: {
-  slots: string[];
+  slot: string;
   state: ReturnType<typeof usePositionTraining>;
   signedIn: boolean;
 }) {
   const { t } = useTranslation();
   const { colors, typography, spacing } = useAppTheme();
-  const slots = useMemo(() => rosterSlots.filter((slot) => !isBench(slot)), [rosterSlots]);
-  const [slot, setSlot] = useState(slots[0] ?? 'C');
   const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
-
-  // 자리가 사라지면(선발 수를 줄이는 등) 남은 자리 중 첫 칸으로 돌아간다.
-  useEffect(() => {
-    if (!slots.includes(slot)) setSlot(slots[0] ?? 'C');
-  }, [slots, slot]);
 
   const position = positionForSlot(slot, 'C');
 
@@ -74,32 +66,19 @@ export default function DeckTrainingEditor({
     };
   }, [position]);
 
-  const stats = useMemo(
-    () => (/^(SP|RP|CP)/.test(slot) ? TRAINING_PITCHER_STATS : TRAINING_BATTER_STATS),
-    [slot],
-  );
+  const stats = /^(SP|RP|CP)/.test(slot) ? TRAINING_PITCHER_STATS : TRAINING_BATTER_STATS;
   const bonuses = state.bonusesOf(slot);
   const chosen = bonuses.filter((entry) => entry.skillId).map((entry) => entry.skillId);
   const slotStats = state.slotOf(slot).stats ?? {};
 
   return (
-    <SectionCard title={t('deck_training_title')}>
+    <SectionCard title={`${slot} · ${t('deck_training_title')}`}>
       <View style={{ gap: spacing.lg }}>
         <Text style={{ ...typography.body, color: colors.secondaryText }}>
           {t('deck_training_desc')}
         </Text>
 
         {!signedIn ? <InfoBanner text={t('deck_training_login')} /> : null}
-
-        <View style={{ flexBasis: 200, maxWidth: 260 }}>
-          <LabeledDropdown
-            label={t('deck_training_slot')}
-            selected={slot}
-            options={slots}
-            optionLabel={(value) => value}
-            onSelect={setSlot}
-          />
-        </View>
 
         <View style={{ gap: spacing.sm }}>
           <Text style={{ ...typography.label, color: colors.secondaryText }}>

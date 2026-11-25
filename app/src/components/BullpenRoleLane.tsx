@@ -76,8 +76,6 @@ const CLOSERS = 'CLOSERS';
 const LANES = [...RELIEVER_ROLES, CLOSERS] as const;
 const CARD_HEIGHT = 104;
 const MOVE_CONTROL_SIZE = 32;
-const TACTIC_HEADER_HEIGHT = 132;
-const HEADER_HEIGHT = 36;
 
 type Lane = {
   role: (typeof LANES)[number];
@@ -124,6 +122,7 @@ export default function BullpenRoleLane({
   const { t } = useTranslation();
   const { colors, typography, spacing, radius } = useAppTheme();
   const [width, setWidth] = useState(0);
+  const [headerHeights, setHeaderHeights] = useState<Partial<Record<Lane['role'], number>>>({});
   const drag = useRef<Drag | null>(null);
   const [preview, setPreview] = useState<Drag | null>(null);
   const view = preview
@@ -140,13 +139,12 @@ export default function BullpenRoleLane({
     [CLOSERS]: closers,
   };
   const lanes: Lane[] = [];
+  const headersMeasured = LANES.every((role) => headerHeights[role] != null);
   let height = 0;
   for (let start = 0; start < LANES.length; start += columnCount) {
     const band = LANES.slice(start, start + columnCount);
-    const headerHeight = band.some((role) => role === RelieverRole.WIN || role === RelieverRole.CHASE)
-      ? TACTIC_HEADER_HEIGHT
-      : HEADER_HEIGHT;
-    const cardTop = height + headerHeight;
+    const headerHeight = Math.max(...band.map((role) => headerHeights[role] ?? 0));
+    const cardTop = height + headerHeight + gap;
     const maxCards = Math.max(...band.map((role) => cardsByRole[role].length));
     const bottom = cardTop + maxCards * pitch;
     band.forEach((role, column) => lanes.push({
@@ -234,7 +232,14 @@ export default function BullpenRoleLane({
           const roleName = role === CLOSERS ? t('deck_label_closers') : t(RELIEVER_ROLE_KEYS[role]);
           const laneStyle = { position: 'absolute' as const, left: lane.left, width: laneWidth };
           return [
-            <View key={role} style={{ ...laneStyle, top: lane.top, gap: spacing.xs }}>
+            <View
+              key={role}
+              onLayout={({ nativeEvent: { layout } }) => {
+                const measured = Math.ceil(layout.height);
+                setHeaderHeights((prev) => prev[role] === measured ? prev : { ...prev, [role]: measured });
+              }}
+              style={{ ...laneStyle, top: lane.top, gap: spacing.xs }}
+            >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
                 <Text accessibilityRole="header" style={{ ...typography.card, color: colors.onSurface }}>
                   {roleName}
@@ -273,7 +278,7 @@ export default function BullpenRoleLane({
             </View>,
 
             // Flat, slot-keyed cards keep the same responder while crossing roles in the preview.
-            ...cardsByRole[role].map((card, rowIndex) => {
+            ...(headersMeasured ? cardsByRole[role] : []).map((card, rowIndex) => {
               const reliever = role === CLOSERS ? undefined : view.find(({ slot }) => slot === card.slot);
               const index = reliever ? view.indexOf(reliever) : -1;
               const slot = preview && reliever ? `RP${index + 1}` : card.slot;
@@ -468,10 +473,10 @@ function TacticGroup<Tactic extends WinTactic>({
         })}
       </View>
       {selected ? (
-        <Text numberOfLines={1} style={{ ...typography.caption, color: colors.secondaryText }}>{t(selected.effect)}</Text>
+        <Text style={{ ...typography.caption, color: colors.secondaryText }}>{t(selected.effect)}</Text>
       ) : null}
       {unavailable?.condition ? (
-        <Text numberOfLines={1} style={{ ...typography.caption, color: colors.error }}>
+        <Text style={{ ...typography.caption, color: colors.error }}>
           {t(unavailable.condition.label)}
         </Text>
       ) : null}

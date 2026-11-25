@@ -7,11 +7,14 @@ import {
   CHASE_AGGRESSIVE_MIN,
   RELIEVER_ROLES,
   WIN_DIVISION_MIN,
-  moveRelieverRows,
+  moveBullpenRows,
+  type BullpenLane,
 } from '../lib/useDeckEditor';
 import type { TranslationKey } from '../locales/strings';
 import { useAppTheme } from '../theme/useTheme';
 import { BullpenTactic, RelieverRole, type ChaseTactic, type WinTactic } from '../types';
+
+import PitcherCard, { PITCHER_CARD_HEIGHT, type PitcherCardData } from './PitcherCard';
 
 export const RELIEVER_ROLE_KEYS = {
   [RelieverRole.WIN]: 'deck_reliever_win',
@@ -57,28 +60,19 @@ const CHASE_OPTIONS: readonly TacticOption<ChaseTactic>[] = [
   DEFAULT_OPTION,
 ];
 
-type BullpenRow = {
-  slot: string;
-  role: RelieverRole;
-  name: string;
-  subtitle?: string;
-  accent?: string;
-};
+type BullpenRow = PitcherCardData & { role: RelieverRole };
 
 type MoveTarget = {
-  role: RelieverRole;
+  role: BullpenLane;
   index: number;
 };
 
-type CardRow = Omit<BullpenRow, 'role'>;
-
 const CLOSERS = 'CLOSERS';
 const LANES = [...RELIEVER_ROLES, CLOSERS] as const;
-export const PITCHER_CARD_HEIGHT = 120;
 const MOVE_CONTROL_SIZE = 32;
 
 export function pitcherCardGrid(width: number, gap: number) {
-  const columns = width >= 740 ? 4 : width >= 370 ? 2 : 1;
+  const columns = width >= 740 ? 5 : width >= 370 ? 2 : 1;
   return { columns, cardWidth: (width - (columns - 1) * gap) / columns };
 }
 
@@ -116,12 +110,12 @@ export default function BullpenRoleLane({
   onPress,
 }: {
   rows: readonly BullpenRow[];
-  closers: readonly CardRow[];
+  closers: readonly PitcherCardData[];
   winTactic: WinTactic;
   chaseTactic: ChaseTactic;
   onWinTacticChange: (tactic: WinTactic) => void;
   onChaseTacticChange: (tactic: ChaseTactic) => void;
-  onMove: (fromIndex: number, targetRole: RelieverRole, targetIndexInRole: number) => void;
+  onMove: (slot: string, targetRole: BullpenLane, targetIndexInRole: number) => void;
   onPress: (slot: string) => void;
 }) {
   const { t } = useTranslation();
@@ -130,17 +124,19 @@ export default function BullpenRoleLane({
   const [headerHeights, setHeaderHeights] = useState<Partial<Record<Lane['role'], number>>>({});
   const drag = useRef<Drag | null>(null);
   const [preview, setPreview] = useState<Drag | null>(null);
-  const view = preview
-    ? moveRelieverRows(rows, preview.fromIndex, preview.destination.role, preview.destination.index)
-    : rows;
   const gap = spacing.sm;
   const { columns: columnCount, cardWidth: laneWidth } = pitcherCardGrid(width, gap);
   const pitch = PITCHER_CARD_HEIGHT + gap;
+  const previewRows = preview
+    ? moveBullpenRows(rows, closers.map((card) => ({ ...card, role: RelieverRole.LONG })), preview.slot, preview.destination.role, preview.destination.index)
+    : { relievers: rows, closers: closers.map((card) => ({ ...card, role: RelieverRole.LONG })) };
+  const view = previewRows.relievers;
+  const previewClosers = previewRows.closers;
   const cardsByRole = {
     [RelieverRole.WIN]: view.filter((row) => row.role === RelieverRole.WIN),
     [RelieverRole.CHASE]: view.filter((row) => row.role === RelieverRole.CHASE),
     [RelieverRole.LONG]: view.filter((row) => row.role === RelieverRole.LONG),
-    [CLOSERS]: closers,
+    [CLOSERS]: previewClosers,
   };
   const lanes: Lane[] = [];
   const headersMeasured = LANES.every((role) => headerHeights[role] != null);
@@ -164,8 +160,8 @@ export default function BullpenRoleLane({
 
   function startDrag(row: BullpenRow, lane: Lane, index: number) {
     const fromIndex = rows.indexOf(row);
-    if (fromIndex === -1 || drag.current) return;
-    const source = { role: row.role, index };
+    if ((fromIndex === -1 && !row.slot.startsWith('CP')) || drag.current) return;
+    const source = { role: lane.role, index };
     drag.current = {
       slot: row.slot,
       fromIndex,
@@ -190,10 +186,10 @@ export default function BullpenRoleLane({
       y >= candidate.top - gap / 2 && y < candidate.bottom + gap / 2,
     );
     let destination = current.source;
-    if (lane && lane.role !== CLOSERS && lane.count > 0) {
+    if (lane && lane.count > 0) {
       const row = (y - lane.cardTop - PITCHER_CARD_HEIGHT / 2) / current.pitch;
       const sourceCount = current.lanes.find(({ role }) => role === current.source.role)?.count ?? 0;
-      const inserts = lane.role !== current.source.role && sourceCount > 1;
+      const inserts = lane.role !== current.source.role && sourceCount > 1 && lane.count < (lane.role === CLOSERS ? 2 : Infinity);
       const index = inserts ? Math.ceil(row) : Math.round(row);
       destination = {
         role: lane.role,
@@ -210,9 +206,9 @@ export default function BullpenRoleLane({
     drag.current = null;
     setPreview(null);
     if (!commit || !current) return;
-    const { fromIndex, source, destination } = current;
+    const { slot, source, destination } = current;
     if (source.role !== destination.role || source.index !== destination.index) {
-      onMove(fromIndex, destination.role, destination.index);
+      onMove(slot, destination.role, destination.index);
     }
   }
 
@@ -220,8 +216,8 @@ export default function BullpenRoleLane({
     const next = rows[fromIndex + delta];
     if (!next) return;
     const groupIndex = rows.slice(0, fromIndex + delta).filter((row) => row.role === next.role).length;
-    const crossesUp = delta === -1 && rows[fromIndex].role !== next.role;
-    onMove(fromIndex, next.role, groupIndex + (crossesUp ? 1 : 0));
+    const crossesDown = delta === 1 && rows[fromIndex].role !== next.role;
+    onMove(rows[fromIndex].slot, next.role, groupIndex + (crossesDown ? 1 : 0));
   }
 
   return (
@@ -285,64 +281,52 @@ export default function BullpenRoleLane({
             ...(headersMeasured ? cardsByRole[role] : []).map((card, rowIndex) => {
               const reliever = role === CLOSERS ? undefined : view.find(({ slot }) => slot === card.slot);
               const index = reliever ? view.indexOf(reliever) : -1;
-              const slot = preview && reliever ? `RP${index + 1}` : card.slot;
+              const closerIndex = previewClosers.findIndex(({ slot }) => slot === card.slot);
+              const slot = preview
+                ? reliever ? `RP${index + 1}` : role === CLOSERS ? `CP${closerIndex + 1}` : card.slot
+                : card.slot;
               const dragging = preview?.slot === card.slot;
               return (
-                <View key={card.slot} style={{
-                  ...laneStyle,
-                  top: lane.cardTop + rowIndex * pitch,
-                  height: PITCHER_CARD_HEIGHT,
-                  flexDirection: 'row',
-                  alignItems: 'stretch',
-                  borderRadius: radius.control,
-                  borderWidth: 1,
-                  borderColor: dragging ? colors.accentAction : card.accent ?? colors.outline,
-                  backgroundColor: colors.surfaceVariant,
-                }}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={[slot, card.name, card.subtitle].filter(Boolean).join(', ')}
-                    disabled={preview !== null}
-                    onPress={() => onPress(card.slot)}
-                    style={({ pressed }) => ({
-                      flex: 1,
-                      minWidth: 0,
-                      gap: spacing.xs,
-                      padding: spacing.sm,
-                      opacity: pressed ? 0.75 : 1,
-                    })}
-                  >
-                    <Text style={{ ...typography.label, color: card.accent ?? colors.secondaryText }}>{slot}</Text>
-                    <Text numberOfLines={1} style={{ ...typography.card, color: colors.onSurface }}>{card.name}</Text>
-                    {card.subtitle ? (
-                      <Text numberOfLines={1} style={{ ...typography.label, color: colors.secondaryText }}>
-                        {card.subtitle}
-                      </Text>
-                    ) : null}
-                  </Pressable>
-                  {reliever ? (
+                <PitcherCard
+                  key={card.slot}
+                  {...card}
+                  slot={slot}
+                  style={{ ...laneStyle, top: lane.cardTop + rowIndex * pitch }}
+                  disabled={preview !== null}
+                  dragging={dragging}
+                  onPress={() => onPress(card.slot)}
+                >
+                  {(
                     <View style={{ justifyContent: 'center' }}>
                       <DragHandle
                         label={slot + ' ' + t('deck_bullpen_move_label')}
-                        onStart={() => startDrag(reliever, lane, rowIndex)}
+                        onStart={() => startDrag(
+                          reliever ?? { ...card, role: RelieverRole.LONG },
+                          lane,
+                          rowIndex,
+                        )}
                         onMove={moveDrag}
                         onFinish={finishDrag}
                       />
                       <StepButton
                         symbol="▲"
                         label={slot + ' ' + t('deck_batting_order_up')}
-                        disabled={preview !== null || index === 0}
-                        onPress={() => step(index, -1)}
+                        disabled={preview !== null || (role === CLOSERS ? closerIndex === 0 : index === 0)}
+                        onPress={() => role === CLOSERS
+                          ? onMove(card.slot, CLOSERS, closerIndex - 1)
+                          : step(index, -1)}
                       />
                       <StepButton
                         symbol="▼"
                         label={slot + ' ' + t('deck_batting_order_down')}
-                        disabled={preview !== null || index === view.length - 1}
-                        onPress={() => step(index, 1)}
+                        disabled={preview !== null || (role === CLOSERS ? closerIndex === closers.length - 1 : index === view.length - 1)}
+                        onPress={() => role === CLOSERS
+                          ? onMove(card.slot, CLOSERS, closerIndex + 1)
+                          : step(index, 1)}
                       />
                     </View>
-                  ) : null}
-                </View>
+                  )}
+                </PitcherCard>
               );
             }),
           ];

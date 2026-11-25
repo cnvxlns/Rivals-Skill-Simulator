@@ -1,8 +1,13 @@
 package com.example.skillsim.service
 
 import com.example.skillsim.config.DeckDataLoader
+import com.example.skillsim.config.ScoreDataLoader
+import com.example.skillsim.dto.DeckSkillRequest
+import com.example.skillsim.enums.BullpenTactic
 import com.example.skillsim.enums.RelieverRole
 import com.example.skillsim.model.DeckRoster
+import com.example.skillsim.model.DeckSkillSelection
+import com.example.skillsim.repository.InMemoryScoreSkillRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.within
 import org.junit.jupiter.api.Test
@@ -10,6 +15,7 @@ import org.junit.jupiter.api.Test
 class DeckScoreServiceTest {
 
     private val repository = DeckFixtures.repository()
+    private val csvRepository by lazy { InMemoryScoreSkillRepository().also { ScoreDataLoader(it).run() } }
     private val scoreService = ScoreService(
         repository, ScoreCalculator(), mapOf(DeckFixtures.STAT to 1.0),
     )
@@ -155,9 +161,8 @@ class DeckScoreServiceTest {
     }
 
     @Test
-    fun `중계 하위 역할은 점수를 바꾸지 않는다`() {
-        // 요구사항의 실행 가능한 증명이다. 조건 게이트가 슬롯 번호만 보므로
-        // 승리조/추격조/롱릴리프를 어떻게 배분해도 점수가 같아야 한다.
+    fun `전술 기본값은 보직에 능력치 버프를 주지 않는다`() {
+        // 워크북 보직 조건이 없는 스킬을 가진 테스트 덱에서 전술 효과만 확인한다.
         val base = roster()
         val flipped = base.copy(
             players = base.players.map { player ->
@@ -189,7 +194,7 @@ class DeckScoreServiceTest {
         assertThat(bySlot.getValue("SS").battingOrder).isEqualTo(5)
         assertThat(bySlot.getValue("SS").pitcherSlot).isNull()
         assertThat(bySlot.getValue("RP2").pitcherSlot).isEqualTo(2)
-        assertThat(bySlot.getValue("RP2").relieverRole).isEqualTo(RelieverRole.LONG)
+        assertThat(bySlot.getValue("RP2").relieverRole).isEqualTo(RelieverRole.WIN)
         assertThat(bySlot.getValue("BENCH1").battingOrder).isNull()
     }
 
@@ -206,12 +211,124 @@ class DeckScoreServiceTest {
     }
 
     @Test
-    fun `타순이 없는 후보도 채점된다`() {
-        // ScoreService.calculate는 타자에게 타순을 요구하지만, 후보는 타순이 없다.
-        // scoreSelections를 직접 쓰면 기본 타순으로 떨어져 점수가 나온다.
-        val bench = deckScoreService.score(roster()).players.filter { it.slot.startsWith("BENCH") }
+    fun `후보는 개인 점수와 미입력 경고가 없다`() {
+        val result = deckScoreService.score(roster())
+        val (bench, active) = result.players.partition { DeckRules.isBench(it.slot) }
 
         assertThat(bench).hasSize(5)
-        assertThat(bench).allSatisfy { assertThat(it.score).isGreaterThan(0.0) }
+        assertThat(bench).allSatisfy {
+            assertThat(it.score).isZero()
+            assertThat(it.statScore).isZero()
+            assertThat(it.skillScore).isZero()
+            assertThat(it.perSkill).isEmpty()
+            assertThat(it.warnings).isEmpty()
+        }
+        assertThat(result.statTotal).isCloseTo(active.sumOf { it.statScore }, within(0.01))
+        assertThat(result.skillTotal).isCloseTo(active.sumOf { it.skillScore }, within(0.01))
+    }
+
+    @Test
+    fun `스킬 없는 후보도 컬렉션에 포함되고 후보 팀 버프는 주전에게 간다`() {
+        val skills = DeckFixtures.repository(listOf(requireNotNull(csvRepository.findBySkillKey("HOF_012"))))
+        val weights = mapOf("파워" to 1.1, "정확" to 0.9)
+        val scoring = DeckScoreService(
+            skills,
+            ScoreService(skills, ScoreCalculator(), weights),
+            DeckDataLoader().apply { run() },
+            weights,
+        )
+        val validator = DeckFixtures.validator(skills, pools = listOf("NORMAL", "HOF"))
+        val request = DeckFixtures.deckRequest {
+            if (it.slot?.startsWith("BENCH") == true) {
+                it.copy(cardGrade = "HOF", position = null, skills = emptyList())
+            } else {
+                it
+            }
+        }
+        val base = scoring.score(validator.validate(request))
+        val withBuff = scoring.score(validator.validate(request.copy(players = request.players!!.map {
+            if (it.slot == "BENCH1") {
+                it.copy(skills = listOf(DeckSkillRequest(skillId = "HOF_012", level = 6)))
+            } else {
+                it
+            }
+        })))
+
+        assertThat(base.collectionBuff.families.single { it.family == "HOF" }.count).isEqualTo(5)
+        assertThat(withBuff.collectionBuff).isEqualTo(base.collectionBuff)
+        assertThat(withBuff.teamBuffs.single().slot).isEqualTo("BENCH1")
+        assertThat(withBuff.players.single { it.slot == "C" }.statScore).isEqualTo(4.0)
+        assertThat(withBuff.players.single { it.slot == "BENCH1" }.score).isZero()
+    }
+
+    @Test
+    fun `교체 전술은 능력치 미입력 상태의 중계 점수도 올린다`() {
+        val weights = mapOf("변화" to 1.15, "구위" to 1.20)
+        val scoring = DeckScoreService(repository, scoreService, DeckDataLoader(), weights)
+        val base = roster()
+        val aggressive = scoring.score(base.copy(
+            winTactic = BullpenTactic.AGGRESSIVE,
+            chaseTactic = BullpenTactic.AGGRESSIVE,
+        )).players.associateBy { it.slot }
+        assertThat(aggressive.getValue("RP1").statScore).isEqualTo(4.7)
+        assertThat(aggressive.getValue("RP3").statScore).isEqualTo(4.7)
+        assertThat(aggressive.getValue("RP5").statScore).isZero()
+        assertThat(aggressive.getValue("CP1").statScore).isZero()
+
+        val division = base.copy(
+            winTactic = BullpenTactic.DIVISION,
+            players = base.players.map {
+                if (it.slot == "RP3") it.copy(relieverRole = RelieverRole.WIN) else it
+            },
+        )
+        val winner = scoring.score(division).players.single { it.slot == "RP1" }
+        assertThat(winner.statScore).isEqualTo(9.4)
+        assertThat(winner.tacticBuff.map { it.stat }).containsExactlyInAnyOrderElementsOf(DeckRules.BULLPEN_TACTIC_STATS)
+        assertThat(winner.tacticBuff).allSatisfy { assertThat(it.amount).isEqualTo(4.0) }
+        assertThat(winner.tacticBuff.map { it.stat }).doesNotContain("지구력")
+    }
+
+    @Test
+    fun `교체 전술은 구속 변화 제구 비례 효과와 구간 판정을 바꾸지만 지구력은 유지한다`() {
+        val ids = listOf("WBC_013", "G_068", "G_057", "HOF_022", "HOF_033")
+        val skills = DeckFixtures.repository(ids.map { requireNotNull(csvRepository.findBySkillKey(it)) })
+        val weights = mapOf("변화" to 1.15, "구위" to 1.20)
+        val scoring = DeckScoreService(
+            skills, ScoreService(skills, ScoreCalculator(), weights), DeckDataLoader().apply { run() }, weights,
+        )
+        val base = roster()
+        val customized = base.copy(players = base.players.map { player ->
+            when (player.slot) {
+                "RP1" -> player.copy(
+                    stats = mapOf("구속" to 118.0, "변화" to 143.0, "제구" to 108.0, "지구력" to 113.0),
+                    skills = listOf(
+                        DeckSkillSelection("WBC_013", 1), DeckSkillSelection("G_068", 8), DeckSkillSelection("G_057", 5),
+                    ),
+                )
+                "RP2" -> player.copy(
+                    stats = mapOf("변화" to 143.0, "지구력" to 113.0),
+                    skills = listOf(DeckSkillSelection("HOF_022", 5), DeckSkillSelection("HOF_033", 5)),
+                )
+                "RP3" -> player.copy(relieverRole = RelieverRole.WIN)
+                else -> player
+            }
+        })
+        fun scores(roster: DeckRoster) = scoring.score(roster, includeBreakdown = true)
+            .players.flatMap { it.perSkill }.filter { it.skillId in ids }.associateBy { it.skillId }
+
+        val before = scores(customized)
+        val after = scores(customized.copy(winTactic = BullpenTactic.DIVISION))
+        assertThat(before.getValue("WBC_013").option).isEqualTo("구속 100-124")
+        assertThat(after.getValue("WBC_013").option).isEqualTo("구속 125-149")
+        assertThat(before.getValue("HOF_022").option).contains("변 100-149")
+        assertThat(after.getValue("HOF_022").option).contains("변 150-199")
+        assertThat(after.getValue("WBC_013").breakdown.first { it.baseStat == "구속" }.baseValue).isEqualTo(128.0)
+        assertThat(after.getValue("G_068").breakdown.first { it.baseStat == "변화+제구" }.baseValue).isEqualTo(271.0)
+        for (id in listOf("G_057", "HOF_033")) {
+            assertThat(after.getValue(id).breakdown.filter { it.baseStat == "지구력" }.map { it.baseValue })
+                .isNotEmpty()
+                .isEqualTo(before.getValue(id).breakdown.filter { it.baseStat == "지구력" }.map { it.baseValue })
+            assertThat(after.getValue(id).score).isEqualTo(before.getValue(id).score)
+        }
     }
 }

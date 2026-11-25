@@ -12,7 +12,7 @@ import {
 } from '../components/ui';
 import { fetchScoreSkills } from '../lib/api';
 import { useTranslation } from '../lib/i18n';
-import { positionForSlot } from '../lib/useDeckEditor';
+import { isBench, positionForSlot } from '../lib/useDeckEditor';
 import {
   TRAINING_BATTER_STATS,
   TRAINING_PITCHER_STATS,
@@ -37,7 +37,7 @@ const BONUS_SKILL_GRADE = CardGrade.SIGNATURE;
  * 레벨별 수치표가 공개된 적이 없어 우리가 표를 흉내 내면 틀린 값을 퍼뜨리게 된다.
  */
 export default function DeckTrainingEditor({
-  slots,
+  slots: rosterSlots,
   state,
   signedIn,
 }: {
@@ -47,6 +47,7 @@ export default function DeckTrainingEditor({
 }) {
   const { t } = useTranslation();
   const { colors, typography, spacing } = useAppTheme();
+  const slots = useMemo(() => rosterSlots.filter((slot) => !isBench(slot)), [rosterSlots]);
   const [slot, setSlot] = useState(slots[0] ?? 'C');
   const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
 

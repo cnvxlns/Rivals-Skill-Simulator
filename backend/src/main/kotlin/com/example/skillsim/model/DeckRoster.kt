@@ -1,5 +1,6 @@
 package com.example.skillsim.model
 
+import com.example.skillsim.enums.BullpenTactic
 import com.example.skillsim.enums.Handedness
 import com.example.skillsim.enums.RelieverRole
 import com.fasterxml.jackson.annotation.JsonIgnore
@@ -25,6 +26,8 @@ data class DeckRoster(
      * 같이 **직접 고르는** 값으로 둔다.
      */
     val deckScoreChoices: List<DeckScoreChoice> = emptyList(),
+    val winTactic: BullpenTactic = BullpenTactic.DEFAULT,
+    val chaseTactic: BullpenTactic = BullpenTactic.DEFAULT,
 ) {
     /**
      * 중계 인원. 총원이 고정이라 선발·마무리에서 자동으로 정해진다.
@@ -56,7 +59,7 @@ data class DeckRoster(
  *   후보만 직접 받는다(후보 포수는 C 전용 스킬을 골라야 한다).
  * @param battingOrder 타순. 주전 9명만 가지며 1~9가 중복 없이 채워진다.
  * @param pitcherSlot 투수 슬롯 번호. [slot]의 숫자 부분이며 조건 게이트(`선발1_2` 등)가 이 값을 본다.
- * @param relieverRole 중계 하위 역할. 중계에만 있고 나머지는 null이다. 점수에는 쓰이지 않는다.
+ * @param relieverRole 중계 하위 역할. 중계에만 있고 나머지는 null이다. 교체 전술과 스킬 점수표가 이 값을 본다.
  * @param stats 보유 능력치. 키는 stat_weights.csv의 이름만 허용한다.
  * @param statsSlot [stats]를 적을 당시 이 선수가 서 있던 자리. 보유 능력치에는 그 자리의
  *   포지션 훈련이 이미 들어 있으므로, 다른 자리에 세우면 두 자리의 차이만큼 보정한다.

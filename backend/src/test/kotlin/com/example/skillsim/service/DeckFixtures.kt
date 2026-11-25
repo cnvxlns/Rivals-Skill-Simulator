@@ -103,7 +103,12 @@ internal object DeckFixtures {
                 slot = slot,
                 cardGrade = "SIGNATURE",
                 skills = threeSkills(),
-                relieverRole = if (DeckRules.isReliever(slot)) RelieverRole.LONG else null,
+                relieverRole = when {
+                    slot in listOf("RP1", "RP2") -> RelieverRole.WIN
+                    slot == "RP3" || (slot == "RP4" && 12 - starterCount - closerCount >= 5) -> RelieverRole.CHASE
+                    DeckRules.isReliever(slot) -> RelieverRole.LONG
+                    else -> null
+                },
             )
         }
         return DeckSaveRequest(

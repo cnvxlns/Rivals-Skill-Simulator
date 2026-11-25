@@ -2,6 +2,7 @@ package com.example.skillsim.service
 
 import com.example.skillsim.dto.DeckSkillRequest
 import com.example.skillsim.enums.Handedness
+import com.example.skillsim.enums.BullpenTactic
 import com.example.skillsim.enums.RelieverRole
 import com.example.skillsim.model.DeckRoster
 import org.assertj.core.api.Assertions.assertThat
@@ -174,19 +175,67 @@ class DeckValidatorTest {
     }
 
     @Test
-    fun `후보는 타자 포지션을 지정해야 한다`() {
+    fun `후보의 포지션은 타자로 기본 설정되고 투수는 거부한다`() {
         val request = DeckFixtures.deckRequest()
         val missing = request.players!!.map {
             if (it.slot == "BENCH1") it.copy(position = null) else it
         }
-        assertThatThrownBy { validator.validate(request.copy(players = missing)) }
-            .hasMessageContaining("Bench position is required")
+        val roster = validator.validate(request.copy(players = missing))
+        assertThat(roster.players.single { it.slot == "BENCH1" }.position).isEqualTo("BATTER")
+        assertThat(roster.players.single { it.slot == "BENCH2" }.position).isEqualTo("C")
 
         val pitcherPosition = request.players!!.map {
             if (it.slot == "BENCH1") it.copy(position = "SP") else it
         }
         assertThatThrownBy { validator.validate(request.copy(players = pitcherPosition)) }
             .hasMessageContaining("must be a batter position")
+    }
+
+    @Test
+    fun `후보는 스킬 없이 또는 한 개만 저장할 수 있다`() {
+        val request = DeckFixtures.deckRequest {
+            when (it.slot) {
+                "BENCH1" -> it.copy(position = null, skills = emptyList())
+                "BENCH2" -> it.copy(skills = it.skills!!.take(1))
+                else -> it
+            }
+        }
+        val roster = validator.validate(request)
+
+        assertThat(roster.players.single { it.slot == "BENCH1" }.skills).isEmpty()
+        assertThat(roster.players.single { it.slot == "BENCH2" }.skills).hasSize(1)
+        assertThat(roster.players.single { it.slot == "BENCH3" }.skills).hasSize(3)
+    }
+
+    @Test
+    fun `불펜의 모든 보직에 최소 한 명이 필요하다`() {
+        for (role in RelieverRole.entries) {
+            val replacement = RelieverRole.entries.first { it != role }
+            val request = DeckFixtures.deckRequest {
+                if (it.relieverRole == role) it.copy(relieverRole = replacement) else it
+            }
+            assertThatThrownBy { validator.validate(request) }
+                .hasMessageContaining("at least one $role reliever")
+        }
+    }
+
+    @Test
+    fun `교체 전술 선택에 필요한 최소 보직 인원을 검증한다`() {
+        val request = DeckFixtures.deckRequest()
+        val division = request.copy(winTactic = BullpenTactic.DIVISION)
+        assertThatThrownBy { validator.validate(division) }.hasMessageContaining("at least 3 WIN")
+
+        val threeWins = division.copy(players = division.players!!.map {
+            if (it.slot == "RP3") it.copy(relieverRole = RelieverRole.WIN) else it
+        })
+        assertThat(validator.validate(threeWins).winTactic).isEqualTo(BullpenTactic.DIVISION)
+        val aggressive = request.copy(winTactic = BullpenTactic.AGGRESSIVE, chaseTactic = BullpenTactic.AGGRESSIVE)
+        assertThat(validator.validate(aggressive).winTactic).isEqualTo(BullpenTactic.AGGRESSIVE)
+        assertThat(validator.validate(aggressive).chaseTactic).isEqualTo(BullpenTactic.AGGRESSIVE)
+        assertThatThrownBy { validator.validate(threeWins.copy(chaseTactic = BullpenTactic.AGGRESSIVE)) }
+            .hasMessageContaining("at least 2 CHASE")
+        assertThatThrownBy { validator.validate(request.copy(chaseTactic = BullpenTactic.DIVISION)) }
+            .hasMessageContaining("only for WIN")
     }
 
     @Test

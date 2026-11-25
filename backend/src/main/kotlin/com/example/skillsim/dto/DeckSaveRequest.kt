@@ -1,5 +1,6 @@
 package com.example.skillsim.dto
 
+import com.example.skillsim.enums.BullpenTactic
 import com.example.skillsim.enums.Handedness
 import com.example.skillsim.enums.RelieverRole
 import jakarta.validation.Valid
@@ -53,6 +54,8 @@ data class DeckSaveRequest(
      */
     @field:Valid
     val deckScoreChoices: List<DeckScoreChoiceRequest>? = null,
+    val winTactic: BullpenTactic? = null,
+    val chaseTactic: BullpenTactic? = null,
 )
 
 data class DeckScoreChoiceRequest(
@@ -80,10 +83,9 @@ data class DeckPlayerRequest(
     val cardVariant: String? = null,
     /** 예전 단일 카드 타입. [cardGrade]가 없을 때만 쓰인다. */
     val cardType: String? = null,
-    /** 후보만 필요하다. 주전과 투수는 슬롯에서 유도하므로 보내도 무시한다. */
+    /** 후보는 생략하면 BATTER를 쓴다. 주전과 투수는 슬롯에서 유도한다. */
     val position: String? = null,
     @field:Valid
-    @field:NotEmpty
     val skills: List<DeckSkillRequest>? = null,
     val battingOrder: Int? = null,
     /** 중계에만 허용한다. 나머지 자리에 오면 거부한다. */

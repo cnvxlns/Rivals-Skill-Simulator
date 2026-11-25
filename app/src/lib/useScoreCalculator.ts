@@ -119,6 +119,7 @@ export function useScoreCalculator() {
   // 스킬 변경권 기댓값. A 슬롯을 기준으로 본다. 비교를 켜도 기준은 A 하나다.
   const [ticketCalculation, setTicketCalculation] = useState<TicketCalculation | null>(null);
   const [selectedTicketScope, setTicketScope] = useState<TicketScope>('all');
+  const [selectedMomentSkillId, setMomentSkillId] = useState('');
   // 포지션특훈이 이 자리에 붙여 준 스킬 레벨 보너스. 계정에 저장된 구단 설정과 섞지 않는다.
   const [trainingBonuses, setTrainingBonuses] = useState<SkillLevelBonus[]>(emptyTrainingBonuses);
   const [hasTranscended, setHasTranscended] = useState(false);
@@ -178,6 +179,12 @@ export function useScoreCalculator() {
   /** 보너스를 걸 수 있는 스킬. 아이언~골드만 나오므로 일반 풀로 좁힌다. */
   const trainingSkills = useMemo(
     () => skills.filter((skill) => skill.cardType === TRAINING_BONUS_POOL),
+    [skills],
+  );
+
+  /** 일반 모먼트 카드에서 첫 슬롯 고유 스킬로 지정할 수 있는 모먼트 전용 스킬 목록. */
+  const momentSkills = useMemo(
+    () => skills.filter((skill) => skill.cardType === 'MOMENT'),
     [skills],
   );
 
@@ -267,6 +274,7 @@ export function useScoreCalculator() {
     setSets((prev) => prev.map(() => emptySet(slotCount)));
     // 보너스도 그 자리의 것이다. 자리가 바뀌면 남겨 둘 이유가 없고, 서버도 거절한다.
     setTrainingBonuses(emptyTrainingBonuses());
+    setMomentSkillId('');
   }, [scorePosition, slotCount]);
 
   useEffect(() => {
@@ -305,6 +313,9 @@ export function useScoreCalculator() {
   }, [cardGrade, cardVariant, scorePosition, clearResults]);
 
   const updateSkill = useCallback((setIndex: number, slotIndex: number, skillId: string) => {
+    if (setIndex === 0 && slotIndex === 0 && skillId && skillPoolOf(skillId) === 'MOMENT') {
+      setMomentSkillId(skillId);
+    }
     patchSet(setIndex, (set) => ({
       result: null,
       selections: set.selections.map((selection, idx) => {
@@ -479,9 +490,15 @@ export function useScoreCalculator() {
 
   const ticketSelections = sets[0].selections;
   const firstSkill = ticketSelections[0]?.skillId;
+  const firstSlotMomentSkillId = firstSkill && skillPoolOf(firstSkill) === 'MOMENT' ? firstSkill : '';
+  const validSelectedMomentSkillId = momentSkills.some((skill) => skill.skillId === selectedMomentSkillId)
+    ? selectedMomentSkillId
+    : '';
+  const effectiveMomentSkillId =
+    cardGrade === CardGrade.MOMENT ? firstSlotMomentSkillId || validSelectedMomentSkillId : '';
   const firstSlotOptionsAvailable = !!firstSkill && (
     cardGrade === CardGrade.SIGNATURE || cardGrade === CardGrade.PRIME || cardGrade === CardGrade.IMPACT || (
-      (cardGrade === CardGrade.MOMENT || cardGrade === CardGrade.SUPREME_MOMENT) && skillPoolOf(firstSkill) === 'MOMENT'
+      (cardGrade === CardGrade.MOMENT || cardGrade === CardGrade.SUPREME_MOMENT) && !!firstSlotMomentSkillId
     )
   );
   const ticketScope = firstSlotOptionsAvailable ? selectedTicketScope : 'all';
@@ -489,6 +506,7 @@ export function useScoreCalculator() {
   const ticketRequest = useMemo<TicketExpectationRequest | null>(() => {
     if (!scorePosition || scorePosition === 'ALL' || ticketHasUnavailableSkill) return null;
     if (!ticketSelections.some((selection) => selection.skillId)) return null;
+    if (cardGrade === CardGrade.MOMENT && !effectiveMomentSkillId) return null;
     const selections = ticketSelections.map((selection) => selection.skillId ? { ...selection } : null);
     while (selections[selections.length - 1] === null) selections.pop();
     return {
@@ -506,10 +524,12 @@ export function useScoreCalculator() {
       rerollFirstSlotOnly: ticketScope === 'firstOnly' || undefined,
       trainingBonuses: activeTrainingBonuses.length ? activeTrainingBonuses : undefined,
       transcendenceLevel,
+      momentSkillId: cardGrade === CardGrade.MOMENT ? effectiveMomentSkillId : undefined,
     };
   }, [
     ticketSelections, ticketHasUnavailableSkill, scorePosition, cardGrade, cardVariant, position,
-    battingOrder, pitcherSlotA, throwHand, batHand, userStats, baseStats, ticketScope, activeTrainingBonuses, transcendenceLevel,
+    battingOrder, pitcherSlotA, throwHand, batHand, userStats, baseStats, ticketScope, activeTrainingBonuses,
+    transcendenceLevel, effectiveMomentSkillId,
   ]);
 
   // 요청 당시의 A 슬롯과 설정이 화면과 같을 때만 응답을 표시한다.
@@ -612,6 +632,10 @@ export function useScoreCalculator() {
     firstSlotOptionsAvailable,
     ticketScope,
     setTicketScope,
+    momentSkills,
+    momentSkillId: effectiveMomentSkillId,
+    setMomentSkillId,
+    firstSlotHasMomentSkill: !!firstSlotMomentSkillId,
     trainingBonuses,
     trainingSkills,
     updateTrainingBonus,

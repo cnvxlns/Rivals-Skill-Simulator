@@ -45,4 +45,11 @@ data class TicketExpectationRequest(
     val rerollFirstSlotOnly: Boolean = false,
     /** 카드 초월 레벨(0~15). 시그니처 블랙은 기본 +1·9초월 +2, HOF·시그니처는 9초월 +1을 첫 슬롯에 적용한다. */
     val transcendenceLevel: Int? = null,
+    /**
+     * 일반 `MOMENT` 카드에서 첫 슬롯에 등장할 수 있는 고유 모먼트 스킬 ID.
+     *
+     * 첫 슬롯에 이미 모먼트 스킬이 끼워져 있으면 생략해도 그 스킬로 결정된다.
+     * 포지션 내 모든 모먼트 스킬이 후보인 `SUPREME_MOMENT`나 다른 등급에서는 받지 않는다.
+     */
+    val momentSkillId: String? = null,
 )

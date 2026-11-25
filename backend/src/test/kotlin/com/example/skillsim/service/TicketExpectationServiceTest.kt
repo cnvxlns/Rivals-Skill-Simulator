@@ -361,6 +361,132 @@ class TicketExpectationServiceTest {
         assertThat(nineCombo.slots.map { it.slot }).containsExactly(1, null, null, null)
     }
 
+    @Test
+    fun `일반 모먼트는 지정한 고유 모먼트 스킬만 첫 슬롯 후보로 계산하고 슈프림 모먼트는 전체 모먼트 풀을 계산한다`() {
+        val fixture = fixtureService(
+            listOf(
+                skillWithValues("G_001", "1/1/1/1/2/2/2/2/2"),
+                skillWithValues("G_002", "1/1/1/1/2/2/2/2/2"),
+                skillWithValues("G_003", "1/1/1/1/2/2/2/2/2"),
+                skillWithValues("M_001", "5", pool = "MOMENT"),
+                skillWithValues("M_002", "10", pool = "MOMENT"),
+            ),
+        )
+        val currentSelections = listOf(
+            ScoreSelection("G_001", 5),
+            ScoreSelection("G_002", 5),
+            ScoreSelection("G_003", 5),
+        )
+
+        val momentM1 = fixture.evaluate(
+            TicketExpectationRequest(
+                cardGrade = "MOMENT",
+                position = "C",
+                selections = currentSelections,
+                momentSkillId = "M_001",
+            ),
+        )
+        assertThat(momentM1.currentTotal).isEqualTo(6.0)
+        val momentM1ByTicket = momentM1.tickets.associateBy { it.ticket }
+        assertThat(momentM1ByTicket.getValue("SKILL_CHANGE").improveChance).isZero()
+        assertThat(momentM1ByTicket.getValue("PREMIUM_SKILL_CHANGE").improveChance).isZero()
+        val momentM1Supreme = momentM1ByTicket.getValue("SUPREME_SKILL_CHANGE")
+        assertThat(momentM1Supreme.improveChance).isCloseTo(0.06, within(1e-12))
+        assertThat(momentM1Supreme.expectedTickets).isCloseTo(1.0 / 0.06, within(1e-9))
+        assertThat(momentM1Supreme.betterCombinations).hasSize(3).allSatisfy { combo ->
+            assertThat(combo.slots.first().skillId).isEqualTo("M_001")
+            assertThat(combo.total).isEqualTo(9.0)
+            assertThat(combo.chance).isCloseTo(0.02, within(1e-12))
+        }
+
+        val supremeMoment = fixture.evaluate(
+            TicketExpectationRequest(
+                cardGrade = "SUPREME_MOMENT",
+                position = "C",
+                selections = currentSelections,
+            ),
+        )
+        val supremeOutcome = supremeMoment.tickets.first { it.ticket == "SUPREME_SKILL_CHANGE" }
+        assertThat(supremeOutcome.improveChance).isCloseTo(0.30, within(1e-12))
+        assertThat(supremeOutcome.betterCombinations).hasSize(6)
+        assertThat(supremeOutcome.betterCombinations.map { it.slots.first().skillId }.toSet())
+            .containsExactlyInAnyOrder("M_001", "M_002")
+    }
+
+    @Test
+    fun `일반 모먼트의 첫 슬롯에 이미 모먼트 스킬이 있으면 별도 지정 없이 그 스킬로 추론한다`() {
+        val fixture = fixtureService(
+            listOf(
+                skillWithValues("G_001", "1/1/1/1/2/2/2/2/2"),
+                skillWithValues("G_002", "1/1/1/1/3/3/3/3/3"),
+                skillWithValues("G_003", "1/1/1/1/4/4/4/4/4"),
+                skillWithValues("M_001", "5", pool = "MOMENT"),
+                skillWithValues("M_002", "20", pool = "MOMENT"),
+            ),
+        )
+        val result = fixture.evaluate(
+            TicketExpectationRequest(
+                cardGrade = "MOMENT",
+                position = "C",
+                selections = listOf(ScoreSelection("M_001", 1), ScoreSelection("G_001", 5), ScoreSelection("G_002", 5)),
+                rerollFirstSlotOnly = true,
+            ),
+        )
+
+        // M_001(5) + G_001(2) + G_002(3) = 10점. 첫 슬롯만 다시 뽑아도 M_002(20)는 다른 카드의 스킬이라 나올 수 없다.
+        assertThat(result.slotOneLockable).isTrue()
+        assertThat(result.currentTotal).isEqualTo(10.0)
+        assertThat(result.tickets).allSatisfy { outcome ->
+            assertThat(outcome.improveChance).isZero()
+            assertThat(outcome.betterCombinations).isEmpty()
+        }
+    }
+
+    @Test
+    fun `일반 모먼트에서 고유 모먼트 스킬이 빠졌거나 조건과 어긋나면 거절한다`() {
+        val fixture = fixtureService(
+            listOf(
+                skillWithValues("G_001", "1/2/3/4/5/6/7/8/9"),
+                skillWithValues("M_001", "5", pool = "MOMENT"),
+                skillWithValues("M_002", "8", pool = "MOMENT"),
+            ),
+        )
+        val base = TicketExpectationRequest(
+            cardGrade = "MOMENT",
+            position = "C",
+            selections = listOf(ScoreSelection("G_001", 5)),
+        )
+
+        // 첫 슬롯이 모먼트 스킬이 아닌데 momentSkillId를 생략한 경우
+        assertThatThrownBy { fixture.evaluate(base) }
+            .isInstanceOf(ResponseStatusException::class.java)
+            .hasMessageContaining("400 BAD_REQUEST")
+
+        // 일반 스킬을 고유 모먼트 스킬로 보낸 경우
+        assertThatThrownBy { fixture.evaluate(base.copy(momentSkillId = "G_001")) }
+            .isInstanceOf(ResponseStatusException::class.java)
+            .hasMessageContaining("400 BAD_REQUEST")
+
+        // 첫 슬롯의 모먼트 스킬과 다른 모먼트 스킬을 보낸 경우
+        assertThatThrownBy {
+            fixture.evaluate(
+                base.copy(
+                    selections = listOf(ScoreSelection("M_001", 1)),
+                    momentSkillId = "M_002",
+                ),
+            )
+        }
+            .isInstanceOf(ResponseStatusException::class.java)
+            .hasMessageContaining("400 BAD_REQUEST")
+
+        // 일반 모먼트가 아닌 등급에 momentSkillId를 보낸 경우
+        assertThatThrownBy {
+            fixture.evaluate(base.copy(cardGrade = "SUPREME_MOMENT", momentSkillId = "M_001"))
+        }
+            .isInstanceOf(ResponseStatusException::class.java)
+            .hasMessageContaining("400 BAD_REQUEST")
+    }
+
     private fun transcendenceSkills() = listOf(
         skillWithValues("G_001", "1/2/3/4/5/6/7/8/9"),
         skillWithValues("G_002", "1/1/1/1/4/8/8/8/8"),

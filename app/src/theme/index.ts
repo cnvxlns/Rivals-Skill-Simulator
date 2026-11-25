@@ -101,11 +101,13 @@ export type CardGradeKey =
   | 'SIGNATURE_BLACK'
   | 'HOF';
 
+const yellowCardGrade = { hex: '#F2CB55', soft: 'rgba(242,203,85,0.14)' };
+const unknownCardGrade = { hex: '#8B94A3', soft: 'rgba(139,148,163,0.14)' };
+
 export const cardGradeColors: Record<CardGradeKey, { hex: string; soft: string }> = {
-  SEASON: { hex: '#8B94A3', soft: 'rgba(139,148,163,0.14)' },
-  LIVE: { hex: '#5BC8C0', soft: 'rgba(91,200,192,0.14)' },
+  SEASON: yellowCardGrade,
+  LIVE: yellowCardGrade,
   IMPACT: { hex: '#C8A27C', soft: 'rgba(200,162,124,0.14)' },
-  // 4.5:1을 지키는 선에서 가장 진한 청록. 라이브와 같은 계열이라 밝기로 가른다.
   PRIME: { hex: '#149184', soft: 'rgba(20,145,132,0.14)' },
   MOMENT: { hex: '#3EA55C', soft: 'rgba(62,165,92,0.15)' },
   // 모먼트와 같은 계열이되 한 단계 밝게. 색상까지 갈라 두면 둘이 한 계열임이 지워진다.
@@ -115,9 +117,9 @@ export const cardGradeColors: Record<CardGradeKey, { hex: string; soft: string }
   HOF: { hex: '#FF6A2B', soft: 'rgba(255,106,43,0.14)' },
 };
 
-/** 모르는 등급이면 가장 낮은 등급 색으로 떨어뜨린다. 색이 비면 칩 테두리가 사라져서다. */
+/** 모르는 등급에는 중립색을 쓴다. */
 export function cardGradeColor(grade: string): { hex: string; soft: string } {
-  return cardGradeColors[String(grade).toUpperCase() as CardGradeKey] ?? cardGradeColors.SEASON;
+  return cardGradeColors[String(grade).toUpperCase() as CardGradeKey] ?? unknownCardGrade;
 }
 
 // 티어가 색상환을 거의 다 쓰므로 등급에는 새 색상을 주지 않는다.

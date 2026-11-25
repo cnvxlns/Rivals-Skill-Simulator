@@ -236,8 +236,6 @@ export const strings = {
   hand_left_bat: '좌타',
   hand_right_bat: '우타',
   hand_switch: '스위치',
-  apk_install: '안드로이드 앱 설치 (APK)',
-  apk_install_hint: '안드로이드 브라우저에서만 표시됩니다. 설치 시 "출처를 알 수 없는 앱" 허용이 필요합니다.',
 
   // ─ 리디자인에서 추가된 문구 ─
   hdr_title_short: '전력분석실',
@@ -455,7 +453,6 @@ export const strings = {
   deck_import_hint:
     '덱 관리 워크북(.xlsx)을 올리면 라인업 18자리와 덱 스코어 선택이 그대로 들어옵니다. 저장하지는 않으니 남은 자리를 채운 뒤 저장하세요.',
   deck_import_button: '워크북 올리기',
-  deck_import_web_only: '파일 올리기는 웹에서만 됩니다. 브라우저로 접속해 주세요.',
   deck_import_failed: '워크북을 읽지 못했습니다.',
   deck_import_done: '{n}자리를 채웠습니다.',
   deck_import_warnings: '넘어간 것 {n}건',

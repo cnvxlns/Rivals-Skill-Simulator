@@ -160,12 +160,7 @@ export const banner = {
   error: { background: '#1F1416', border: '#4A2129', text: '#FFD5DA', badge: '#FF4D5E', onBadge: '#180608' },
 };
 
-export const apkButton = { background: '#14252C', border: '#2A5A6B', text: '#4CC9F0' };
-
-/**
- * 웹은 CDN 동적 서브셋, 앱은 expo-font 번들을 기대한다.
- * 폰트가 없으면 undefined로 떨어져 시스템 폰트를 쓴다(레이아웃은 그대로 유지).
- */
+/** CDN 동적 서브셋으로 불러오는 웹 글꼴. */
 export const fontFamily = {
   regular: 'Pretendard',
   mono: 'monospace',

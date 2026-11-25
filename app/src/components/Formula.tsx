@@ -3,12 +3,7 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { useAppTheme } from '../theme/useTheme';
 
-/**
- * 웹 전용 수식 렌더러. KaTeX로 조판한다.
- *
- * 네이티브에는 DOM이 없어 같은 파일명의 .native.tsx가 유니코드 텍스트로 대체한다.
- * Metro가 플랫폼 확장자를 보고 알아서 고른다.
- */
+/** KaTeX로 수식을 조판한다. */
 export default function Formula({ tex, fallback }: { tex: string; fallback: string }) {
   const { colors } = useAppTheme();
   const html = useMemo(() => {

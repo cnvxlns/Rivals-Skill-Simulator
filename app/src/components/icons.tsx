@@ -1,4 +1,4 @@
-// 아이콘 4종. 세트를 도입하지 않고 react-native-svg로 직접 그린다.
+// 아이콘. 세트를 도입하지 않고 react-native-svg로 직접 그린다.
 import React from 'react';
 import Svg, { Circle, Path } from 'react-native-svg';
 
@@ -17,16 +17,6 @@ export function SearchIcon({ size = 17, color = '#7E8798' }: IconProps) {
     <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
       <Circle cx={8.5} cy={8.5} r={6} stroke={color} strokeWidth={1.9} />
       <Path d="M13 13 L18 18" stroke={color} strokeWidth={1.9} strokeLinecap="round" />
-    </Svg>
-  );
-}
-
-export function DownloadIcon({ size = 20, color = '#4CC9F0' }: IconProps) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-      <Path d="M10 2 L10 13" stroke={color} strokeWidth={1.9} strokeLinecap="round" />
-      <Path d="M5.5 9 L10 13.5 L14.5 9" stroke={color} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M3 17 L17 17" stroke={color} strokeWidth={1.9} strokeLinecap="round" />
     </Svg>
   );
 }

@@ -21,7 +21,7 @@ import {
 } from '../types';
 
 // Expo는 EXPO_PUBLIC_ 접두사 환경변수를 클라이언트 번들에 주입한다.
-// 값이 없으면 상대경로(/api)를 사용한다. 네이티브에서는 반드시 절대 URL을 설정해야 한다.
+// 값이 없으면 상대경로(/api)를 사용한다.
 const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
 export const API_BASE_URL = configuredApiUrl || '';

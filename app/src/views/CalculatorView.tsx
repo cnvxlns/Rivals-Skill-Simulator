@@ -181,7 +181,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
 
   /**
    * 비교를 켜면 좌우로 나란히 둔다. 계산기 하나가 이미 1000px를 다 쓰므로 그보다
-   * 넉넉할 때만 나눈다. 좁거나 네이티브면 A/B 전환으로 떨어진다.
+   * 화면 폭이 넉넉할 때만 나눈다. 좁으면 A/B 전환을 쓴다.
    */
   const sideBySide = calc.compare && width >= COMPARE_SPLIT;
   const [shownSet, setShownSet] = useState<'a' | 'b'>('a');

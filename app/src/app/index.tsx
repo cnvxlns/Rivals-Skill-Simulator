@@ -8,7 +8,6 @@ import { useAppTheme } from '@/theme/useTheme';
 import { GUTTER, useResponsive } from '@/lib/useResponsive';
 import { SegmentedTabs, TooltipProvider } from '@/components/ui';
 import { AppMark } from '@/components/icons';
-import ApkInstallButton from '@/components/ApkInstallButton';
 import WakeUpOverlay from '@/components/WakeUpOverlay';
 import ScoreTableView from '@/views/ScoreTableView';
 import CalculatorView from '@/views/CalculatorView';
@@ -60,7 +59,6 @@ export default function HomeScreen() {
       {/*
         제목은 여기서만 넣는다. +html.tsx에 <title>을 직접 쓰면 expo-router가 helmet으로
         먼저 심는 빈 <title data-rh>와 중복되고, 브라우저는 앞선 빈 것을 쓴다.
-        Head는 웹에서만 의미가 있고 네이티브에서는 무시된다.
       */}
       <Head>
         <title>라이벌 전력분석실 — MLB 라이벌 스킬 점수</title>
@@ -141,43 +139,17 @@ export default function HomeScreen() {
                 borderTopColor: colors.divider,
                 paddingTop: spacing.xxlx,
                 marginTop: spacing.xxxl,
-                flexDirection: isWide ? 'row' : 'column',
-                gap: isWide ? spacing.huge : spacing.xl,
-                alignItems: 'flex-start',
               }}
             >
-              {isWide ? (
-                <>
-                  <Text
-                    style={{
-                      flex: 1,
-                      color: colors.mutedFaint,
-                      fontSize: 15.5,
-                      lineHeight: 20.125,
-                    }}
-                  >
-                    {t('disclaimer_full')}
-                  </Text>
-                  <View style={{ width: 320 }}>
-                    <ApkInstallButton />
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={{ width: '100%' }}>
-                    <ApkInstallButton />
-                  </View>
-                  <Text
-                    style={{
-                      color: colors.mutedFaint,
-                      fontSize: 15.5,
-                      lineHeight: 20.125,
-                    }}
-                  >
-                    {t('disclaimer_short')}
-                  </Text>
-                </>
-              )}
+              <Text
+                style={{
+                  color: colors.mutedFaint,
+                  fontSize: 15.5,
+                  lineHeight: 20.125,
+                }}
+              >
+                {t(isWide ? 'disclaimer_full' : 'disclaimer_short')}
+              </Text>
             </View>
           </ScrollView>
         </SafeAreaView>

@@ -3,46 +3,20 @@
     "name": "라이벌 전력분석실",
     "slug": "app",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "app",
-    "userInterfaceStyle": "dark",
-    "ios": {
-      "icon": "./assets/expo.icon"
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "android": {
-      "package": "com.cnvxlns.rivalsskillsim",
-      "versionCode": 1,
-      "adaptiveIcon": {
-        "backgroundColor": "#101216",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
-    },
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png",
       "backgroundColor": "#0B1020"
     },
     "plugins": [
-      "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "backgroundColor": "#0B1020",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 180
-        }
-      ]
+      "expo-router"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "platforms": [
+      "web"
+    ]
   }
 }

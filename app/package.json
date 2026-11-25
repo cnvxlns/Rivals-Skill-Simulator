@@ -14,11 +14,8 @@
     "expo-image": "~57.0.2",
     "expo-linking": "~57.0.5",
     "expo-router": "~57.0.12",
-    "expo-splash-screen": "~57.0.6",
-    "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.2",
     "expo-system-ui": "~57.0.2",
-    "expo-updates": "~57.0.13",
     "expo-web-browser": "~57.0.2",
     "katex": "^0.18.4",
     "react": "19.2.3",
@@ -38,9 +35,7 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "start": "expo start --web",
     "web": "expo start --web",
     "lint": "expo lint"
   },

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { PanResponder, PanResponderInstance, Platform, Pressable, Text, View } from 'react-native';
+import { PanResponder, PanResponderInstance, Pressable, Text, View } from 'react-native';
 import { useTranslation } from '../lib/i18n';
 import { useAppTheme } from '../theme/useTheme';
 
@@ -26,16 +26,13 @@ const ROW_HEIGHT = 52;
 const DRAG_THRESHOLD = 4;
 
 /** 웹 전용 스타일. RN의 ViewStyle에는 없어서 캐스팅해 넣는다(ui.tsx의 position:'fixed'와 같은 방식). */
-const webHandleStyle =
-  Platform.OS === 'web'
-    ? ({
-        // 없으면 손가락으로 핸들을 끌 때 페이지가 같이 스크롤된다.
-        touchAction: 'none',
-        // 없으면 마우스로 끌 때 옆 텍스트가 드래그 선택돼 화면이 파랗게 된다.
-        userSelect: 'none',
-        cursor: 'grab',
-      } as object)
-    : null;
+const webHandleStyle = {
+  // 터치로 핸들을 끌 때 페이지 스크롤을 막는다.
+  touchAction: 'none',
+  // 마우스로 핸들을 끌 때 텍스트 선택을 막는다.
+  userSelect: 'none',
+  cursor: 'grab',
+} as object;
 
 export type BattingOrderRow = {
   slot: string;

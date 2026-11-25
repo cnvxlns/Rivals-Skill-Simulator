@@ -42,7 +42,8 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 조합 점수를 웹에서 
 `position`은 `PITCHER` / `BATTER` 외에 `SP`, `RP`, `CP`, `C`, `1B`~`SS`, `IF`, `LF`/`CF`/`RF`, `OF`, `DH`를 받습니다. 값은 대소문자를 가리지 않습니다.
 
 ## 기술 스택
-**App (Web / Android)**  
+**Web**
+
 ![Expo](https://img.shields.io/badge/Expo-000020?style=flat&logo=expo&logoColor=white)
 ![React Native](https://img.shields.io/badge/React_Native-61DAFB?style=flat&logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
@@ -52,7 +53,7 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 조합 점수를 웹에서 
 ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white)
 ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=flat&logo=gradle&logoColor=white)
 
-- App: Expo SDK 57, React Native, expo-router, TypeScript, axios. 웹과 안드로이드를 한 코드베이스로 빌드합니다.
+- Web: Expo SDK 57, React Native Web, Expo Router, TypeScript, axios.
 - Backend: Spring Boot 3.2.4, Kotlin 1.9.22(JVM 17), Gradle(Wrapper), OpenCSV, JDBC + Flyway, JJWT.
 - 데이터: 스킬은 클래스패스 CSV를 부팅 시 읽어 메모리에 적재합니다(`InMemoryScoreSkillRepository`). 계정과 덱만 PostgreSQL에 저장합니다.
 - 인증: 이메일 + 비밀번호(BCrypt), JWT 베어러 토큰. `spring-boot-starter-security` 없이 `HandlerInterceptor`로 처리합니다.
@@ -61,10 +62,10 @@ MLB 라이벌(MLB Rivals) 모바일 게임의 스킬 조합 점수를 웹에서 
 ```
 Rivals-Skill-Simulator/
 ├── backend    # Spring Boot API 서버 (포트 8080, CSV 시드)
-├── app        # Expo(React Native) 앱 — 웹/안드로이드 공용 UI, axios로 /api/score 호출
+├── app        # 웹 프런트엔드 — axios로 /api/score 호출
 ├── tools      # 데이터 도구 — CSV 검증기 둘, 설명문 파서, 워크북 추출기 (파이썬, 의존성 없음)
 ├── docs       # 참고 자료 (비스탯효과 목록, 채점 로직 메모). 원천 워크북·이미지는 추적하지 않는다
-├── .github    # EAS APK 빌드 / OTA 업데이트 / 데이터 검증 워크플로
+├── .github    # 공식 공지 확인·업데이트 / 데이터 검증 워크플로
 ├── docker-compose.yml         # db + backend + app 실행 스택 (+ .override / .tunnel / .ngrok)
 ├── Makefile   # docker compose / gradlew / npm 을 감싼 단축 명령 (make up)
 └── README.md  # 본 문서
@@ -74,7 +75,7 @@ Rivals-Skill-Simulator/
 
 | 브랜치 | 역할 |
 |---|---|
-| `deploy` | GitHub 기본 브랜치이자 배포 브랜치. Vercel(웹)이 이 브랜치를 바라보며, push 시 EAS OTA 업데이트도 나갑니다. 백엔드는 개인 서버에서 compose로 직접 띄웁니다. |
+| `deploy` | GitHub 기본 브랜치이자 배포 브랜치. Vercel이 이 브랜치의 웹 프런트엔드를 배포합니다. 백엔드는 개인 서버에서 compose로 직접 띄웁니다. |
 | `develop` | 개발 통합 브랜치. 일상 개발은 여기서 분기하고 여기로 머지합니다. |
 | `feat/*`, `fix/*`, `chore/*` | `develop`에서 분기해 작업 후 `develop`으로 PR. |
 
@@ -128,19 +129,19 @@ API 구현 참고: [Google Gemini generateContent](https://ai.google.dev/api/gen
    - Windows PowerShell/명령프롬프트에서는 `gradlew.bat bootRun`
 3. 기본 포트는 `http://localhost:8080`입니다. 부팅 시 `score_skills.csv`, `score_effects.csv`, `stat_weights.csv`를 읽어 메모리에 적재합니다.
 
-### 2) App (Expo)
+### 2) 웹 프런트엔드 (Expo)
 1. 필수: Node.js 20+, npm
 2. 실행:
    ```bash
    cd app
    echo 'EXPO_PUBLIC_API_URL=http://localhost:8080' > .env.local
    npm install
-   npm run web      # 안드로이드는 npm run android
+   npm run web
    ```
 3. 기본 포트는 `http://localhost:8081`이며, 백엔드가 8080에서 떠 있어야 API 요청이 성공합니다.
    **`EXPO_PUBLIC_API_URL`을 빼면 API 호출이 실패합니다.** 값이 없으면 앱이 상대경로 `/api`로 요청하는데,
    개발 서버에는 이를 백엔드로 넘겨 줄 프록시가 없습니다(Docker 스택에서는 nginx가 넘겨 줍니다).
-   안드로이드 에뮬레이터에서는 `http://10.0.2.2:8080`을 씁니다. 자세한 내용은 [app/README.md](app/README.md)에 있습니다.
+   자세한 내용은 [app/README.md](app/README.md)에 있습니다.
 4. 웹 프로덕션 빌드:
    ```bash
    npx expo export -p web   # 결과물은 dist/

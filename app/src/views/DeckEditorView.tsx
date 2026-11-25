@@ -35,7 +35,7 @@ import {
 } from '../types';
 import BaseballField, { fieldRatio } from '../components/BaseballField';
 import BattingOrderLane from '../components/BattingOrderLane';
-import BullpenRoleLane from '../components/BullpenRoleLane';
+import BullpenRoleLane, { PITCHER_CARD_HEIGHT, pitcherCardGrid } from '../components/BullpenRoleLane';
 import DeckPlayerRankingSection from './DeckPlayerRankingSection';
 import DeckImportCard from './DeckImportCard';
 import DeckPlayerEditor from './DeckPlayerEditor';
@@ -142,6 +142,7 @@ export default function DeckEditorView({
     };
   }, []);
   const [editing, setEditing] = useState<string | null>(null);
+  const [rotationWidth, setRotationWidth] = useState(0);
   // 야구장 칸의 실제 크기. 칩을 픽셀로 놓아야 가장자리에서 칸 밖으로 삐져나가지 않는다.
   const [fieldBox, setFieldBox] = useState({ width: 0, height: 0 });
 
@@ -163,7 +164,7 @@ export default function DeckEditorView({
     return isPlayerComplete(player) ? cardGradeColor(String(player!.cardGrade)) : null;
   };
 
-  const slotChip = (slot: string) => {
+  const slotChip = (slot: string, pitcherWidth?: number) => {
     const player = editor.players[slot];
     const done = isPlayerComplete(player);
     const accent = chipAccent(player);
@@ -178,8 +179,9 @@ export default function DeckEditorView({
         key={slot}
         onPress={() => setEditing(slot)}
         style={({ pressed }) => ({
-          flexGrow: 1,
-          flexBasis: 150,
+          ...(pitcherWidth == null
+            ? { flexGrow: 1, flexBasis: 150 }
+            : { width: pitcherWidth, height: PITCHER_CARD_HEIGHT }),
           padding: spacing.smd,
           borderRadius: radius.control,
           backgroundColor: accent ? accent.soft : colors.surfaceVariant,
@@ -270,6 +272,7 @@ export default function DeckEditorView({
   );
 
   const starterSlots = editor.pitcherSlots.filter((s) => s.startsWith('SP'));
+  const { cardWidth: starterCardWidth } = pitcherCardGrid(rotationWidth, spacing.sm);
   const closerSlots = editor.pitcherSlots.filter((s) => s.startsWith('CP'));
   const bullpenCard = (slot: string) => {
     const player = editor.players[slot];
@@ -415,7 +418,14 @@ export default function DeckEditorView({
         </View>
       </SectionCard>
 
-      {section('ROTATION', starterSlots)}
+      <SectionCard title={t(PART_LABEL_KEYS.ROTATION)}>
+        <View
+          onLayout={({ nativeEvent: { layout } }) => setRotationWidth(layout.width)}
+          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+        >
+          {rotationWidth > 0 ? starterSlots.map((slot) => slotChip(slot, starterCardWidth)) : null}
+        </View>
+      </SectionCard>
 
       <SectionCard title={t(PART_LABEL_KEYS.BULLPEN)}>
         <BullpenRoleLane

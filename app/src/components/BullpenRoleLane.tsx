@@ -74,8 +74,13 @@ type CardRow = Omit<BullpenRow, 'role'>;
 
 const CLOSERS = 'CLOSERS';
 const LANES = [...RELIEVER_ROLES, CLOSERS] as const;
-const CARD_HEIGHT = 104;
+export const PITCHER_CARD_HEIGHT = 120;
 const MOVE_CONTROL_SIZE = 32;
+
+export function pitcherCardGrid(width: number, gap: number) {
+  const columns = width >= 740 ? 4 : width >= 370 ? 2 : 1;
+  return { columns, cardWidth: (width - (columns - 1) * gap) / columns };
+}
 
 type Lane = {
   role: (typeof LANES)[number];
@@ -128,10 +133,9 @@ export default function BullpenRoleLane({
   const view = preview
     ? moveRelieverRows(rows, preview.fromIndex, preview.destination.role, preview.destination.index)
     : rows;
-  const columnCount = width >= 740 ? 4 : width >= 370 ? 2 : 1;
   const gap = spacing.sm;
-  const laneWidth = (width - (columnCount - 1) * gap) / columnCount;
-  const pitch = CARD_HEIGHT + gap;
+  const { columns: columnCount, cardWidth: laneWidth } = pitcherCardGrid(width, gap);
+  const pitch = PITCHER_CARD_HEIGHT + gap;
   const cardsByRole = {
     [RelieverRole.WIN]: view.filter((row) => row.role === RelieverRole.WIN),
     [RelieverRole.CHASE]: view.filter((row) => row.role === RelieverRole.CHASE),
@@ -166,7 +170,7 @@ export default function BullpenRoleLane({
       slot: row.slot,
       fromIndex,
       x: lane.left + laneWidth - 1 - MOVE_CONTROL_SIZE / 2,
-      y: lane.cardTop + index * pitch + CARD_HEIGHT / 2 - MOVE_CONTROL_SIZE,
+      y: lane.cardTop + index * pitch + PITCHER_CARD_HEIGHT / 2 - MOVE_CONTROL_SIZE,
       source,
       destination: source,
       lanes,
@@ -187,7 +191,7 @@ export default function BullpenRoleLane({
     );
     let destination = current.source;
     if (lane && lane.role !== CLOSERS && lane.count > 0) {
-      const row = (y - lane.cardTop - CARD_HEIGHT / 2) / current.pitch;
+      const row = (y - lane.cardTop - PITCHER_CARD_HEIGHT / 2) / current.pitch;
       const sourceCount = current.lanes.find(({ role }) => role === current.source.role)?.count ?? 0;
       const inserts = lane.role !== current.source.role && sourceCount > 1;
       const index = inserts ? Math.ceil(row) : Math.round(row);
@@ -287,7 +291,7 @@ export default function BullpenRoleLane({
                 <View key={card.slot} style={{
                   ...laneStyle,
                   top: lane.cardTop + rowIndex * pitch,
-                  height: CARD_HEIGHT,
+                  height: PITCHER_CARD_HEIGHT,
                   flexDirection: 'row',
                   alignItems: 'stretch',
                   borderRadius: radius.control,
@@ -309,7 +313,7 @@ export default function BullpenRoleLane({
                     })}
                   >
                     <Text style={{ ...typography.label, color: card.accent ?? colors.secondaryText }}>{slot}</Text>
-                    <Text numberOfLines={2} style={{ ...typography.card, color: colors.onSurface }}>{card.name}</Text>
+                    <Text numberOfLines={1} style={{ ...typography.card, color: colors.onSurface }}>{card.name}</Text>
                     {card.subtitle ? (
                       <Text numberOfLines={1} style={{ ...typography.label, color: colors.secondaryText }}>
                         {card.subtitle}

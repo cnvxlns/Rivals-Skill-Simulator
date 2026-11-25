@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View, ViewStyle } from 'react-native';
-import { CARD_GRADES_LOW_TO_HIGH, CardVariant, Handedness, Position, SubPosition, variantsFor } from '../types';
-import { useScoreCalculator } from '../lib/useScoreCalculator';
+import { CARD_GRADES_LOW_TO_HIGH, CardVariant, Handedness, Position, SubPosition, TicketCombination, variantsFor } from '../types';
+import { TicketScope, useScoreCalculator } from '../lib/useScoreCalculator';
 import { canPlaceSkill } from '../lib/cardRules';
 import { useTranslation } from '../lib/i18n';
 import { useAppTheme } from '../theme/useTheme';
@@ -36,6 +36,86 @@ const TICKET_LABEL_KEYS = {
   PREMIUM_SKILL_CHANGE: 'ticket_kind_premium',
   SUPREME_SKILL_CHANGE: 'ticket_kind_supreme',
 } as const;
+
+const TICKET_SCOPE_LABEL_KEYS = {
+  all: 'ticket_scope_all',
+  lockFirst: 'ticket_lock_slot_one',
+  firstOnly: 'ticket_scope_first_only',
+} as const;
+const TICKET_SCOPES: TicketScope[] = ['all', 'lockFirst', 'firstOnly'];
+
+function formatTicketChance(chance: number, decimals: number) {
+  const percent = chance * 100;
+  if (percent > 0 && percent < 10 ** -decimals) {
+    return `${percent < 0.000001 ? percent.toExponential(2) : Number(percent.toPrecision(3))}%`;
+  }
+  return `${percent.toFixed(decimals)}%`;
+}
+
+function TicketCombinations({ combinations }: { combinations: TicketCombination[] }) {
+  const { t } = useTranslation();
+  const { colors, radius, spacing, tabularNums, typography } = useAppTheme();
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={() => setExpanded((open) => !open)}
+        style={({ pressed }) => ({
+          alignSelf: 'flex-start',
+          justifyContent: 'center',
+          minHeight: 44,
+          opacity: pressed ? 0.72 : 1,
+        })}
+      >
+        <Text style={[typography.label, { color: colors.accentAction }]}>
+          {expanded ? t('ticket_combinations_hide') : `${t('ticket_combinations_show')} (${combinations.length})`}
+        </Text>
+      </Pressable>
+      {expanded ? (
+        <View style={{ gap: spacing.sm }}>
+          <Text style={[typography.label, { color: colors.secondaryText }]}>{t('ticket_combinations_hint')}</Text>
+          {combinations.map(({ slots, total, gain, chance }) => (
+            <View
+              key={slots.map((slot) => `${slot.skillId ?? ''}/${slot.level}`).join('|')}
+              style={{
+                gap: spacing.sm,
+                padding: spacing.mdl,
+                borderRadius: radius.card,
+                borderWidth: 1,
+                borderColor: colors.outline,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: spacing.md }}>
+                <Text style={[typography.card, { color: colors.onSurface }, tabularNums]}>
+                  {t('score_total')} {total.toFixed(2)}{' '}
+                  <Text style={{ color: colors.statMine }}>(+{gain.toFixed(2)})</Text>
+                </Text>
+                <Text style={[typography.label, { color: colors.secondaryText }, tabularNums]}>
+                  {t('ticket_chance_per_one')} {formatTicketChance(chance, 3)}
+                </Text>
+              </View>
+              {slots.map((slot, index) => (
+                <View key={index} style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm }}>
+                  <Text style={[typography.label, { color: colors.secondaryText }, tabularNums]}>
+                    {t('slot_label')} {index + 1}
+                  </Text>
+                  <Text style={[typography.body, { color: colors.onSurface, flex: 1 }]}>
+                    {slot.skillId ? slot.name || slot.skillId : t('score_no_skills')}
+                  </Text>
+                  {slot.skillId ? (
+                    <Text style={[typography.label, { color: colors.secondaryText }, tabularNums]}>{slot.level}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 export default function CalculatorView({ onViewMethodology }: { onViewMethodology?: () => void }) {
   const calc = useScoreCalculator();
@@ -477,24 +557,25 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
    * 계산기가 이미 들고 있는 조건을 그대로 쓰므로 여기서 새로 물어보는 건 잠금 여부뿐이다.
    */
   function renderTickets() {
-    const filled = calc.sets[0].selections.filter((selection) => selection.skillId).length;
     return (
       <SectionCard title={t('ticket_title')}>
         <View style={{ gap: spacing.md }}>
           <Text style={[typography.label, { color: colors.secondaryText }]}>{t('ticket_desc')}</Text>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap' }}>
-            <LinkAction
-              text={`${t('ticket_lock_slot_one')}${calc.lockSlotOne ? ' ✓' : ''}`}
-              onPress={() => calc.setLockSlotOne(!calc.lockSlotOne)}
-              style={linkTouchTarget}
-            />
-            {calc.tickets && !calc.tickets.slotOneLockable ? (
-              <Text style={[typography.label, { color: colors.muted, flex: 1 }]}>
-                {t('ticket_lock_unavailable')}
-              </Text>
-            ) : null}
-          </View>
+          {calc.firstSlotOptionsAvailable ? (
+            <View style={{ maxWidth: 320 }}>
+              <LabeledDropdown
+                label={t('ticket_scope')}
+                selected={calc.ticketScope}
+                options={TICKET_SCOPES}
+                optionLabel={(scope) => t(TICKET_SCOPE_LABEL_KEYS[scope])}
+                onSelect={calc.setTicketScope}
+              />
+            </View>
+          ) : null}
+          {calc.ticketScope === 'firstOnly' ? (
+            <Text style={[typography.label, { color: colors.secondaryText }]}>{t('ticket_scope_first_only_hint')}</Text>
+          ) : null}
 
           {/*
             스킬레벨보호권은 켜고 끄게 두지 않는다. 끄고 보는 경우가 없어 선택지만 늘렸다.
@@ -505,9 +586,15 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
           <PrimaryActionButton
             text={t('ticket_calculate')}
             onPress={calc.evaluateTickets}
-            enabled={filled > 0 && !calc.ticketsLoading}
+            enabled={calc.canEvaluateTickets}
             loading={calc.ticketsLoading}
           />
+          {calc.ticketError ? <InfoBanner text={t('ticket_error')} tone="error" /> : null}
+          {calc.tickets ? (
+            <Text style={[typography.label, { color: colors.secondaryText }, tabularNums]}>
+              {t('ticket_current_score')} {calc.tickets.currentTotal.toFixed(2)}
+            </Text>
+          ) : null}
 
           {calc.tickets
             ? calc.tickets.tickets.map((outcome) => {
@@ -541,7 +628,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
 
                     <View style={{ flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' }}>
                       <Text style={[typography.label, { color: colors.secondaryText }]}>
-                        {t('ticket_chance_per_one')} {(outcome.improveChance * 100).toFixed(1)}%
+                        {t('ticket_chance_per_one')} {formatTicketChance(outcome.improveChance, 1)}
                       </Text>
                       {outcome.averageGain != null ? (
                         <Text style={[typography.label, { color: colors.statMine }]}>
@@ -558,10 +645,13 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                             style={[typography.label, { color: colors.secondaryText }, tabularNums]}
                           >
                             {count}
-                            {t('ticket_within_suffix')} {(chance * 100).toFixed(0)}%
+                            {t('ticket_within_suffix')} {formatTicketChance(chance, 0)}
                           </Text>
                         ))}
                       </View>
+                    ) : null}
+                    {outcome.betterCombinations?.length ? (
+                      <TicketCombinations combinations={outcome.betterCombinations} />
                     ) : null}
                   </View>
                 );

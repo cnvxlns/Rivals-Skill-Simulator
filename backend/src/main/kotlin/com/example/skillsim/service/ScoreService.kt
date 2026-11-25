@@ -166,6 +166,30 @@ class ScoreService private constructor(
         return toResponse(result, undefinedConditionWarnings, selections)
     }
 
+    /** 변경권 한 요청의 모든 후보에 같은 조건과 가중치를 적용한다. */
+    internal fun ticketScorer(
+        position: String,
+        cardType: String,
+        battingOrder: Int?,
+        pitcherSlot: Int?,
+        throwHand: Handedness?,
+        batHand: Handedness?,
+        userStats: Map<String, Double>?,
+        baseStats: Map<String, Double>?,
+    ): (List<ScoreCalculator.Selection>) -> ScoreCalculator.Result {
+        val conditionProbabilities = ScoreCalculator.conditionProbabilitiesForPosition(
+            position = position,
+            battingOrder = battingOrder,
+            pitcherSlot = pitcherSlot,
+            cardType = cardType,
+            throwHand = throwHand,
+            batHand = batHand,
+            baseStats = baseStats,
+        )
+        val statWeights = statWeightsSupplier()
+        return { selections -> scoreCalculator.calculate(selections, statWeights, conditionProbabilities, userStats) }
+    }
+
     /**
      * 포지션 훈련 보너스를 `스킬 -> 오르는 폭`으로 바꾼다. 규칙 위반은 400이다.
      *

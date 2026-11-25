@@ -18,9 +18,10 @@ data class TicketExpectationResponse(
      * @param improveChance 한 장으로 지금보다 나아질 확률.
      * @param expectedTickets 나아질 때까지 기대되는 장수. [improveChance]가 0이면 발산하므로
      *   null이고, 화면은 이때 "사실상 불가"로 읽는다.
-     * @param averageGain 나아졌을 때의 평균 상승폭. 나아진 적이 없으면 null이다.
-     * @param averageTotal 한 장을 썼을 때 나오는 합계의 평균. 지금보다 낮으면 손해 쪽이 크다는 뜻이다.
-     * @param chanceWithin 장수별 누적 성공 확률. 평균만으로는 운이 나쁠 때를 알 수 없어 함께 준다.
+     * @param averageGain 개선 조합의 반올림 전 점수와 현재 점수 차이의 평균. 개선이 불가능하면 null이다.
+     * @param averageTotal 한 장을 썼을 때 나오는 반올림 전 점수의 평균.
+     * @param chanceWithin 같은 조건으로 반복 시도할 때 장수별 누적 성공 확률.
+     * @param betterCombinations 한 장으로 얻을 수 있는 개선 조합 중 점수가 가장 높은 조합들.
      */
     data class TicketOutcome(
         val ticket: String,
@@ -30,5 +31,20 @@ data class TicketExpectationResponse(
         val averageGain: Double?,
         val averageTotal: Double,
         val chanceWithin: Map<Int, Double>,
+        val betterCombinations: List<BetterCombination> = emptyList(),
+    )
+
+    data class BetterCombination(
+        val slots: List<CombinationSlot>,
+        val total: Double,
+        val gain: Double,
+        val chance: Double,
+    )
+
+    /** level은 포지션특훈 보너스를 적용하기 전의 기본 레벨이다. */
+    data class CombinationSlot(
+        val skillId: String?,
+        val name: String?,
+        val level: String,
     )
 }

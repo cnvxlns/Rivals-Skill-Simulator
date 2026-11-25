@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View, ViewStyle } from 'react-native';
-import { CARD_GRADES_LOW_TO_HIGH, CardVariant, Handedness, Position, SubPosition, TicketCombination, variantsFor } from '../types';
+import { CARD_GRADES_LOW_TO_HIGH, CardGrade, CardVariant, Handedness, Position, SubPosition, TicketCombination, variantsFor } from '../types';
 import { TicketScope, useScoreCalculator } from '../lib/useScoreCalculator';
 import { canPlaceSkill } from '../lib/cardRules';
 import { useTranslation } from '../lib/i18n';
@@ -187,6 +187,20 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
   const [shownSet, setShownSet] = useState<'a' | 'b'>('a');
   const visibleSets = sideBySide ? [0, 1] : [calc.compare && shownSet === 'b' ? 1 : 0];
   const setLabel = (index: number) => t(index === 0 ? 'calculator_set_a' : 'calculator_set_b');
+  const showsPitcherSlot = calc.position === Position.PITCHER &&
+    (calc.subPosition === 'SP' || calc.subPosition === 'RP');
+
+  function renderPitcherSlot(setIndex: number) {
+    return (
+      <LabeledDropdown
+        label={t('label_pitcher_slot')}
+        selected={calc.pitcherSlots[setIndex]}
+        options={calc.subPosition === 'SP' ? [null, 1, 2, 3, 4, 5] : [null, 1, 2, 3, 4, 5, 6]}
+        optionLabel={(option) => (option == null ? '-' : String(option))}
+        onSelect={(option) => calc.updatePitcherSlot(setIndex, option)}
+      />
+    );
+  }
 
   /** 한 벌의 스킬 슬롯 격자. 비교를 켜면 좌우로 두 번 그린다. */
   function renderSlots(setIndex: number) {
@@ -376,17 +390,8 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
               />
             </View>
           ) : null}
-          {calc.position === Position.PITCHER &&
-          (calc.subPosition === 'SP' || calc.subPosition === 'RP') ? (
-            <View style={controlField}>
-              <LabeledDropdown
-                label={t('label_pitcher_slot')}
-                selected={calc.pitcherSlot}
-                options={calc.subPosition === 'SP' ? [null, 1, 2, 3, 4, 5] : [null, 1, 2, 3, 4, 5, 6]}
-                optionLabel={(option) => (option == null ? '-' : String(option))}
-                onSelect={(option) => calc.updatePitcherSlot(option)}
-              />
-            </View>
+          {showsPitcherSlot && !calc.compare ? (
+            <View style={controlField}>{renderPitcherSlot(0)}</View>
           ) : null}
         </View>
       </SectionCard>
@@ -485,6 +490,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
             {sideBySide ? (
               <Text style={[typography.label, { color: colors.secondaryText }]}>{setLabel(setIndex)}</Text>
             ) : null}
+            {showsPitcherSlot && calc.compare ? renderPitcherSlot(setIndex) : null}
             {renderSlots(setIndex)}
           </View>
         ))}
@@ -612,21 +618,56 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
    * 계산기가 이미 들고 있는 조건을 그대로 쓰므로 여기서 새로 물어보는 건 잠금 여부뿐이다.
    */
   function renderTickets() {
+    const showMomentSkillPicker = calc.cardGrade === CardGrade.MOMENT;
+    const momentSkillOptions = [
+      '',
+      ...(calc.momentSkillId && !calc.momentSkills.some((skill) => skill.skillId === calc.momentSkillId)
+        ? [calc.momentSkillId]
+        : []),
+      ...calc.momentSkills.map((skill) => skill.skillId),
+    ];
     return (
       <SectionCard title={t('ticket_title')}>
         <View style={{ gap: spacing.md }}>
           <Text style={[typography.label, { color: colors.secondaryText }]}>{t('ticket_desc')}</Text>
 
-          {calc.firstSlotOptionsAvailable ? (
-            <View style={{ maxWidth: 320 }}>
-              <LabeledDropdown
-                label={t('ticket_scope')}
-                selected={calc.ticketScope}
-                options={TICKET_SCOPES}
-                optionLabel={(scope) => t(TICKET_SCOPE_LABEL_KEYS[scope])}
-                onSelect={calc.setTicketScope}
-              />
+          {showMomentSkillPicker || calc.firstSlotOptionsAvailable ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+              {showMomentSkillPicker ? (
+                <View style={{ flexBasis: 280, maxWidth: 320, flexGrow: 1 }}>
+                  <LabeledDropdown
+                    label={t('ticket_moment_skill')}
+                    selected={calc.momentSkillId}
+                    options={momentSkillOptions}
+                    optionLabel={(skillId) =>
+                      calc.momentSkills.find((skill) => skill.skillId === skillId)?.name ??
+                      calc.skills.find((skill) => skill.skillId === skillId)?.name ??
+                      (skillId ? skillId : t('score_select_skill'))
+                    }
+                    onSelect={calc.setMomentSkillId}
+                    disabled={calc.firstSlotHasMomentSkill || calc.momentSkills.length === 0}
+                    searchable
+                    searchPlaceholder={t('score_table_search_placeholder')}
+                  />
+                </View>
+              ) : null}
+              {calc.firstSlotOptionsAvailable ? (
+                <View style={{ flexBasis: 280, maxWidth: 320, flexGrow: 1 }}>
+                  <LabeledDropdown
+                    label={t('ticket_scope')}
+                    selected={calc.ticketScope}
+                    options={TICKET_SCOPES}
+                    optionLabel={(scope) => t(TICKET_SCOPE_LABEL_KEYS[scope])}
+                    onSelect={calc.setTicketScope}
+                  />
+                </View>
+              ) : null}
             </View>
+          ) : null}
+          {showMomentSkillPicker ? (
+            <Text style={[typography.label, { color: colors.secondaryText }]}>
+              {t(calc.firstSlotHasMomentSkill ? 'ticket_moment_skill_locked_hint' : 'ticket_moment_skill_hint')}
+            </Text>
           ) : null}
           {calc.ticketScope === 'firstOnly' ? (
             <Text style={[typography.label, { color: colors.secondaryText }]}>{t('ticket_scope_first_only_hint')}</Text>
@@ -733,6 +774,11 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
         style={sideBySide ? { flex: 1, minWidth: 0 } : undefined}
       >
         <ScoreHero label={t('score_total')} value={result.total} compact={sideBySide} />
+        {calc.compare && showsPitcherSlot ? (
+          <Text style={[typography.label, { color: colors.secondaryText }]}>
+            {t('label_pitcher_slot')} {calc.pitcherSlots[setIndex]}
+          </Text>
+        ) : null}
         {delta != null ? (
           <Text
             style={[

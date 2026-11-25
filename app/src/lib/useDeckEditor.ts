@@ -2,14 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiErrorMessage, createDeck, fetchDeck, scoreDeck, updateDeck } from './api';
-import { canPlaceSkill, slotCountFor } from './cardRules';
+import { canPlaceSkill, skillPoolsFor, slotCountFor } from './cardRules';
 import {
   BENCH_SLOTS,
+  BenchTeamBuffSkill,
+  BullpenTactic,
   CardGrade,
   CardVariant,
+  ChaseTactic,
   DeckDetail,
   DeckImportWarning,
   DeckPlayer,
+  DeckRules,
   DeckSaveRequest,
   DeckScoreChoice,
   DeckScoreLadder,
@@ -19,6 +23,7 @@ import {
   PITCHER_COUNT,
   PositionTraining,
   RelieverRole,
+  WinTactic,
 } from '../types';
 
 /** 투수 세 자리 중 어느 것을 고르는가. */
@@ -36,9 +41,12 @@ export const PITCHER_RANGES: Record<PitcherField, number[]> = {
   closers: [1, 2],
 };
 
+const relieverSlotsFor = (count: number): string[] =>
+  Array.from({ length: count }, (_, index) => `RP${index + 1}`);
+
 export const pitcherSlotsFor = (starters: number, relievers: number, closers: number): string[] => [
   ...Array.from({ length: starters }, (_, i) => `SP${i + 1}`),
-  ...Array.from({ length: relievers }, (_, i) => `RP${i + 1}`),
+  ...relieverSlotsFor(relievers),
   ...Array.from({ length: closers }, (_, i) => `CP${i + 1}`),
 ];
 
@@ -47,11 +55,25 @@ export const isLineup = (slot: string) => (LINEUP_SLOTS as readonly string[]).in
 export const isReliever = (slot: string) => slot.startsWith('RP');
 export const isPitcher = (slot: string) => /^(SP|RP|CP)\d+$/.test(slot);
 
+export const RELIEVER_ROLES = [RelieverRole.WIN, RelieverRole.CHASE, RelieverRole.LONG] as const;
+export const WIN_DIVISION_MIN = 3;
+export const CHASE_AGGRESSIVE_MIN = 2;
+
+export function benchTeamBuffSkillsFor(
+  rules: DeckRules | null | undefined,
+  player: Pick<DeckPlayer, 'cardGrade' | 'cardVariant'>,
+): BenchTeamBuffSkill[] {
+  const pools = skillPoolsFor(player.cardGrade, player.cardVariant);
+  return (rules?.benchTeamBuffSkills ?? []).filter((skill) =>
+    pools.some((pool) => pool === skill.cardType),
+  );
+}
+
 // 슬롯 수 규칙은 카드 축의 다른 규칙과 함께 둔다. 여기서 다시 내보내는 것은 이미 이
 // 모듈에서 가져다 쓰는 화면이 있어서다.
 export { slotCountFor };
 
-/** 스킬 목록을 조회할 때 쓰는 포지션. 후보만 직접 고르고 나머지는 자리에서 나온다. */
+/** 스킬 목록을 조회할 때 쓰는 포지션. */
 export const positionForSlot = (slot: string, benchPosition?: string): string => {
   if (isLineup(slot)) return slot;
   if (isPitcher(slot)) return slot.replace(/\d+$/, '');
@@ -61,6 +83,7 @@ export const positionForSlot = (slot: string, benchPosition?: string): string =>
 /** 아직 스킬을 다 고르지 않은 자리인가. */
 export const isPlayerComplete = (player: DeckPlayer | undefined): boolean => {
   if (!player) return false;
+  if (isBench(player.slot)) return !!player.cardGrade;
   const needed = slotCountFor(player.cardGrade);
   return player.skills.length === needed && player.skills.every((s) => s.skillId);
 };
@@ -137,9 +160,129 @@ const emptyPlayer = (slot: string, battingOrder?: number): DeckPlayer => ({
   cardVariant: CardVariant.NONE,
   skills: [],
   ...(battingOrder ? { battingOrder } : {}),
-  ...(isBench(slot) ? { position: 'C' } : {}),
   ...(isReliever(slot) ? { relieverRole: RelieverRole.LONG } : {}),
 });
+
+/** 같은 이동 규칙을 사용해 레인에서 미리 보여 주고, 드롭할 때 덱에 반영한다. */
+export function moveRelieverRows<T extends { role: RelieverRole }>(
+  rows: readonly T[],
+  fromIndex: number,
+  targetRole: RelieverRole,
+  targetIndexInRole: number,
+): readonly T[] {
+  const moving = rows[fromIndex];
+  if (!moving) return rows;
+
+  const groups = {
+    [RelieverRole.WIN]: rows.filter(({ role }) => role === RelieverRole.WIN),
+    [RelieverRole.CHASE]: rows.filter(({ role }) => role === RelieverRole.CHASE),
+    [RelieverRole.LONG]: rows.filter(({ role }) => role === RelieverRole.LONG),
+  };
+  const source = groups[moving.role];
+  const target = groups[targetRole];
+  const sourceIndex = source.indexOf(moving);
+
+  if (source !== target && source.length === 1) {
+    const swapIndex = Math.min(Math.max(targetIndexInRole, 0), target.length - 1);
+    const swapped = target[swapIndex];
+    if (!swapped) return rows;
+    source[sourceIndex] = { ...swapped, role: moving.role };
+    target[swapIndex] = { ...moving, role: targetRole };
+  } else {
+    source.splice(sourceIndex, 1);
+    const insertIndex = Math.min(Math.max(targetIndexInRole, 0), target.length);
+    if (source === target && sourceIndex === insertIndex) return rows;
+    target.splice(insertIndex, 0, source === target ? moving : { ...moving, role: targetRole });
+  }
+  return RELIEVER_ROLES.flatMap((role) => groups[role]);
+}
+
+function assignRelieverSlots(
+  players: Record<string, DeckPlayer>,
+  rows: readonly { player: DeckPlayer; role: RelieverRole }[],
+): Record<string, DeckPlayer> {
+  const next = { ...players };
+  rows.forEach(({ player, role }, index) => {
+    const slot = `RP${index + 1}`;
+    next[slot] = player.slot === slot && player.relieverRole === role
+      ? player
+      : {
+          ...player,
+          slot,
+          relieverRole: role,
+          pitcherSlot: index + 1,
+          // 위치 훈련 차이를 계산할 수 있도록 입력 당시의 자리를 유지한다.
+          statsSlot: player.statsSlot ?? (player.slot !== slot && player.stats ? player.slot : undefined),
+        };
+  });
+  return next;
+}
+
+function normalizeRelieverGroup(players: Record<string, DeckPlayer>, count: number) {
+  const relievers = relieverSlotsFor(count).map((slot) => players[slot]);
+  if (relievers.every((player) => !player.relieverRole || player.relieverRole === RelieverRole.LONG)) {
+    const win = Math.floor(count / 2);
+    return assignRelieverSlots(players, relievers.map((player, index) => ({
+      player,
+      role: index < win ? RelieverRole.WIN
+        : index < count - 1 ? RelieverRole.CHASE
+        : RelieverRole.LONG,
+    })));
+  }
+
+  const groups: Record<RelieverRole, DeckPlayer[]> = {
+    [RelieverRole.WIN]: [],
+    [RelieverRole.CHASE]: [],
+    [RelieverRole.LONG]: [],
+  };
+  relievers.forEach((player) => groups[player.relieverRole ?? RelieverRole.LONG].push(player));
+  RELIEVER_ROLES.forEach((role) => {
+    if (groups[role].length > 0) return;
+    const donor = RELIEVER_ROLES.reduce((largest, next) =>
+      groups[next].length > groups[largest].length ? next : largest,
+    );
+    const player = groups[donor].pop();
+    if (player) groups[role].push(player);
+  });
+  return assignRelieverSlots(
+    players,
+    RELIEVER_ROLES.flatMap((role) => groups[role].map((player) => ({ player, role }))),
+  );
+}
+
+type RosterEditorState = {
+  starterCount: number;
+  relieverCount: number;
+  closerCount: number;
+  players: Record<string, DeckPlayer>;
+  winTactic: WinTactic;
+  chaseTactic: ChaseTactic;
+};
+
+function validateTactics(state: RosterEditorState): RosterEditorState {
+  const relievers = relieverSlotsFor(state.relieverCount).map((slot) => state.players[slot]);
+  return {
+    ...state,
+    winTactic: state.winTactic === BullpenTactic.DIVISION &&
+      relievers.filter(({ relieverRole }) => relieverRole === RelieverRole.WIN).length < WIN_DIVISION_MIN
+      ? BullpenTactic.DEFAULT : state.winTactic,
+    chaseTactic: state.chaseTactic === BullpenTactic.AGGRESSIVE &&
+      relievers.filter(({ relieverRole }) => relieverRole === RelieverRole.CHASE).length < CHASE_AGGRESSIVE_MIN
+      ? BullpenTactic.DEFAULT : state.chaseTactic,
+  };
+}
+
+function normalizeRoster(state: RosterEditorState): RosterEditorState {
+  const { starterCount, closerCount, relieverCount } = state;
+  const players: Record<string, DeckPlayer> = {};
+  [...LINEUP_SLOTS, ...BENCH_SLOTS, ...pitcherSlotsFor(starterCount, relieverCount, closerCount)]
+    .forEach((slot, index) => {
+      players[slot] = state.players[slot] ?? emptyPlayer(
+        slot, index < LINEUP_SLOTS.length ? index + 1 : undefined,
+      );
+    });
+  return validateTactics({ ...state, players: normalizeRelieverGroup(players, relieverCount) });
+}
 
 /**
  * 덱 편집 상태.
@@ -154,31 +297,19 @@ const emptyPlayer = (slot: string, battingOrder?: number): DeckPlayer => ({
  */
 export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining) {
   const [name, setName] = useState(initial?.name ?? '');
-  // 셋을 각자 독립된 상태로 둔다. 서로 강제하지 않고 합이 맞는지만 화면이 알려 준다.
-  const [starterCount, setStarters] = useState(initial?.roster.starterCount ?? 5);
-  const [closerCount, setClosers] = useState(initial?.roster.closerCount ?? 2);
-  const [relieverCount, setRelievers] = useState(
-    initial ? PITCHER_COUNT - initial.roster.starterCount - initial.roster.closerCount : 5,
-  );
-  const [players, setPlayers] = useState<Record<string, DeckPlayer>>(() => {
-    const seed: Record<string, DeckPlayer> = {};
-    if (initial) {
-      initial.roster.players.forEach((p) => {
-        seed[p.slot] = p;
-      });
-      return seed;
-    }
-    LINEUP_SLOTS.forEach((slot, i) => {
-      seed[slot] = emptyPlayer(slot, i + 1);
+  const [roster, setRoster] = useState<RosterEditorState>(() => {
+    const starterCount = initial?.roster.starterCount ?? 5;
+    const closerCount = initial?.roster.closerCount ?? 2;
+    return normalizeRoster({
+      starterCount,
+      closerCount,
+      relieverCount: PITCHER_COUNT - starterCount - closerCount,
+      players: Object.fromEntries(initial?.roster.players.map((player) => [player.slot, player]) ?? []),
+      winTactic: initial?.roster.winTactic ?? BullpenTactic.DEFAULT,
+      chaseTactic: initial?.roster.chaseTactic ?? BullpenTactic.DEFAULT,
     });
-    BENCH_SLOTS.forEach((slot) => {
-      seed[slot] = emptyPlayer(slot);
-    });
-    pitcherSlotsFor(5, 5, 2).forEach((slot) => {
-      seed[slot] = emptyPlayer(slot);
-    });
-    return seed;
   });
+  const { starterCount, closerCount, relieverCount, players, winTactic, chaseTactic } = roster;
 
   /**
    * 덱 스코어 보상에서 고른 칸들. 임계값마다 좌·우 중 하나다.
@@ -212,9 +343,9 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
 
   /** 세 자리를 각자 고른다. 서로 건드리지 않는다. */
   const setPitcherCount = useCallback((field: PitcherField, value: number) => {
-    if (field === 'starters') setStarters(value);
-    else if (field === 'relievers') setRelievers(value);
-    else setClosers(value);
+    const key = field === 'starters' ? 'starterCount'
+      : field === 'relievers' ? 'relieverCount' : 'closerCount';
+    setRoster((prev) => prev[key] === value ? prev : normalizeRoster({ ...prev, [key]: value }));
   }, []);
   const pitcherSlots = useMemo(
     () => pitcherSlotsFor(starterCount, relieverCount, closerCount),
@@ -224,20 +355,6 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
     () => [...LINEUP_SLOTS, ...BENCH_SLOTS, ...pitcherSlots],
     [pitcherSlots],
   );
-
-  // 선발·마무리를 바꾸면 없어진 투수 자리를 버리고 새로 생긴 자리를 채운다.
-  useEffect(() => {
-    setPlayers((prev) => {
-      const next: Record<string, DeckPlayer> = {};
-      [...LINEUP_SLOTS, ...BENCH_SLOTS].forEach((slot, i) => {
-        next[slot] = prev[slot] ?? emptyPlayer(slot, i < LINEUP_SLOTS.length ? i + 1 : undefined);
-      });
-      pitcherSlots.forEach((slot) => {
-        next[slot] = prev[slot] ?? emptyPlayer(slot);
-      });
-      return next;
-    });
-  }, [pitcherSlots]);
 
   const completedCount = allSlots.filter((slot) => isPlayerComplete(players[slot])).length;
   /**
@@ -261,7 +378,30 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
     completedCount === allSlots.length && isPitcherStaffValid && brokenSlots.length === 0;
 
   const updatePlayer = useCallback((slot: string, patch: Partial<DeckPlayer>) => {
-    setPlayers((prev) => ({ ...prev, [slot]: { ...prev[slot], ...patch, slot } }));
+    setRoster((prev) => {
+      const current = prev.players[slot];
+      if (!current) return prev;
+      const player = { ...current, ...patch, slot };
+      if (
+        isBench(slot) &&
+        (player.cardGrade !== current.cardGrade || player.cardVariant !== current.cardVariant)
+      ) {
+        const kept: DeckPlayer['skills'] = [];
+        const maxSlots = slotCountFor(player.cardGrade);
+        for (const skill of player.skills) {
+          const selected = kept.map(({ skillId }) => skillId);
+          if (kept.length >= maxSlots) break;
+          if (
+            !selected.includes(skill.skillId) &&
+            canPlaceSkill(player.cardGrade, player.cardVariant, kept.length, skill.skillId, selected)
+          ) {
+            kept.push(skill);
+          }
+        }
+        player.skills = kept;
+      }
+      return { ...prev, players: { ...prev.players, [slot]: player } };
+    });
   }, []);
 
   /**
@@ -274,15 +414,16 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
    * 중간에 중복이나 구멍이 생기지 않는다.
    */
   const moveBattingOrder = useCallback((slot: string, order: number) => {
-    setPlayers((prev) => {
-      if (!isLineup(slot) || !prev[slot]?.battingOrder) return prev;
+    setRoster((state) => {
+      const prev = state.players;
+      if (!isLineup(slot) || !prev[slot]?.battingOrder) return state;
       const target = Math.min(Math.max(order, 1), LINEUP_SLOTS.length);
       // 타순이 없는 자리는 뒤로 민다. 저장된 덱이 깨져 있어도 9행이 유지된다.
       const ordered: string[] = [...LINEUP_SLOTS].sort(
         (a, b) => (prev[a]?.battingOrder ?? 99) - (prev[b]?.battingOrder ?? 99),
       );
       const from = ordered.indexOf(slot);
-      if (from < 0 || from === target - 1) return prev;
+      if (from < 0 || from === target - 1) return state;
       ordered.splice(target - 1, 0, ...ordered.splice(from, 1));
 
       // 번호가 실제로 바뀐 자리만 새 객체로 만든다. 손대지 않은 선수의 신원이 유지돼야
@@ -293,8 +434,30 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
           next[each] = { ...prev[each], battingOrder: index + 1 };
         }
       });
-      return next;
+      return { ...state, players: next };
     });
+  }, []);
+
+  const moveReliever = useCallback((fromIndex: number, targetRole: RelieverRole, targetIndex: number) => {
+    setRoster((prev) => {
+      const rows = relieverSlotsFor(prev.relieverCount).map((slot) => {
+        const player = prev.players[slot];
+        return { player, role: player.relieverRole ?? RelieverRole.LONG };
+      });
+      const moved = moveRelieverRows(rows, fromIndex, targetRole, targetIndex);
+      return moved === rows ? prev : validateTactics({
+        ...prev,
+        players: assignRelieverSlots(prev.players, moved),
+      });
+    });
+  }, []);
+
+  const setWinTactic = useCallback((winTactic: WinTactic) => {
+    setRoster((prev) => validateTactics({ ...prev, winTactic }));
+  }, []);
+
+  const setChaseTactic = useCallback((chaseTactic: ChaseTactic) => {
+    setRoster((prev) => validateTactics({ ...prev, chaseTactic }));
   }, []);
 
   /** 타순 1~9 순서로 편 주전 자리. 타순 레인이 이 순서로 행을 그린다. */
@@ -312,6 +475,8 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
       starterCount,
       relieverCount,
       closerCount,
+      winTactic,
+      chaseTactic,
       players: allSlots.map((slot) => {
         const p = players[slot];
         return {
@@ -321,7 +486,7 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
           cardVariant: p.cardVariant ?? CardVariant.NONE,
           skills: p.skills,
           ...(isLineup(slot) ? { battingOrder: p.battingOrder } : {}),
-          ...(isBench(slot) ? { position: p.position || 'C' } : {}),
+          ...(isBench(slot) && p.position ? { position: p.position } : {}),
           ...(isReliever(slot) ? { relieverRole: p.relieverRole ?? RelieverRole.LONG } : {}),
           ...(p.stats && Object.keys(p.stats).length ? { stats: p.stats } : {}),
           ...(p.statsSlot ? { statsSlot: p.statsSlot } : {}),
@@ -342,17 +507,21 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
       ...(training && Object.keys(training.slots).length ? { positionTraining: training } : {}),
       ...(Object.keys(coordination).length ? { deckScoreChoices: Object.values(coordination) } : {}),
     }),
-    [allSlots, players, name, starterCount, relieverCount, closerCount, training, coordination],
+    [
+      allSlots, players, name, starterCount, relieverCount, closerCount,
+      winTactic, chaseTactic, training, coordination,
+    ],
   );
 
   // 완성된 덱이면 편집하는 동안 점수를 미리 보여 준다. 저장하지 않는다.
   const previewSeq = useRef(0);
   useEffect(() => {
+    const seq = ++previewSeq.current;
     if (!isComplete) {
       setScore(null);
+      setScoring(false);
       return;
     }
-    const seq = ++previewSeq.current;
     const run = async () => {
       setScoring(true);
       try {
@@ -365,6 +534,7 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
       }
     };
     void run();
+    return () => { previewSeq.current += 1; };
   }, [isComplete, toRequest]);
 
   const save = useCallback(
@@ -417,19 +587,26 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
    */
   const applyImport = useCallback((draft: DeckSaveRequest, warnings: DeckImportWarning[]) => {
     setImportWarnings(warnings);
-    if (draft.starterCount) setStarters(draft.starterCount);
-    if (draft.closerCount) setClosers(draft.closerCount);
-    if (draft.starterCount && draft.closerCount) {
-      setRelievers(PITCHER_COUNT - draft.starterCount - draft.closerCount);
-    }
-    setPlayers((prev) => {
-      const next = { ...prev };
-      draft.players.forEach((player) => {
-        const slot = player.slot;
-        if (!next[slot]) return;
-        next[slot] = { ...next[slot], ...player, slot };
+    setRoster((prev) => {
+      const starterCount = draft.starterCount ?? prev.starterCount;
+      const closerCount = draft.closerCount ?? prev.closerCount;
+      const relieverCount = draft.relieverCount ?? (
+        draft.starterCount && draft.closerCount
+          ? PITCHER_COUNT - starterCount - closerCount
+          : prev.relieverCount
+      );
+      const players = { ...prev.players };
+      draft.players.forEach(({ slot, ...player }) => {
+        players[slot] = { ...players[slot], ...player, slot };
       });
-      return next;
+      return normalizeRoster({
+        starterCount,
+        closerCount,
+        relieverCount,
+        players,
+        winTactic: draft.winTactic ?? prev.winTactic,
+        chaseTactic: draft.chaseTactic ?? prev.chaseTactic,
+      });
     });
     if (draft.deckScoreChoices?.length) {
       const seed: Record<string, DeckScoreChoice> = {};
@@ -463,6 +640,11 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
     players,
     updatePlayer,
     moveBattingOrder,
+    moveReliever,
+    winTactic,
+    chaseTactic,
+    setWinTactic,
+    setChaseTactic,
     lineupByBattingOrder,
     allSlots,
     pitcherSlots,

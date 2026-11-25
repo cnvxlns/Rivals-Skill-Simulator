@@ -65,9 +65,8 @@ export type ScoreSlotSelection = {
 /**
  * 스킬 한 벌과 그 결과.
  *
- * 카드 등급·포지션·타순·투타 방향·사용자 스탯은 A/B가 공유한다. 같은 조건에서 어떤
- * 스킬 조합이 나은지 보는 게 목적이라, 조건까지 갈리면 무엇 때문에 점수가 달라졌는지
- * 알 수 없다.
+ * 카드 등급·포지션·타순·투타 방향·사용자 스탯은 A/B가 공유한다.
+ * 선발·중계 투수 슬롯은 각 조합에서 선택한다.
  */
 export type ScoreSet = {
   selections: ScoreSlotSelection[];
@@ -120,6 +119,7 @@ export function useScoreCalculator() {
   // 스킬 변경권 기댓값. A 슬롯을 기준으로 본다. 비교를 켜도 기준은 A 하나다.
   const [ticketCalculation, setTicketCalculation] = useState<TicketCalculation | null>(null);
   const [selectedTicketScope, setTicketScope] = useState<TicketScope>('all');
+  const [selectedMomentSkillId, setMomentSkillId] = useState('');
   // 포지션특훈이 이 자리에 붙여 준 스킬 레벨 보너스. 계정에 저장된 구단 설정과 섞지 않는다.
   const [trainingBonuses, setTrainingBonuses] = useState<SkillLevelBonus[]>(emptyTrainingBonuses);
   const [hasTranscended, setHasTranscended] = useState(false);
@@ -130,7 +130,8 @@ export function useScoreCalculator() {
   // 기본값을 두지 않는다. 비어 있음이 "모른다"는 뜻이고, 그때는 서버가 표본 확률을 쓴다.
   const [baseStats, setBaseStats] = useState<Record<string, number>>({});
   const [battingOrder, setBattingOrder] = useState<number | null>(DEFAULT_BATTING_ORDER);
-  const [pitcherSlot, setPitcherSlot] = useState<number | null>(null);
+  const [pitcherSlots, setPitcherSlots] = useState<[number | null, number | null]>([null, null]);
+  const [pitcherSlotA] = pitcherSlots;
   const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
   const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);
   const calcSeq = useRef(0);
@@ -181,6 +182,12 @@ export function useScoreCalculator() {
     [skills],
   );
 
+  /** 일반 모먼트 카드에서 첫 슬롯 고유 스킬로 지정할 수 있는 모먼트 전용 스킬 목록. */
+  const momentSkills = useMemo(
+    () => skills.filter((skill) => skill.cardType === 'MOMENT'),
+    [skills],
+  );
+
   /** 실제로 채워진 보너스만 보낸다. 빈 칸은 요청에 넣지 않는다. */
   const activeTrainingBonuses = useMemo(
     () => trainingBonuses.filter((entry) => entry.skillId),
@@ -217,6 +224,11 @@ export function useScoreCalculator() {
     [sets, activeCount, cardGrade, cardVariant],
   );
   const hasUnavailableSkill = unavailableSlots.some((set) => set.some(Boolean));
+  const requiresPitcherSlot = position === Position.PITCHER && (subPosition === 'SP' || subPosition === 'RP');
+  const maxPitcherSlot = subPosition === 'SP' ? 5 : 6;
+  const hasValidPitcherSlots = !requiresPitcherSlot || pitcherSlots.slice(0, activeCount).every(
+    (slot) => slot !== null && slot >= 1 && slot <= maxPitcherSlot,
+  );
 
   const canCalculate = useMemo(() => {
     const slotsFilled = sets
@@ -227,17 +239,9 @@ export function useScoreCalculator() {
 
     if (position === Position.BATTER) {
       return battingOrder !== null && battingOrder >= 1 && battingOrder <= 9;
-    } else {
-      if (subPosition === 'SP') {
-        return pitcherSlot !== null && pitcherSlot >= 1 && pitcherSlot <= 5;
-      } else if (subPosition === 'RP') {
-        return pitcherSlot !== null && pitcherSlot >= 1 && pitcherSlot <= 6;
-      } else if (subPosition === 'CP') {
-        return true;
-      }
-      return false;
     }
-  }, [sets, activeCount, slotCount, subPosition, position, battingOrder, pitcherSlot]);
+    return subPosition === 'CP' || (requiresPitcherSlot && hasValidPitcherSlots);
+  }, [sets, activeCount, slotCount, subPosition, position, battingOrder, requiresPitcherSlot, hasValidPitcherSlots]);
 
   useEffect(() => {
     setSets((prev) =>
@@ -251,7 +255,7 @@ export function useScoreCalculator() {
   useEffect(() => {
     setSubPosition(defaultSubPosition(position));
     setBattingOrder(DEFAULT_BATTING_ORDER);
-    setPitcherSlot(null);
+    setPitcherSlots([null, null]);
     clearResults();
   }, [position, clearResults]);
 
@@ -270,6 +274,7 @@ export function useScoreCalculator() {
     setSets((prev) => prev.map(() => emptySet(slotCount)));
     // 보너스도 그 자리의 것이다. 자리가 바뀌면 남겨 둘 이유가 없고, 서버도 거절한다.
     setTrainingBonuses(emptyTrainingBonuses());
+    setMomentSkillId('');
   }, [scorePosition, slotCount]);
 
   useEffect(() => {
@@ -308,6 +313,9 @@ export function useScoreCalculator() {
   }, [cardGrade, cardVariant, scorePosition, clearResults]);
 
   const updateSkill = useCallback((setIndex: number, slotIndex: number, skillId: string) => {
+    if (setIndex === 0 && slotIndex === 0 && skillId && skillPoolOf(skillId) === 'MOMENT') {
+      setMomentSkillId(skillId);
+    }
     patchSet(setIndex, (set) => ({
       result: null,
       selections: set.selections.map((selection, idx) => {
@@ -392,8 +400,13 @@ export function useScoreCalculator() {
    * 빈 B로 시작하면 델타를 보기까지 슬롯을 다시 다 골라야 한다.
    */
   const toggleCompare = useCallback((next: boolean) => {
+    calcSeq.current++;
+    setCalculating(false);
     setCompare(next);
-    if (next) setSets((prev) => [prev[0], { selections: [...prev[0].selections], result: null }]);
+    if (next) {
+      setSets((prev) => [prev[0], { selections: [...prev[0].selections], result: null }]);
+      setPitcherSlots(([slotA]) => [slotA, slotA]);
+    }
   }, []);
 
   /** A의 스킬 구성을 B로 덮어쓴다. */
@@ -410,11 +423,11 @@ export function useScoreCalculator() {
       return;
     }
     if (!canCalculate) {
-      setError('score_fill_slots');
+      setError(hasValidPitcherSlots ? 'score_fill_slots' : 'score_fill_pitcher_slots');
       return;
     }
 
-    const payloadFor = (set: ScoreSet): ScoreRequest => ({
+    const payloadFor = (set: ScoreSet, setIndex: number): ScoreRequest => ({
       cardGrade,
       cardVariant,
       position: scorePosition,
@@ -423,7 +436,7 @@ export function useScoreCalculator() {
         level: selection.level,
       })),
       battingOrder: position === Position.BATTER ? battingOrder : undefined,
-      pitcherSlot: position === Position.PITCHER ? pitcherSlot : undefined,
+      pitcherSlot: position === Position.PITCHER ? pitcherSlots[setIndex] : undefined,
       throwHand: position === Position.PITCHER ? throwHand : undefined,
       batHand: position === Position.BATTER ? batHand : undefined,
       userStats: stats,
@@ -440,7 +453,7 @@ export function useScoreCalculator() {
       setCalculating(true);
       setError(null);
       const targets = setsRef.current.slice(0, activeCount);
-      const results = await Promise.all(targets.map((set) => calculateScore(payloadFor(set))));
+      const results = await Promise.all(targets.map((set, index) => calculateScore(payloadFor(set, index))));
       if (seq !== calcSeq.current) return;
       setSets((prev) => prev.map((set, idx) => (idx < results.length ? { ...set, result: results[idx] } : set)));
     } catch {
@@ -453,7 +466,7 @@ export function useScoreCalculator() {
     // throwHand·batHand가 payload에 들어가므로 deps에도 있어야 한다. 빠져 있던 동안에는
     // 방향을 바꾸고 계산을 누르면 이전 방향으로 요청이 나갔다.
   }, [
-    battingOrder, pitcherSlot, canCalculate, hasUnavailableSkill, cardGrade, cardVariant,
+    battingOrder, pitcherSlots, canCalculate, hasValidPitcherSlots, hasUnavailableSkill, cardGrade, cardVariant,
     position, scorePosition, activeCount, throwHand, batHand, activeTrainingBonuses, baseStats, transcendenceLevel,
   ]);
 
@@ -469,17 +482,23 @@ export function useScoreCalculator() {
     clearResults();
   }, [clearResults]);
 
-  const updatePitcherSlot = useCallback((value: number | null) => {
+  const updatePitcherSlot = useCallback((setIndex: number, value: number | null) => {
     const nextValue = value != null && value >= 1 && value <= 6 ? value : null;
-    setPitcherSlot(nextValue);
+    setPitcherSlots(([slotA, slotB]) => setIndex === 0 ? [nextValue, slotB] : [slotA, nextValue]);
     clearResults();
   }, [clearResults]);
 
   const ticketSelections = sets[0].selections;
   const firstSkill = ticketSelections[0]?.skillId;
+  const firstSlotMomentSkillId = firstSkill && skillPoolOf(firstSkill) === 'MOMENT' ? firstSkill : '';
+  const validSelectedMomentSkillId = momentSkills.some((skill) => skill.skillId === selectedMomentSkillId)
+    ? selectedMomentSkillId
+    : '';
+  const effectiveMomentSkillId =
+    cardGrade === CardGrade.MOMENT ? firstSlotMomentSkillId || validSelectedMomentSkillId : '';
   const firstSlotOptionsAvailable = !!firstSkill && (
     cardGrade === CardGrade.SIGNATURE || cardGrade === CardGrade.PRIME || cardGrade === CardGrade.IMPACT || (
-      (cardGrade === CardGrade.MOMENT || cardGrade === CardGrade.SUPREME_MOMENT) && skillPoolOf(firstSkill) === 'MOMENT'
+      (cardGrade === CardGrade.MOMENT || cardGrade === CardGrade.SUPREME_MOMENT) && !!firstSlotMomentSkillId
     )
   );
   const ticketScope = firstSlotOptionsAvailable ? selectedTicketScope : 'all';
@@ -487,6 +506,7 @@ export function useScoreCalculator() {
   const ticketRequest = useMemo<TicketExpectationRequest | null>(() => {
     if (!scorePosition || scorePosition === 'ALL' || ticketHasUnavailableSkill) return null;
     if (!ticketSelections.some((selection) => selection.skillId)) return null;
+    if (cardGrade === CardGrade.MOMENT && !effectiveMomentSkillId) return null;
     const selections = ticketSelections.map((selection) => selection.skillId ? { ...selection } : null);
     while (selections[selections.length - 1] === null) selections.pop();
     return {
@@ -495,7 +515,7 @@ export function useScoreCalculator() {
       position: scorePosition,
       selections,
       battingOrder: position === Position.BATTER ? battingOrder : undefined,
-      pitcherSlot: position === Position.PITCHER ? pitcherSlot : undefined,
+      pitcherSlot: position === Position.PITCHER ? pitcherSlotA : undefined,
       throwHand: position === Position.PITCHER ? throwHand : undefined,
       batHand: position === Position.BATTER ? batHand : undefined,
       userStats,
@@ -504,10 +524,12 @@ export function useScoreCalculator() {
       rerollFirstSlotOnly: ticketScope === 'firstOnly' || undefined,
       trainingBonuses: activeTrainingBonuses.length ? activeTrainingBonuses : undefined,
       transcendenceLevel,
+      momentSkillId: cardGrade === CardGrade.MOMENT ? effectiveMomentSkillId : undefined,
     };
   }, [
     ticketSelections, ticketHasUnavailableSkill, scorePosition, cardGrade, cardVariant, position,
-    battingOrder, pitcherSlot, throwHand, batHand, userStats, baseStats, ticketScope, activeTrainingBonuses, transcendenceLevel,
+    battingOrder, pitcherSlotA, throwHand, batHand, userStats, baseStats, ticketScope, activeTrainingBonuses,
+    transcendenceLevel, effectiveMomentSkillId,
   ]);
 
   // 요청 당시의 A 슬롯과 설정이 화면과 같을 때만 응답을 표시한다.
@@ -610,6 +632,10 @@ export function useScoreCalculator() {
     firstSlotOptionsAvailable,
     ticketScope,
     setTicketScope,
+    momentSkills,
+    momentSkillId: effectiveMomentSkillId,
+    setMomentSkillId,
+    firstSlotHasMomentSkill: !!firstSlotMomentSkillId,
     trainingBonuses,
     trainingSkills,
     updateTrainingBonus,
@@ -627,7 +653,7 @@ export function useScoreCalculator() {
     baseStats,
     updateBaseStat,
     battingOrder,
-    pitcherSlot,
+    pitcherSlots,
     loadingSkills,
     calculating,
     canCalculate,

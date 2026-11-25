@@ -73,6 +73,7 @@ class TicketExpectationService(
             baseStats = request.baseStats,
             rerollFirstSlotOnly = request.rerollFirstSlotOnly,
             transcendenceLevel = request.transcendenceLevel,
+            momentSkillId = request.momentSkillId,
         )
     }
 
@@ -80,6 +81,7 @@ class TicketExpectationService(
      * @param currentSkillKeys 지금 끼워 둔 스킬. 빈 칸이 있으면 그 칸은 0점으로 본다.
      * @param trainingBonuses 포지션 훈련 보너스. `스킬 -> 오르는 폭`이며 비어 있으면 보너스가 없다.
      * @param seed 기존 테스트 호환용 파라미터.
+     * @param momentSkillId 일반 `MOMENT` 카드의 고유 모먼트 스킬 ID. 첫 슬롯이 이미 모먼트 스킬이면 생략 가능.
      */
     fun evaluate(
         grade: String,
@@ -98,6 +100,7 @@ class TicketExpectationService(
         baseStats: Map<String, Double>? = null,
         rerollFirstSlotOnly: Boolean = false,
         transcendenceLevel: Int? = null,
+        momentSkillId: String? = null,
     ): TicketExpectationResponse {
         if (lockSlotOne && rerollFirstSlotOnly) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose only one first-slot mode.")
@@ -121,6 +124,10 @@ class TicketExpectationService(
 
         val currentSelections = paddedKeys.mapIndexedNotNull { index, key ->
             val skill = key?.let(scoreSkillRepository::findBySkillKey) ?: return@mapIndexedNotNull null
+            val pool = SkillRules.normalizeSkillPool(skill.cardType)
+            if (!CardRules.allowsPoolInSlot(pool, index)) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Moment skills can only be in the first slot.")
+            }
             ScoreCalculator.Selection(
                 skill,
                 SkillRules.levelIndex(paddedLevels[index], skill.cardType),
@@ -133,10 +140,51 @@ class TicketExpectationService(
         )
         val candidateByKey = candidates.associateBy { it.skillKey }
         val firstKey = paddedKeys[0]
+        val firstRawSkill = firstKey?.let(scoreSkillRepository::findBySkillKey)
         val firstCandidate = firstKey?.let(candidateByKey::get)
+        if (firstRawSkill != null && SkillTier.of(firstRawSkill) == SkillTier.MOMENT && firstCandidate == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected skill is unavailable for this card: $firstKey")
+        }
         val lockable = firstCandidate != null && rollEngine.canLockSlotOne(resolvedGrade, firstKey)
         if (rerollFirstSlotOnly && !lockable) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "First-slot-only changes are unavailable for this card.")
+        }
+        val requestedMomentKey = momentSkillId?.takeIf(String::isNotBlank)?.let {
+            SkillRules.normalizeRequired(it, "Moment skill selection is required.")
+        }
+        val slotOneMomentKey = firstCandidate?.takeIf { it.tier == SkillTier.MOMENT }?.skillKey
+        val resolvedMomentKey = when {
+            resolvedGrade != "MOMENT" -> {
+                if (requestedMomentKey != null) {
+                    throw ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Fixed moment skill is only supported for MOMENT cards.",
+                    )
+                }
+                null
+            }
+            requestedMomentKey != null -> {
+                val momentCandidate = candidateByKey[requestedMomentKey]
+                if (momentCandidate == null || momentCandidate.tier != SkillTier.MOMENT) {
+                    throw ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Selected moment skill is unavailable for this card: $requestedMomentKey",
+                    )
+                }
+                if (slotOneMomentKey != null && slotOneMomentKey != requestedMomentKey) {
+                    throw ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Slot 1 moment skill must match the card's fixed moment skill.",
+                    )
+                }
+                requestedMomentKey
+            }
+            slotOneMomentKey != null -> slotOneMomentKey
+            else -> throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST, "Moment skill selection is required for MOMENT cards.",
+            )
+        }
+        val effectiveCandidates = if (resolvedMomentKey != null) {
+            candidates.filter { it.pool != "MOMENT" || it.skillKey == resolvedMomentKey }
+        } else {
+            candidates
         }
         val protectLevels = List(slotCount) { true }
 
@@ -167,8 +215,9 @@ class TicketExpectationService(
                 currentLevels = paddedLevels,
                 lockedSlotOne = lockedSlotOne,
                 protectLevels = protectLevels,
-                candidates = candidates,
+                candidates = effectiveCandidates,
                 fixedSlots = fixedSlots,
+                momentSkillKey = resolvedMomentKey,
             )
             val solution = solver.solve(problemInput)
             toOutcome(ticket, solution, currentTotal, ::levelBonus)

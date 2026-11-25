@@ -14,7 +14,16 @@ data class DeckRulesResponse(
     val growth: List<GrowthLimit>,
     val partWeights: Map<String, Double>,
     val partScale: Double,
+    val benchTeamBuffSkills: List<BenchTeamBuffSkill>,
 ) {
+    data class BenchTeamBuffSkill(
+        val skillId: String,
+        val name: String,
+        val cardType: String,
+        val maxLevel: Int,
+        val levelLabels: List<String>,
+    )
+
     /**
      * @param tiers 임계값 전체. 보상이 없는 칸도 화면에는 나와야 한다.
      */

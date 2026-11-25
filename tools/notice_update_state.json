@@ -1,0 +1,27 @@
+{
+  "posts": {
+    "https://community.withhive.com/MLB9IRIVALS/ko/board/9/16259": "10491cd5f8be482e41a4c625654d0ce546b4991f87295e03fd3592297c21f861",
+    "https://community.withhive.com/MLB9IRIVALS/ko/board/10/17267": "10fda66dff99ac5144beb618c8d8926128e0e6ddc87ff638b0090a653ec60289",
+    "https://community.withhive.com/MLB9IRIVALS/ko/board/10/17415": "2a5873985c68cbc62a74a9ff2000e55d4786e80a259dbb5954a7c1d6101447dc",
+    "https://community.withhive.com/MLB9IRIVALS/ko/board/9/17979": "3f900f221e7191ca0d3e53f9e0690179be165fef9a673dc9f214ea4cbad6b0f1"
+  },
+  "skills": {},
+  "reviews": {
+    "https://community.withhive.com/MLB9IRIVALS/ko/board/9/17590": {
+      "title": "[안내] v4.06.00 업데이트 안내 (9/22 13:30 내용 수정)",
+      "date": "2026-09-21 17:00:00",
+      "url": "https://community.withhive.com/MLB9IRIVALS/ko/board/9/17590",
+      "body_hash": "1de6fb4fe4b465d17824562945d9c9c2abae912a479518a9ca330eb7dd2a07e5",
+      "request_fingerprint": "9a3c71c54fb6ba604fc6f89d48929e358edba6ef0887a5b4bdff6c857152a08e",
+      "reason": "Unsupported out-count duration (not batter count): skill='레버리지 릴리퍼' excerpt='중계 투수로 등판 시 상대 타자의 파워, 정확, 선구 능력치를 (2/3/3/4/4/6/9) 감소시킵니다.등판 후 아웃 카운트 3개를 처리할 때까지 상대 타자의 파워, 정확, 인내 능력치를 (7/8/9/10/11/13/16) 감소시킵니다.'; Unsupported team-wide buff: skill='컴백 플래그' excerpt='중계 투수로 등판 시 구위, 변화 능력치가 (2/3/3/4/4/6/9) 증가합니다.비기거나 지고 있는 경우 구위, 변화 능력치가 (2/3/4/5/6/8/11) 증가하고 공격에서 팀 타자 전체의 파워, 정확 능력치를 (1/1/2/2/3/3/4) 증가시킵니다.'"
+    },
+    "https://community.withhive.com/MLB9IRIVALS/ko/board/9/18420": {
+      "title": "[안내] v4.08.00 업데이트 안내(11/18 19:40 내용 추가)",
+      "date": "2026-11-17 17:00:00",
+      "url": "https://community.withhive.com/MLB9IRIVALS/ko/board/9/18420",
+      "body_hash": "f6a24d667edf7f689065fe144444c31d84a489c0ddad0ef40d1d7dc86e009058",
+      "request_fingerprint": "a0220f085fde40af24f08d990f0451097509a8105c68de336422bdf9fda1e643",
+      "reason": "Manual review required: ['WORLD BASEBALL CLASSIC 하모니 (타자) and (투수) line-up national player count conditions (2 or more / 4 or more same country players) are unsupported.', 'Skill ladders for WBC skills state (6/7/8), (9/10/11), (5/5/5), (7/7/7), which do not follow standard 9-level patterns or have ambiguous level mappings.']"
+    }
+  }
+}

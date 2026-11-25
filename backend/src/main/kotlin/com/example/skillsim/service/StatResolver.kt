@@ -71,7 +71,7 @@ internal class StatResolver(
         collectionBonus: Double,
     ): Resolved {
         val statNames = if (DeckRules.isPitcher(player.slot)) PITCHER_STATS else BATTER_STATS
-        val componentStats = statNames.filter { player.baseStats[it] != null }
+        val componentStats = player.baseStats.keys
 
         val trainingStats = training.statsFor(player.slot)
         val rewardStats = rewards.bonusFor(player, roster.deckScoreChoices)
@@ -107,16 +107,12 @@ internal class StatResolver(
             .filterKeys { it !in componentStats }
 
         val finalStats = LinkedHashMap<String, Double>()
-        for (stat in statNames) {
-            val base = userStats[stat]
-            if (base == null && stat !in componentStats) {
-                // 값을 적지 않은 스탯은 능력치 점수에 넣지 않는다. 워크북의 빈 칸과 같다.
-                continue
-            }
-            val value = (base ?: 0.0) + (deltas[stat] ?: 0.0) + collectionBonus
+        // 점수 가중치가 없는 능력치도 워크북의 구간 조건은 읽을 수 있다.
+        for ((stat, base) in userStats) {
+            val value = base + (deltas[stat] ?: 0.0) + collectionBonus
             finalStats[stat] = value
             if (stat !in componentStats) {
-                sources += Source(stat, Kind.DIRECT, base ?: 0.0)
+                sources += Source(stat, Kind.DIRECT, base)
                 deltas[stat]?.let { sources += Source(stat, Kind.POSITION_TRAINING, it) }
             }
             if (collectionBonus != 0.0) {

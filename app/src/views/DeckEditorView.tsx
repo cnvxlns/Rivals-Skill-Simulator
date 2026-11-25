@@ -15,6 +15,8 @@ import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
 import {
   PITCHER_RANGES,
+  benchTeamBuffSkillsFor,
+  isBench,
   PitcherField,
   isPlayerComplete,
   unavailableSkills,
@@ -29,9 +31,12 @@ import {
   DeckPlayer,
   DeckRules,
   LINEUP_FIELD_POSITIONS,
+  RelieverRole,
 } from '../types';
 import BaseballField, { fieldRatio } from '../components/BaseballField';
 import BattingOrderLane from '../components/BattingOrderLane';
+import BullpenRoleLane from '../components/BullpenRoleLane';
+import DeckPlayerRankingSection from './DeckPlayerRankingSection';
 import DeckImportCard from './DeckImportCard';
 import DeckPlayerEditor from './DeckPlayerEditor';
 import DeckScoreTierSection from './DeckScoreTierSection';
@@ -158,18 +163,24 @@ export default function DeckEditorView({
     return isPlayerComplete(player) ? cardGradeColor(String(player!.cardGrade)) : null;
   };
 
-  const slotChip = (slot: string, compact = false) => {
+  const slotChip = (slot: string) => {
     const player = editor.players[slot];
     const done = isPlayerComplete(player);
     const accent = chipAccent(player);
+    const benchBuffs = player && isBench(slot)
+      ? benchTeamBuffSkillsFor(rules, player).flatMap((skill) => {
+          const selection = player.skills.find(({ skillId }) => skillId === skill.skillId);
+          return selection ? [{ name: skill.name, level: skill.levelLabels[selection.level - 1] }] : [];
+        })
+      : [];
     return (
       <Pressable
         key={slot}
         onPress={() => setEditing(slot)}
         style={({ pressed }) => ({
-          flexGrow: compact ? 0 : 1,
-          flexBasis: compact ? 'auto' : 150,
-          padding: compact ? spacing.xs : spacing.smd,
+          flexGrow: 1,
+          flexBasis: 150,
+          padding: spacing.smd,
           borderRadius: radius.control,
           backgroundColor: accent ? accent.soft : colors.surfaceVariant,
           borderWidth: 1,
@@ -189,6 +200,21 @@ export default function DeckEditorView({
           <Text style={{ ...typography.label, color: colors.secondaryText }} numberOfLines={1}>
             {cardLabel(player)}
           </Text>
+        ) : null}
+        {benchBuffs.length > 0 ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
+            {benchBuffs.map(({ name, level }) => (
+              <Text key={name} style={{
+                ...typography.caption,
+                color: colors.onSurface,
+                backgroundColor: colors.surfaceVariant,
+                borderRadius: radius.pill,
+                paddingHorizontal: spacing.xs,
+              }}>
+                {[name, level].filter(Boolean).join(' ')}
+              </Text>
+            ))}
+          </View>
         ) : null}
       </Pressable>
     );
@@ -243,39 +269,20 @@ export default function DeckEditorView({
     </SectionCard>
   );
 
-  /**
-   * 두 명씩 세로로 묶어 열을 만든다. RP1 RP3 RP5 / RP2 RP4 RP6 처럼 읽힌다.
-   *
-   * 중계와 마무리를 각각 따로 묶는 이유는 인원이 홀수일 때다. 통째로 묶으면
-   * 중계 5명 + 마무리 2명에서 RP5와 CP1이 한 열에 들어가 구분이 사라진다.
-   */
-  const pairColumns = (slots: readonly string[]) =>
-    Array.from({ length: Math.ceil(slots.length / 2) }, (_, index) =>
-      slots.slice(index * 2, index * 2 + 2),
-    );
-
-  /**
-   * 한 무리를 열로 세운다.
-   *
-   * 칩은 compact로 그린다. 기본 칩은 flexBasis가 150이라 세로로 쌓으면 그게 폭이 아니라
-   * 높이로 먹는다. 대신 열에 flex를 줘서 다른 섹션과 비슷한 폭이 되게 한다.
-   */
-  const bullpenGroup = (slots: readonly string[]) => {
-    const columns = pairColumns(slots);
-    return (
-      <View style={{ flexDirection: 'row', gap: spacing.sm, flex: columns.length, minWidth: 0 }}>
-        {columns.map((column) => (
-          <View key={column[0]} style={{ gap: spacing.sm, flex: 1, minWidth: 0 }}>
-            {column.map((slot) => slotChip(slot, true))}
-          </View>
-        ))}
-      </View>
-    );
-  };
-
   const starterSlots = editor.pitcherSlots.filter((s) => s.startsWith('SP'));
-  const bullpenSlots = editor.pitcherSlots.filter((s) => !s.startsWith('SP'));
-
+  const closerSlots = editor.pitcherSlots.filter((s) => s.startsWith('CP'));
+  const relieverRows = editor.pitcherSlots.filter((s) => s.startsWith('RP')).map((slot) => {
+    const player = editor.players[slot];
+    const done = isPlayerComplete(player);
+    const name = player?.playerName?.trim();
+    return {
+      slot,
+      role: player?.relieverRole ?? RelieverRole.LONG,
+      name: name || (done ? cardLabel(player) : t('deck_slot_empty')),
+      subtitle: name && done ? cardLabel(player) : undefined,
+      accent: chipAccent(player)?.hex,
+    };
+  });
   return (
     <View style={{ gap: spacing.lg }}>
       <SectionCard
@@ -290,36 +297,6 @@ export default function DeckEditorView({
             placeholder={t('deck_placeholder_name')}
             editable={!editor.saving}
           />
-        </View>
-      </SectionCard>
-
-      <SectionCard title={t('deck_strategy_title')}>
-        <View style={{ gap: spacing.lg }}>
-          <Text style={{ ...typography.body, color: colors.secondaryText }}>
-            {t('deck_strategy_hint')}
-          </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
-            {PITCHER_FIELDS.map(({ field, labelKey }) => (
-              <View key={field} style={{ flexGrow: 1, flexBasis: 160 }}>
-                <LabeledDropdown
-                  label={t(labelKey)}
-                  selected={editor.pitcherCounts[field]}
-                  // 서로 묶지 않는다. 각 자리는 자기 범위 안에서 자유롭게 고른다.
-                  options={PITCHER_RANGES[field]}
-                  optionLabel={(v) => String(v)}
-                  onSelect={(v) => editor.setPitcherCount(field, v)}
-                />
-              </View>
-            ))}
-          </View>
-
-          {/* 합이 12가 아니면 저장할 수 없다. 어긋난 값을 보여 주고 막는다. */}
-          {!editor.isPitcherStaffValid ? (
-            <InfoBanner
-              text={`${t('deck_pitcher_sum_prefix')}${editor.pitcherTotal}${t('deck_pitcher_sum_suffix')}`}
-              tone="error"
-            />
-          ) : null}
         </View>
       </SectionCard>
 
@@ -404,13 +381,58 @@ export default function DeckEditorView({
       </View>
 
       {section('BENCH', BENCH_SLOTS)}
+
+      <SectionCard title={t('deck_strategy_title')}>
+        <View style={{ gap: spacing.lg }}>
+          <Text style={{ ...typography.body, color: colors.secondaryText }}>
+            {t('deck_strategy_hint')}
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+            {PITCHER_FIELDS.map(({ field, labelKey }) => (
+              <View key={field} style={{ flexGrow: 1, flexBasis: 160 }}>
+                <LabeledDropdown
+                  label={t(labelKey)}
+                  selected={editor.pitcherCounts[field]}
+                  // 서로 묶지 않는다. 각 자리는 자기 범위 안에서 자유롭게 고른다.
+                  options={PITCHER_RANGES[field]}
+                  optionLabel={(v) => String(v)}
+                  onSelect={(v) => editor.setPitcherCount(field, v)}
+                />
+              </View>
+            ))}
+          </View>
+
+          {/* 합이 12가 아니면 저장할 수 없다. 어긋난 값을 보여 주고 막는다. */}
+          {!editor.isPitcherStaffValid ? (
+            <InfoBanner
+              text={`${t('deck_pitcher_sum_prefix')}${editor.pitcherTotal}${t('deck_pitcher_sum_suffix')}`}
+              tone="error"
+            />
+          ) : null}
+        </View>
+      </SectionCard>
+
       {section('ROTATION', starterSlots)}
 
-      {/* 중계와 마무리를 두 행에 걸쳐 세로로 짝지어 놓는다. 둘 사이는 간격을 넓게 준다. */}
       <SectionCard title={t(PART_LABEL_KEYS.BULLPEN)}>
-        <View style={{ flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' }}>
-          {bullpenGroup(bullpenSlots.filter((slot) => slot.startsWith('RP')))}
-          {bullpenGroup(bullpenSlots.filter((slot) => slot.startsWith('CP')))}
+        <View style={{ gap: spacing.lg }}>
+          <BullpenRoleLane
+            rows={relieverRows}
+            winTactic={editor.winTactic}
+            chaseTactic={editor.chaseTactic}
+            onWinTacticChange={editor.setWinTactic}
+            onChaseTacticChange={editor.setChaseTactic}
+            onMove={editor.moveReliever}
+            onPress={setEditing}
+          />
+          <View style={{ gap: spacing.sm }}>
+            <Text accessibilityRole="header" style={{ ...typography.card, color: colors.onSurface }}>
+              {t('deck_label_closers')}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+              {closerSlots.map((slot) => slotChip(slot))}
+            </View>
+          </View>
         </View>
       </SectionCard>
 
@@ -539,6 +561,13 @@ export default function DeckEditorView({
         </View>
       </SectionCard>
 
+      {editor.score ? (
+        <DeckPlayerRankingSection
+          players={editor.score.players.filter(({ slot }) => editor.allSlots.includes(slot))}
+          onPress={setEditing}
+        />
+      ) : null}
+
       <Modal visible={!!editing} animationType="slide" transparent onRequestClose={() => setEditing(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(7,8,11,0.88)', justifyContent: 'flex-end' }}>
           <View
@@ -554,7 +583,7 @@ export default function DeckEditorView({
               <LinkAction text={t('btn_close')} onPress={() => setEditing(null)} />
             </View>
             <ScrollView>
-              {editing ? (
+              {editing && editor.players[editing] ? (
                 <DeckPlayerEditor
                   slot={editing}
                   player={editor.players[editing]}

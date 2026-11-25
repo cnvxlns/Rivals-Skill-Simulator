@@ -130,6 +130,8 @@ export type ScoreRequest = {
    * 계산기는 저장된 구단 설정과 섞지 않고 화면에서 받은 값만 보낸다.
    */
   trainingBonuses?: SkillLevelBonus[];
+  /** 카드 초월 레벨(0~15). 시그니처 블랙은 기본 +1·9초월 +2, HOF·시그니처는 9초월 +1을 첫 슬롯에 적용한다. */
+  transcendenceLevel?: number;
 };
 
 export type ScoreTableRequest = {
@@ -182,7 +184,7 @@ export type ScoreSkillBreakdown = {
   name: string;
   /** 설명의 x·y·z를 채점에 쓴 레벨 기준 수치로 바꾼 것. 치환 불가 시 원문과 같다. */
   resolvedDescription?: string | null;
-  /** 포지션 훈련이 이 스킬에 얹어 준 레벨. 없으면 0이다. */
+  /** 이 스킬에 적용되는 포지션 훈련·초월 레벨 보너스. 없으면 0이다. */
   levelBonus?: number;
   /** 점수의 출처. 덱은 워크북 점수표(EXCEL)를, 계산기는 엔진(ENGINE)을 쓴다. */
   source?: 'ENGINE' | 'EXCEL';
@@ -583,10 +585,16 @@ export type DeckScoreResponse = {
 export type TicketKind = 'SKILL_CHANGE' | 'PREMIUM_SKILL_CHANGE' | 'SUPREME_SKILL_CHANGE';
 
 export type TicketCombination = {
-  slots: { skillId: string | null; name: string | null; level: string }[];
+  slots: {
+    skillId: string | null;
+    name: string | null;
+    level: string;
+    appliedGrade?: string | null;
+    slot?: number | null;
+  }[];
   total: number;
   gain: number;
-  /** 변경권 한 장으로 이 슬롯 순서와 레벨이 그대로 나올 확률. */
+  /** 변경권 한 장으로 이 스킬 조합이 나올 합산 확률(순서가 무관한 슬롯 순열들의 합). */
   chance: number;
 };
 
@@ -629,6 +637,8 @@ export type TicketExpectationRequest = {
   rerollFirstSlotOnly?: boolean;
   /** 자리에 붙은 보너스. 새로 뽑힌 스킬도 목록에 있으면 오른다. */
   trainingBonuses?: SkillLevelBonus[];
+  /** 카드 초월 레벨(0~15). 시그니처 블랙은 기본 +1·9초월 +2, HOF·시그니처는 9초월 +1을 첫 슬롯에 적용한다. */
+  transcendenceLevel?: number;
 };
 
 export type DeckSummary = {

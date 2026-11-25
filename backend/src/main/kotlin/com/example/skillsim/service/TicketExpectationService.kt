@@ -72,6 +72,7 @@ class TicketExpectationService(
             trainingBonuses = scoreService.resolveTrainingBonuses(request.trainingBonuses, position),
             baseStats = request.baseStats,
             rerollFirstSlotOnly = request.rerollFirstSlotOnly,
+            transcendenceLevel = request.transcendenceLevel,
         )
     }
 
@@ -96,16 +97,22 @@ class TicketExpectationService(
         seed: Long? = null,
         baseStats: Map<String, Double>? = null,
         rerollFirstSlotOnly: Boolean = false,
+        transcendenceLevel: Int? = null,
     ): TicketExpectationResponse {
         if (lockSlotOne && rerollFirstSlotOnly) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose only one first-slot mode.")
         }
+        scoreService.validateTranscendenceLevel(transcendenceLevel)
 
         val resolvedGrade = CardRules.resolveGrade(grade)
         val resolvedVariant = CardRules.fromLegacyCardType(grade)?.second
             ?.takeUnless { it == CardRules.VARIANT_NONE } ?: CardRules.normalizeVariant(variant)
         val family = RollFamily.of(resolvedGrade, resolvedVariant)
         val slotCount = CardRules.slotCount(resolvedGrade)
+        val firstSlotBonus = CardRules.firstSlotTranscendenceBonus(resolvedGrade, transcendenceLevel)
+        fun levelBonus(skillKey: String, slotIndex: Int): Int =
+            (trainingBonuses[skillKey] ?: 0) + if (slotIndex == 0) firstSlotBonus else 0
+
         val paddedKeys = List(slotCount) { currentSkillKeys.getOrNull(it) }
         val paddedLevels = List(slotCount) { currentLevels.getOrNull(it) }
         val score = scoreService.ticketScorer(
@@ -117,12 +124,12 @@ class TicketExpectationService(
             ScoreCalculator.Selection(
                 skill,
                 SkillRules.levelIndex(paddedLevels[index], skill.cardType),
-                trainingBonuses[skill.skillKey] ?: 0,
+                levelBonus(skill.skillKey, index),
             )
         }
         val currentTotal = score(currentSelections).total
         val candidates = buildCandidates(
-            CardRules.skillPools(resolvedGrade, resolvedVariant), position, trainingBonuses, score,
+            CardRules.skillPools(resolvedGrade, resolvedVariant), position, trainingBonuses, firstSlotBonus, score,
         )
         val candidateByKey = candidates.associateBy { it.skillKey }
         val firstKey = paddedKeys[0]
@@ -164,7 +171,7 @@ class TicketExpectationService(
                 fixedSlots = fixedSlots,
             )
             val solution = solver.solve(problemInput)
-            toOutcome(ticket, solution, currentTotal)
+            toOutcome(ticket, solution, currentTotal, ::levelBonus)
         }
 
         return TicketExpectationResponse(
@@ -178,6 +185,7 @@ class TicketExpectationService(
         pools: List<String>,
         position: String,
         trainingBonuses: Map<String, Int>,
+        firstSlotBonus: Int,
         score: (List<ScoreCalculator.Selection>) -> ScoreCalculator.Result,
     ): List<TicketExpectationSolver.SkillCandidate> =
         pools.flatMap { pool ->
@@ -192,11 +200,19 @@ class TicketExpectationService(
                         val selection = ScoreCalculator.Selection(skill, index + 1, bonus)
                         level to score(listOf(selection)).unroundedTotal
                     }
+                    // 포지션특훈까지 반영한 표에서 초월만큼 위 레벨의 점수를 읽는다.
+                    val firstSlotScoresByLevel = if (firstSlotBonus == 0) null else {
+                        ladder.withIndex().associate { (index, level) ->
+                            val boosted = ladder[(index + firstSlotBonus).coerceAtMost(ladder.lastIndex)]
+                            level to scoresByLevel.getValue(boosted)
+                        }
+                    }
                     TicketExpectationSolver.SkillCandidate(
                         skillKey = skill.skillKey,
                         pool = pool,
                         tier = tier,
                         scoresByLevel = scoresByLevel,
+                        firstSlotScoresByLevel = firstSlotScoresByLevel,
                     )
                 }
         }
@@ -205,6 +221,7 @@ class TicketExpectationService(
         ticket: TicketType,
         solution: TicketExpectationSolver.Solution,
         currentTotal: Double,
+        levelBonus: (String, Int) -> Int,
     ): TicketExpectationResponse.TicketOutcome {
         val p = solution.improveChance.coerceIn(0.0, 1.0)
         return TicketExpectationResponse.TicketOutcome(
@@ -220,11 +237,19 @@ class TicketExpectationService(
             betterCombinations = solution.betterCombinations.map { combination ->
                 val total = round(combination.total, scale = 100.0)
                 TicketExpectationResponse.BetterCombination(
-                    slots = combination.slots.map { slot ->
+                    slots = combination.slots.mapIndexed { index, slot ->
+                        val skill = slot.skillKey?.let(scoreSkillRepository::findBySkillKey)
                         TicketExpectationResponse.CombinationSlot(
                             skillId = slot.skillKey,
-                            name = slot.skillKey?.let(scoreSkillRepository::findBySkillKey)?.name,
+                            name = skill?.name,
                             level = slot.level.name,
+                            appliedGrade = skill?.let {
+                                val level = SkillRules.levelIndex(slot.level, it.cardType)
+                                scoreService.appliedGradeLabel(
+                                    ScoreCalculator.Selection(it, level, levelBonus(it.skillKey, index)),
+                                )
+                            },
+                            slot = if (index in solution.pinnedSlots) index + 1 else null,
                         )
                     },
                     total = total,

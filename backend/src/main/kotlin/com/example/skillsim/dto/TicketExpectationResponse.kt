@@ -41,10 +41,16 @@ data class TicketExpectationResponse(
         val chance: Double,
     )
 
-    /** level은 포지션특훈 보너스를 적용하기 전의 기본 레벨이다. */
+    /**
+     * level은 보너스 적용 전의 기본 레벨이고, appliedGrade는 실제로 채점한 레벨이다.
+     * slot은 초월 보너스·잠금 등으로 위치가 의미를 가질 때만 1부터 세는 슬롯 번호를 담고,
+     * 순서가 무관한 슬롯은 null이다.
+     */
     data class CombinationSlot(
         val skillId: String?,
         val name: String?,
         val level: String,
+        val appliedGrade: String? = null,
+        val slot: Int? = null,
     )
 }

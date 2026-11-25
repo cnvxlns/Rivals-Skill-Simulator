@@ -114,9 +114,8 @@ internal class DeckValidator(
     /**
      * 선발·중계·마무리 중 둘만 받아 나머지를 계산한다.
      *
-     * 총원이 12로 고정이라 둘이 정해지면 셋째는 산술적으로 유일하다. 다만 그 값이 범위를
-     * 벗어날 수 있어(예: 선발4 + 중계4 → 마무리4) 최종 조합을 [DeckRules.VALID_PITCHER_COMBOS]와
-     * 대조한다. 셋을 다 보내면 서로 맞는지도 확인한다.
+     * 총원이 12로 고정이라 둘이 정해지면 셋째는 산술적으로 유일하다. 허용 구성인지
+     * [DeckRules.VALID_PITCHER_COMBOS]와 대조하고, 셋을 다 보내면 서로 맞는지도 확인한다.
      *
      * @return (선발, 마무리). 중계는 이 둘에서 파생되므로 따로 돌려주지 않는다.
      */
@@ -147,7 +146,7 @@ internal class DeckValidator(
         ) {
             "Unsupported pitcher staff: $resolvedStarters starters, $resolvedRelievers relievers, " +
                 "$resolvedClosers closers. Starters must be " +
-                "${DeckRules.STARTER_COUNT_RANGE.first}-${DeckRules.STARTER_COUNT_RANGE.last}, " +
+                "${DeckRules.STARTER_COUNT_RANGE.first}, " +
                 "relievers ${DeckRules.RELIEVER_COUNT_RANGE.first}-${DeckRules.RELIEVER_COUNT_RANGE.last}, " +
                 "closers ${DeckRules.CLOSER_COUNT_RANGE.first}-${DeckRules.CLOSER_COUNT_RANGE.last}, " +
                 "adding up to $total."

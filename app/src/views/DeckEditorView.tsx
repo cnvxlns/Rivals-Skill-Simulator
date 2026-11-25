@@ -15,10 +15,8 @@ import {
 import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
 import {
-  PITCHER_RANGES,
   benchTeamBuffSkillsFor,
   isBench,
-  PitcherField,
   isPlayerComplete,
   unavailableSkills,
   useDeckEditor,
@@ -36,7 +34,8 @@ import {
 } from '../types';
 import BaseballField, { fieldRatio } from '../components/BaseballField';
 import BattingOrderLane from '../components/BattingOrderLane';
-import BullpenRoleLane, { PITCHER_CARD_HEIGHT, pitcherCardGrid } from '../components/BullpenRoleLane';
+import BullpenRoleLane, { pitcherCardGrid } from '../components/BullpenRoleLane';
+import PitcherCard from '../components/PitcherCard';
 import DeckPlayerRankingSection from './DeckPlayerRankingSection';
 import DeckImportCard from './DeckImportCard';
 import DeckPlayerEditor from './DeckPlayerEditor';
@@ -83,12 +82,6 @@ const LINEUP_SPLIT = 1360;
 const FIELD_MIN_HEIGHT = 520;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
-
-const PITCHER_FIELDS: { field: PitcherField; labelKey: 'deck_label_starters' | 'deck_label_relievers' | 'deck_label_closers' }[] = [
-  { field: 'starters', labelKey: 'deck_label_starters' },
-  { field: 'relievers', labelKey: 'deck_label_relievers' },
-  { field: 'closers', labelKey: 'deck_label_closers' },
-];
 
 const PART_LABEL_KEYS = {
   LINEUP: 'deck_section_lineup',
@@ -150,6 +143,7 @@ export default function DeckEditorView({
     setEditing(slot);
   };
   const [rotationWidth, setRotationWidth] = useState(0);
+  const [starterConversionSlot, setStarterConversionSlot] = useState('');
   // 야구장 칸의 실제 크기. 칩을 픽셀로 놓아야 가장자리에서 칸 밖으로 삐져나가지 않는다.
   const [fieldBox, setFieldBox] = useState({ width: 0, height: 0 });
 
@@ -171,7 +165,7 @@ export default function DeckEditorView({
     return isPlayerComplete(player) ? cardGradeColor(String(player!.cardGrade)) : null;
   };
 
-  const slotChip = (slot: string, pitcherWidth?: number) => {
+  const slotChip = (slot: string) => {
     const player = editor.players[slot];
     const done = isPlayerComplete(player);
     const accent = chipAccent(player);
@@ -186,9 +180,8 @@ export default function DeckEditorView({
         key={slot}
         onPress={() => openPlayer(slot)}
         style={({ pressed }) => ({
-          ...(pitcherWidth == null
-            ? { flexGrow: 1, flexBasis: 150 }
-            : { width: pitcherWidth, height: PITCHER_CARD_HEIGHT }),
+          flexGrow: 1,
+          flexBasis: 150,
           padding: spacing.smd,
           borderRadius: radius.control,
           backgroundColor: accent ? accent.soft : colors.surfaceVariant,
@@ -280,20 +273,26 @@ export default function DeckEditorView({
 
   const starterSlots = editor.pitcherSlots.filter((s) => s.startsWith('SP'));
   const { cardWidth: starterCardWidth } = pitcherCardGrid(rotationWidth, spacing.sm);
+  const conversionSlots = editor.starterCount > 5
+    ? starterSlots
+    : editor.pitcherSlots.filter((slot) => slot.startsWith('RP'));
   const closerSlots = editor.pitcherSlots.filter((s) => s.startsWith('CP'));
-  const bullpenCard = (slot: string) => {
+  const pitcherCardData = (slot: string) => {
     const player = editor.players[slot];
     const done = isPlayerComplete(player);
+    const accent = chipAccent(player);
     const name = player?.playerName?.trim();
     return {
       slot,
       name: name || (done ? cardLabel(player) : t('deck_slot_empty')),
       subtitle: name && done ? cardLabel(player) : undefined,
-      accent: chipAccent(player)?.hex,
+      accent: accent?.hex,
+      fill: accent?.soft,
+      complete: done,
     };
   };
   const relieverRows = editor.pitcherSlots.filter((slot) => slot.startsWith('RP')).map((slot) => ({
-    ...bullpenCard(slot),
+    ...pitcherCardData(slot),
     role: editor.players[slot]?.relieverRole ?? RelieverRole.LONG,
   }));
   return (
@@ -416,49 +415,44 @@ export default function DeckEditorView({
 
         {renderSlotSection('BENCH', BENCH_SLOTS)}
 
-        <SectionCard title={t('deck_strategy_title')}>
-          <View style={{ gap: spacing.lg }}>
-            <Text style={{ ...typography.body, color: colors.secondaryText }}>
-              {t('deck_strategy_hint')}
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
-              {PITCHER_FIELDS.map(({ field, labelKey }) => (
-                <View key={field} style={{ flexGrow: 1, flexBasis: 160 }}>
-                  <LabeledDropdown
-                    label={t(labelKey)}
-                    selected={editor.pitcherCounts[field]}
-                    // 서로 묶지 않는다. 각 자리는 자기 범위 안에서 자유롭게 고른다.
-                    options={PITCHER_RANGES[field]}
-                    optionLabel={(v) => String(v)}
-                    onSelect={(v) => editor.setPitcherCount(field, v)}
-                  />
-                </View>
-              ))}
-            </View>
-
-            {/* 합이 12가 아니면 저장할 수 없다. 어긋난 값을 보여 주고 막는다. */}
-            {!editor.isPitcherStaffValid ? (
-              <InfoBanner
-                text={`${t('deck_pitcher_sum_prefix')}${editor.pitcherTotal}${t('deck_pitcher_sum_suffix')}`}
-                tone="error"
+        {editor.needsStarterConversion ? (
+          <SectionCard title={t('deck_legacy_starter_conversion_title')}>
+            <View style={{ gap: spacing.md }}>
+              <InfoBanner text={t('deck_legacy_starter_conversion_hint')} tone="warn" />
+              <LabeledDropdown
+                label={t(editor.starterCount > 5 ? 'deck_convert_starter_to_bullpen' : 'deck_convert_bullpen_to_starter')}
+                selected={starterConversionSlot}
+                options={conversionSlots}
+                optionLabel={(slot) => slot}
+                onSelect={(slot) => {
+                  setStarterConversionSlot(slot);
+                  editor.convertStarter(slot, RelieverRole.LONG);
+                }}
               />
-            ) : null}
-          </View>
-        </SectionCard>
+            </View>
+          </SectionCard>
+        ) : null}
 
         <SectionCard title={t(PART_LABEL_KEYS.ROTATION)}>
           <View
             onLayout={({ nativeEvent: { layout } }) => setRotationWidth(layout.width)}
             style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
           >
-            {rotationWidth > 0 ? starterSlots.map((slot) => slotChip(slot, starterCardWidth)) : null}
+            {rotationWidth > 0 ? starterSlots.map((slot) => (
+              <PitcherCard
+                key={slot}
+                {...pitcherCardData(slot)}
+                style={{ width: starterCardWidth }}
+                onPress={() => openPlayer(slot)}
+              />
+            )) : null}
           </View>
         </SectionCard>
 
         <SectionCard title={t(PART_LABEL_KEYS.BULLPEN)}>
           <BullpenRoleLane
             rows={relieverRows}
-            closers={closerSlots.map(bullpenCard)}
+            closers={closerSlots.map(pitcherCardData)}
             winTactic={editor.winTactic}
             chaseTactic={editor.chaseTactic}
             onWinTacticChange={editor.setWinTactic}
@@ -517,11 +511,23 @@ export default function DeckEditorView({
               title={t('deck_score_title')}
               style={width >= 1000 ? { flex: 1, minWidth: 0 } : undefined}
             >
-              {editor.score ? (
+              {!editor.isComplete ? (
+                <View style={{ gap: spacing.md }}>
+                  <InfoBanner text={t('deck_score_roster_incomplete')} />
+                  <PrimaryActionButton
+                    text={t('deck_btn_fill_roster')}
+                    onPress={() => setSection('EDIT')}
+                  />
+                </View>
+              ) : editor.score ? (
                 <ScoreHero label={t('deck_score_title')} value={editor.score.total} />
-              ) : (
-                <InfoBanner text={t('deck_error_incomplete')} />
-              )}
+              ) : editor.scoring ? (
+                <Text style={{ ...typography.body, color: colors.secondaryText }}>
+                  {t('score_calculating')}
+                </Text>
+              ) : editor.error ? (
+                <InfoBanner text={editor.error} tone="error" />
+              ) : null}
               <Text style={{ ...typography.body, color: colors.secondaryText }}>
                 {editor.completedCount}
                 {t('deck_progress_middle')}

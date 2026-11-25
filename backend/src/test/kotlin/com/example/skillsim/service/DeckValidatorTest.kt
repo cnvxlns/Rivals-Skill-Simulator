@@ -27,10 +27,7 @@ class DeckValidatorTest {
     @Test
     fun `중계 정원은 총원 12에서 선발과 마무리를 뺀 값이다`() {
         // 게임 화면의 "중간 계투(5/5)"가 이 계산 결과다.
-        val cases = listOf(
-            Triple(4, 1, 7), Triple(4, 2, 6), Triple(5, 1, 6),
-            Triple(5, 2, 5), Triple(6, 1, 5), Triple(6, 2, 4),
-        )
+        val cases = listOf(Triple(5, 1, 6), Triple(5, 2, 5))
         for ((starters, closers, expected) in cases) {
             val roster = validator.validate(DeckFixtures.deckRequest(starters, closers))
             assertThat(roster.relieverCount).`as`("SP%d CP%d", starters, closers).isEqualTo(expected)
@@ -41,7 +38,7 @@ class DeckValidatorTest {
 
     @Test
     fun `허용 범위를 벗어난 투수 구성은 거부한다`() {
-        for (starters in listOf(3, 7)) {
+        for (starters in listOf(3, 4, 6, 7)) {
             assertThatThrownBy { validator.validate(DeckFixtures.deckRequest(starterCount = starters)) }
                 .`as`("선발 %d", starters)
                 .hasMessageContaining("Unsupported pitcher staff")
@@ -90,9 +87,9 @@ class DeckValidatorTest {
     }
 
     @Test
-    fun `유효한 투수 조합은 여섯 가지다`() {
-        // 선발 4~6 x 마무리 1~2. 중계는 4~7로 파생된다.
-        assertThat(DeckRules.VALID_PITCHER_COMBOS).hasSize(6)
+    fun `유효한 투수 조합은 두 가지다`() {
+        // 선발은 5명으로 고정이고, 마무리 1~2명에 따라 중계가 6~5명으로 정해진다.
+        assertThat(DeckRules.VALID_PITCHER_COMBOS).hasSize(2)
         assertThat(DeckRules.VALID_PITCHER_COMBOS).allSatisfy {
             assertThat(it.first + it.second + it.third).isEqualTo(DeckRoster.PITCHER_COUNT)
             assertThat(it.second).isIn(DeckRules.RELIEVER_COUNT_RANGE.toList())

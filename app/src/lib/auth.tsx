@@ -11,17 +11,7 @@ import {
 } from './api';
 import { AuthUser } from '../types';
 
-/**
- * 로그인 상태.
- *
- * 토큰 보관에 AsyncStorage를 쓴다. Expo 문서는 인증 토큰처럼 민감한 값에는 암호화되는
- * expo-secure-store를 권하지만, 이 앱은 웹(Vercel)이 주 배포처이고 SecureStore는 웹에서
- * 동작하지 않는다. 웹에서는 어차피 브라우저 저장소가 한계이므로, 플랫폼마다 다른 저장소를
- * 두는 대신 양쪽 모두 AsyncStorage를 쓰고 토큰 수명을 14일로 제한했다.
- *
- * 안드로이드만 암호화하려면 Formula.web/native 같은 플랫폼 분리로 SecureStore를 붙이면
- * 되지만, 네이티브 모듈이라 OTA로는 못 나가고 APK를 새로 빌드해야 한다.
- */
+/** 브라우저에 보관하는 로그인 토큰은 14일 동안 유효하다. */
 const TOKEN_KEY = 'rivals.auth.token';
 const USER_KEY = 'rivals.auth.user';
 

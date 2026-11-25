@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { PanResponder, Platform, Pressable, Text, View } from 'react-native';
+import { PanResponder, Pressable, Text, View } from 'react-native';
 import { useTranslation } from '../lib/i18n';
 import {
   CHASE_AGGRESSIVE_MIN,
@@ -83,10 +83,7 @@ type Drag = {
   centers: MeasuredRow[];
 };
 
-const webHandleStyle =
-  Platform.OS === 'web'
-    ? ({ touchAction: 'none', userSelect: 'none', cursor: 'grab' } as object)
-    : null;
+const webHandleStyle = { touchAction: 'none', userSelect: 'none', cursor: 'grab' } as object;
 
 export default function BullpenRoleLane({
   rows,

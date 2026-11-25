@@ -3,7 +3,7 @@ import { ScrollViewStyleReset } from 'expo-router/html';
 import type { PropsWithChildren } from 'react';
 
 /**
- * 웹 정적 렌더링의 HTML 셸. 네이티브에는 영향이 없다.
+ * 웹 정적 렌더링의 HTML 셸.
  *
  * 앱 화면은 다크 배경을 직접 칠하지만 html/body는 브라우저 기본(흰색)이라,
  * 스크롤 바운스나 콘텐츠가 짧은 화면에서 흰 바탕이 비친다.

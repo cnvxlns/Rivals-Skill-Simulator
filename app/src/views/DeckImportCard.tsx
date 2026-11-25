@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { canPickFile, pickFile } from '../components/FilePicker';
+import { pickFile } from '../components/FilePicker';
 import { InfoBanner, PrimaryActionButton, SectionCard } from '../components/ui';
 import { apiErrorMessage, importDeckWorkbook } from '../lib/api';
 import { useTranslation } from '../lib/i18n';
@@ -62,15 +62,11 @@ export default function DeckImportCard({
           {t('deck_import_hint')}
         </Text>
 
-        {canPickFile ? (
-          <PrimaryActionButton
-            text={t('deck_import_button')}
-            onPress={upload}
-            loading={busy}
-          />
-        ) : (
-          <InfoBanner text={t('deck_import_web_only')} />
-        )}
+        <PrimaryActionButton
+          text={t('deck_import_button')}
+          onPress={upload}
+          loading={busy}
+        />
 
         {error ? <InfoBanner text={error} tone="error" /> : null}
 

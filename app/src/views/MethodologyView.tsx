@@ -16,7 +16,7 @@ const TEX_BY_KEY: Record<string, string> = {
   formula_condition_combination: String.raw`P = \left(\prod_{k} p_k\right) \cdot \max_{m}(p_m) \cdot \max_{g}(p_g)`,
 };
 
-/** 네이티브용 유니코드 조판. LaTeX 렌더러가 없는 환경에서 대신 쓴다. */
+/** KaTeX로 조판할 수 없는 수식에 쓰는 유니코드 텍스트. */
 const UNICODE_BY_KEY: Record<string, string> = {
   formula_per_skill: '스킬점수 = Σ (가중치 × 수치 × 조건확률)',
   formula_total: '총점 = Σ 스킬점수',

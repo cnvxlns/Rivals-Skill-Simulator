@@ -8,7 +8,6 @@ import type { PropsWithChildren } from 'react';
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -38,8 +37,7 @@ const TOOLTIP_OFFSET = 6;
  * 절대 위치로 띄우면 가장자리 행에서 잘린다. 그래서 오버레이 한 장을 화면 최상단에 두고,
  * 열릴 때 measureInWindow로 잰 창 좌표에 그린다. 카드 경계와 스크롤 컨테이너에 무관해진다.
  *
- * 웹은 position:'fixed'라야 페이지 스크롤과 어긋나지 않는다. RN 스타일 타입에 없는 값이라
- * 웹에서만 넣고 캐스팅한다. 네이티브는 루트 View 기준 absolute면 창 좌표와 일치한다.
+ * position:'fixed'로 창 좌표를 페이지 스크롤과 독립시킨다. RN 스타일 타입에 없는 값이라 캐스팅한다.
  */
 export function TooltipProvider({ children }: PropsWithChildren) {
   const { colors, typography, radius, spacing } = useAppTheme();
@@ -68,7 +66,7 @@ export function TooltipProvider({ children }: PropsWithChildren) {
           // 커서를 가려 hover가 끊기면 툴팁이 깜빡인다. 이벤트를 받지 않는다.
           pointerEvents="none"
           style={{
-            position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as 'absolute',
+            position: 'fixed' as 'absolute',
             left: tip.x,
             top: tip.y,
             maxWidth: TOOLTIP_MAX_WIDTH,
@@ -627,7 +625,7 @@ export function TextField({
   );
 }
 
-/** 웹 전용 속성이라 네이티브에서는 무시된다. 포커스 링을 우리가 직접 그리기 위해 끈다. */
+/** 직접 그리는 포커스 링과 겹치지 않도록 브라우저 기본 링을 끈다. */
 const NO_OUTLINE = { outlineStyle: 'none' } as unknown as ViewStyle;
 
 /* ── 드롭다운 = 바텀 시트 ───────────────────────────────── */
@@ -667,10 +665,9 @@ export function LabeledDropdown<T>({
     열면 바로 검색창에 커서를 넣는다. 스킬 목록이 200개가 넘어 여는 이유가 대개 검색이다.
 
     시트가 슬라이드로 올라오는 중에 focus()를 부르면 먹지 않아 한 틱 뒤에 준다.
-    터치 기기는 제외한다. 커서를 넣으면 키보드가 올라와 목록의 절반을 가린다.
   */
   useEffect(() => {
-    if (!open || !searchable || Platform.OS !== 'web') return;
+    if (!open || !searchable) return;
     const timer = setTimeout(() => searchRef.current?.focus(), 80);
     return () => clearTimeout(timer);
   }, [open, searchable]);

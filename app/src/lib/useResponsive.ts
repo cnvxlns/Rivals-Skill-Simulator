@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Dimensions, Platform } from 'react-native';
+import { Dimensions } from 'react-native';
 
-/** 웹에서만 의미가 있는 폭 기준. 네이티브는 항상 1단으로 본다. */
+/** 화면 폭에 따른 레이아웃 전환 기준. */
 export const BREAKPOINTS = {
   /** 이 폭부터 폼을 2열로 깐다. */
   wide: 720,
@@ -58,10 +58,9 @@ export function useResponsive(): Responsive {
     return () => sub.remove();
   }, []);
 
-  const web = Platform.OS === 'web';
   return {
     width,
-    isWide: web && width >= BREAKPOINTS.wide,
-    isSplit: web && width >= BREAKPOINTS.split,
+    isWide: width >= BREAKPOINTS.wide,
+    isSplit: width >= BREAKPOINTS.split,
   };
 }

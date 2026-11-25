@@ -15,7 +15,8 @@ import { fetchScoreSkills } from '../lib/api';
 import { cardTypeLabel } from '../lib/format';
 import { useTranslation } from '../lib/i18n';
 import { canPlaceSkill, slotCountFor } from '../lib/cardRules';
-import { isBench, isLineup, isPitcher, isReliever, positionForSlot } from '../lib/useDeckEditor';
+import { benchTeamBuffSkillsFor, isBench, isLineup, isPitcher, isReliever, positionForSlot } from '../lib/useDeckEditor';
+import { RELIEVER_ROLE_KEYS } from '../components/BullpenRoleLane';
 import { TRAINING_BATTER_STATS, TRAINING_PITCHER_STATS } from '../lib/usePositionTraining';
 import { useAppTheme } from '../theme/useTheme';
 import {
@@ -32,8 +33,6 @@ import {
 
 const BATTING_ORDERS = Array.from({ length: 9 }, (_, i) => i + 1);
 
-const BENCH_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
-
 /**
  * 선수의 보유 능력치로 받는 스탯.
  *
@@ -42,17 +41,11 @@ const BENCH_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
  */
 const PLAYER_STATS = { batter: TRAINING_BATTER_STATS, pitcher: TRAINING_PITCHER_STATS };
 
-const RELIEVER_ROLE_KEYS = {
-  [RelieverRole.WIN]: 'deck_reliever_win',
-  [RelieverRole.CHASE]: 'deck_reliever_chase',
-  [RelieverRole.LONG]: 'deck_reliever_long',
-} as const;
-
 /**
  * 자리 하나의 선수를 편집한다.
  *
  * 스킬 목록은 카드 타입과 포지션에 따라 달라지므로 둘 중 하나가 바뀌면 다시 불러온다.
- * 포지션은 후보만 직접 고르고 주전·투수는 자리에서 나온다.
+ * 출전 선수의 포지션은 자리에서 나온다.
  */
 export default function DeckPlayerEditor({
   slot,
@@ -73,16 +66,18 @@ export default function DeckPlayerEditor({
   onChangeBattingOrder: (order: number) => void;
 }) {
   const { t } = useTranslation();
-  const { colors, spacing, typography } = useAppTheme();
+  const { colors, radius, spacing, typography } = useAppTheme();
   const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const bench = isBench(slot);
   const position = positionForSlot(slot, player.position);
   const slotCount = slotCountFor(player.cardGrade);
   const variant = (player.cardVariant as CardVariant) ?? CardVariant.NONE;
   const availableVariants = variantsFor(player.cardGrade as CardGrade);
 
   useEffect(() => {
+    if (bench) return;
     let cancelled = false;
     const load = async () => {
       setLoading(true);
@@ -99,7 +94,7 @@ export default function DeckPlayerEditor({
     return () => {
       cancelled = true;
     };
-  }, [player.cardGrade, variant, position]);
+  }, [bench, player.cardGrade, variant, position]);
 
   const byId = useMemo(() => new Map(skills.map((s) => [s.skillId, s])), [skills]);
 
@@ -232,80 +227,86 @@ export default function DeckPlayerEditor({
   const transcendenceLevels = levelsFor('TRANSCENDENCE');
   const enhancementLevels = levelsFor('ENHANCEMENT');
 
+  const identity = (
+    <SectionCard title={`${slot} · ${t('deck_player_title')}`}>
+      <View style={{ gap: spacing.lg }}>
+        <TextField
+          label={t('deck_label_player_name')}
+          value={player.playerName ?? ''}
+          onChangeText={(v) => onChange({ playerName: v })}
+          placeholder={t('deck_placeholder_player_name')}
+        />
+
+        <LabeledDropdown
+          label={t('label_card_grade')}
+          selected={player.cardGrade as CardGrade}
+          options={CARD_GRADES_LOW_TO_HIGH}
+          optionLabel={(value) => cardTypeLabel(value)}
+          onSelect={(value) => {
+            // 등급을 잘못 골랐다가 되돌릴 때 고른 스킬까지 사라지는 것이 가장 잦은 불편이라
+            // 스킬은 그대로 둔다. 새 카드에 없는 스킬은 슬롯마다 경고로 알리고, 저장은
+            // 백엔드가 막는다. 다만 칸이 줄면(블랙 4 → 3) 넘치는 것은 버릴 수밖에 없다.
+            // 새 등급에 없는 변형이면 기본형으로 되돌린다.
+            const next = variantsFor(value).includes(variant) ? variant : CardVariant.NONE;
+            onChange({
+              cardGrade: value,
+              cardVariant: next,
+              ...(!bench ? { skills: player.skills.slice(0, slotCountFor(value)) } : {}),
+            });
+          }}
+        />
+
+        {availableVariants.length > 1 ? (
+          <LabeledDropdown
+            label={t('label_card_variant')}
+            selected={variant}
+            options={availableVariants}
+            optionLabel={(v) => (v === CardVariant.NONE ? t('option_variant_none') : v)}
+            onSelect={(value) => onChange({ cardVariant: value })}
+          />
+        ) : null}
+
+        {isLineup(slot) ? (
+          <LabeledDropdown
+            label={t('label_batting_order')}
+            selected={player.battingOrder ?? 1}
+            options={BATTING_ORDERS}
+            // 고른 번호로 끼워 넣고 나머지가 밀린다. 예전에는 그 번호를 쓰던 자리를
+            // 접미사로 보여 줬는데, 맞바꾸기가 아니게 되면서 그 표기가 거짓말이 됐다.
+            optionLabel={(order) => `${order}${t('deck_batting_order_suffix')}`}
+            onSelect={onChangeBattingOrder}
+          />
+        ) : null}
+
+        {isReliever(slot) ? (
+          <Text style={{
+            ...typography.label,
+            alignSelf: 'flex-start',
+            backgroundColor: colors.surfaceVariant,
+            borderRadius: radius.pill,
+            color: colors.onSurface,
+            paddingHorizontal: spacing.sm,
+            paddingVertical: spacing.xs,
+          }}>
+            {t('deck_label_reliever_role')} · {t(RELIEVER_ROLE_KEYS[player.relieverRole ?? RelieverRole.LONG])}
+          </Text>
+        ) : null}
+      </View>
+    </SectionCard>
+  );
+
+  if (bench) {
+    return (
+      <View style={{ gap: spacing.lg }}>
+        {identity}
+        <BenchTeamBuffEditor player={player} rules={rules} onChange={onChange} />
+      </View>
+    );
+  }
+
   return (
     <View style={{ gap: spacing.lg }}>
-      <SectionCard title={`${slot} · ${t('deck_player_title')}`}>
-        <View style={{ gap: spacing.lg }}>
-          <TextField
-            label={t('deck_label_player_name')}
-            value={player.playerName ?? ''}
-            onChangeText={(v) => onChange({ playerName: v })}
-            placeholder={t('deck_placeholder_player_name')}
-          />
-
-          <LabeledDropdown
-            label={t('label_card_grade')}
-            selected={player.cardGrade as CardGrade}
-            options={CARD_GRADES_LOW_TO_HIGH}
-            optionLabel={(value) => cardTypeLabel(value)}
-            onSelect={(value) => {
-              // 등급을 잘못 골랐다가 되돌릴 때 고른 스킬까지 사라지는 것이 가장 잦은 불편이라
-              // 스킬은 그대로 둔다. 새 카드에 없는 스킬은 슬롯마다 경고로 알리고, 저장은
-              // 백엔드가 막는다. 다만 칸이 줄면(블랙 4 → 3) 넘치는 것은 버릴 수밖에 없다.
-              // 새 등급에 없는 변형이면 기본형으로 되돌린다.
-              const next = variantsFor(value).includes(variant) ? variant : CardVariant.NONE;
-              onChange({
-                cardGrade: value,
-                cardVariant: next,
-                skills: player.skills.slice(0, slotCountFor(value)),
-              });
-            }}
-          />
-
-          {availableVariants.length > 1 ? (
-            <LabeledDropdown
-              label={t('label_card_variant')}
-              selected={variant}
-              options={availableVariants}
-              optionLabel={(v) => (v === CardVariant.NONE ? t('option_variant_none') : v)}
-              onSelect={(value) => onChange({ cardVariant: value })}
-            />
-          ) : null}
-
-          {isLineup(slot) ? (
-            <LabeledDropdown
-              label={t('label_batting_order')}
-              selected={player.battingOrder ?? 1}
-              options={BATTING_ORDERS}
-              // 고른 번호로 끼워 넣고 나머지가 밀린다. 예전에는 그 번호를 쓰던 자리를
-              // 접미사로 보여 줬는데, 맞바꾸기가 아니게 되면서 그 표기가 거짓말이 됐다.
-              optionLabel={(order) => `${order}${t('deck_batting_order_suffix')}`}
-              onSelect={onChangeBattingOrder}
-            />
-          ) : null}
-
-          {isBench(slot) ? (
-            <LabeledDropdown
-              label={t('label_position')}
-              selected={player.position ?? 'C'}
-              options={BENCH_POSITIONS}
-              optionLabel={(v) => v}
-              onSelect={(value) => onChange({ position: value, skills: [] })}
-            />
-          ) : null}
-
-          {isReliever(slot) ? (
-            <LabeledDropdown
-              label={t('deck_label_reliever_role')}
-              selected={player.relieverRole ?? RelieverRole.LONG}
-              options={Object.values(RelieverRole)}
-              optionLabel={(v) => t(RELIEVER_ROLE_KEYS[v])}
-              onSelect={(value) => onChange({ relieverRole: value })}
-            />
-          ) : null}
-        </View>
-      </SectionCard>
-
+      {identity}
       <SectionCard title={t('score_user_stats')}>
         <View style={{ gap: spacing.lg }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
@@ -483,5 +484,60 @@ export default function DeckPlayerEditor({
         )}
       </SectionCard>
     </View>
+  );
+}
+
+function BenchTeamBuffEditor({
+  player,
+  rules,
+  onChange,
+}: {
+  player: DeckPlayer;
+  rules: DeckRules | null;
+  onChange: (patch: Partial<DeckPlayer>) => void;
+}) {
+  const { t } = useTranslation();
+  const { spacing } = useAppTheme();
+  const options = benchTeamBuffSkillsFor(rules, player);
+  const selection = player.skills.find(({ skillId }) => options.some((entry) => entry.skillId === skillId));
+  const skill = options.find(({ skillId }) => skillId === selection?.skillId);
+
+  return (
+    <SectionCard title={t('deck_bench_team_buff')}>
+      {!rules?.benchTeamBuffSkills || options.length === 0 ? (
+        <InfoBanner
+          text={t(rules?.benchTeamBuffSkills ? 'deck_bench_team_buff_unavailable' : 'deck_bench_team_buff_rules_unavailable')}
+        />
+      ) : (
+        <View style={{ gap: spacing.md }}>
+          <LabeledDropdown
+            label={t('deck_bench_team_buff')}
+            selected={skill?.skillId ?? ''}
+            options={['', ...options.map(({ skillId }) => skillId)]}
+            optionLabel={(id) => options.find(({ skillId }) => skillId === id)?.name ?? t('deck_bench_team_buff_none')}
+            onSelect={(id) => {
+              if (id === skill?.skillId) return;
+              const next = options.find(({ skillId }) => skillId === id);
+              onChange({
+                skills: next ? [{ skillId: id, level: Math.max(1, next.levelLabels.indexOf('S') + 1) }] : [],
+              });
+            }}
+          />
+          {skill && selection ? (
+            <LabeledDropdown
+              label={t('score_level')}
+              selected={selection.level}
+              options={Array.from({ length: skill.maxLevel }, (_, i) => i + 1)}
+              optionLabel={(level) => skill.levelLabels[level - 1] ?? `Lv ${level}`}
+              onSelect={(level) => onChange({
+                skills: player.skills.map((entry) =>
+                  entry.skillId === skill.skillId ? { ...entry, level } : entry,
+                ),
+              })}
+            />
+          ) : null}
+        </View>
+      )}
+    </SectionCard>
   );
 }

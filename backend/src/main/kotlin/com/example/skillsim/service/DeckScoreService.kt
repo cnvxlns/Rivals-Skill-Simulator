@@ -4,11 +4,11 @@ import com.example.skillsim.config.DeckDataLoader
 import com.example.skillsim.config.ScoreDataLoader
 import com.example.skillsim.dto.DeckScoreResponse
 import com.example.skillsim.dto.ScoreResponse
+import com.example.skillsim.enums.RelieverRole
 import com.example.skillsim.model.DeckPlayer
 import com.example.skillsim.model.DeckRoster
 import com.example.skillsim.model.PositionTraining
 import com.example.skillsim.model.ScoreSkill
-import com.example.skillsim.model.TeamBuffSkill
 import com.example.skillsim.repository.ScoreSkillRepository
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 
 /**
- * 덱 26명을 각자의 조건으로 채점해 종합 점수를 낸다.
+ * 출전 선수 21명을 각자의 조건으로 채점해 종합 점수를 낸다. 후보는 라인업 버프에 참여한다.
  *
  * 선수 하나의 점수는 **능력치 점수 + 스킬 점수**다(워크북의 `J + O = P`). 종합 점수는 그
  * 최종 점수를 파트별로 평균 내 가중치를 매긴 값이다.
@@ -30,7 +30,7 @@ import org.springframework.web.server.ResponseStatusException
  * 스킬 점수는 워크북 점수표를 쓴다([ExcelSkillScores]). 표에 없는 스킬·레벨만 우리 엔진으로
  * 떨어진다. 계산기와 점수표 탭은 그대로 엔진을 쓴다 — 그쪽은 근거를 펼쳐 보이는 화면이다.
  *
- * @param includeBreakdown 효과 단위 계산 근거까지 담을지. 26명 × 3~4스킬 × 여러 효과면
+ * @param includeBreakdown 효과 단위 계산 근거까지 담을지. 21명 × 3~4스킬 × 여러 효과면
  *   중첩 객체가 수백 개가 되어 응답이 수백 KB로 불어난다. 기본은 담지 않는다.
  */
 @Service
@@ -71,15 +71,32 @@ class DeckScoreService private constructor(
         val excelScores = ExcelSkillScores(deckData.excelSkillScores)
         val statScores = StatScoreCalculator(statWeights)
 
+        val relieverCounts = roster.players.filter { DeckRules.isReliever(it.slot) }
+            .mapNotNull { it.relieverRole }.groupingBy { it }.eachCount()
+        val winCount = relieverCounts[RelieverRole.WIN] ?: 0
+        val chaseCount = relieverCounts[RelieverRole.CHASE] ?: 0
+
         val scored = roster.players.map { player ->
+            if (DeckRules.isBench(player.slot)) return@map Scored(player)
+
             val pitcher = DeckRules.isPitcher(player.slot)
             val collectionBonus = buff.bonusFor(pitcher).toDouble()
             val resolved = statResolver.resolve(player, roster, training, collectionBonus)
             val teamBuff = teamBuffs.forPlayer(player.slot)
-            val engine = scoreWithEngine(player, resolved, collectionBonus, training)
-            val skills = applyWorkbookScores(player, engine.perSkill, resolved, teamBuff, excelScores)
-            val statScore = statScores.score(resolved.finalStats, teamBuff, pitcher)
-            Scored(player, resolved, teamBuff, engine, skills, statScore)
+            val tacticBonus = if (DeckRules.isReliever(player.slot)) {
+                DeckRules.bullpenTacticBonus(player.relieverRole, roster.winTactic, roster.chaseTactic, winCount, chaseCount)
+            } else {
+                0.0
+            }
+            val tacticBuff = if (tacticBonus == 0.0) {
+                emptyMap()
+            } else {
+                DeckRules.BULLPEN_TACTIC_STATS.associateWith { tacticBonus }
+            }
+            val engine = scoreWithEngine(player, resolved, collectionBonus, tacticBuff, training)
+            val skills = applyWorkbookScores(player, engine.perSkill, resolved, teamBuff, tacticBuff, excelScores)
+            val statScore = statScores.score(addStats(resolved.finalStats, tacticBuff), teamBuff, pitcher)
+            Scored(player, resolved, teamBuff, tacticBuff, engine, skills, statScore)
         }
 
         val parts = DeckPart.entries.map { part ->
@@ -125,16 +142,17 @@ class DeckScoreService private constructor(
     /** 선수 한 명의 채점 결과를 한 덩어리로 들고 다닌다. */
     private data class Scored(
         val player: DeckPlayer,
-        val resolved: StatResolver.Resolved,
-        val teamBuff: Map<String, Double>,
-        val engine: ScoreResponse,
-        val skills: List<ScoreResponse.SkillScore>,
-        val statScore: StatScoreCalculator.Result,
+        val resolved: StatResolver.Resolved? = null,
+        val teamBuff: Map<String, Double> = emptyMap(),
+        val tacticBuff: Map<String, Double> = emptyMap(),
+        val engine: ScoreResponse? = null,
+        val skills: List<ScoreResponse.SkillScore> = emptyList(),
+        val statScore: StatScoreCalculator.Result = StatScoreCalculator.Result(0.0, emptyList()),
     ) {
         val skillScore: Double get() = skills.sumOf { it.score }
         val finalScore: Double get() = statScore.total + skillScore
         val warnings: List<String>
-            get() = engine.warnings + resolved.warnings + skills.flatMap { it.warnings }
+            get() = engine?.warnings.orEmpty() + resolved?.warnings.orEmpty() + skills.flatMap { it.warnings }
     }
 
     /**
@@ -147,6 +165,7 @@ class DeckScoreService private constructor(
         player: DeckPlayer,
         resolved: StatResolver.Resolved,
         collectionBonus: Double,
+        tacticBuff: Map<String, Double>,
         training: PositionTraining,
     ): ScoreResponse {
         val levelBonuses = training.skillBonusesFor(player.slot)
@@ -173,7 +192,7 @@ class DeckScoreService private constructor(
             userStats = resolved.userStats,
             baseStats = player.baseStats.ifEmpty { null },
             statBonus = collectionBonus,
-            statDeltas = resolved.statDeltas,
+            statDeltas = addStats(resolved.statDeltas, tacticBuff),
         )
     }
 
@@ -203,6 +222,7 @@ class DeckScoreService private constructor(
         engineSkills: List<ScoreResponse.SkillScore>,
         resolved: StatResolver.Resolved,
         teamBuff: Map<String, Double>,
+        tacticBuff: Map<String, Double>,
         excelScores: ExcelSkillScores,
     ): List<ScoreResponse.SkillScore> {
         if (engineSkills.isEmpty()) return engineSkills
@@ -214,8 +234,10 @@ class DeckScoreService private constructor(
             relieverRole = player.relieverRole,
             batHand = player.batHand,
             throwHand = player.throwHand,
-            // 판정식이 보는 능력치는 팀 버프까지 얹은 최종값이다. 화면에 보이는 수와 같다.
-            finalStats = resolved.finalStats.mapValues { (stat, value) -> value + (teamBuff[stat] ?: 0.0) },
+            // 미입력 스탯은 판정할 수 없으며, 입력된 스탯에는 팀·전술 버프를 모두 적용한다.
+            finalStats = resolved.finalStats.mapValues { (stat, value) ->
+                value + (teamBuff[stat] ?: 0.0) + (tacticBuff[stat] ?: 0.0)
+            },
             baseStats = player.baseStats,
         )
         return engineSkills.mapIndexed { index, scored ->
@@ -238,6 +260,11 @@ class DeckScoreService private constructor(
             }
         }
     }
+
+    private fun addStats(stats: Map<String, Double>, bonus: Map<String, Double>): Map<String, Double> =
+        if (bonus.isEmpty()) stats else stats.toMutableMap().apply {
+            bonus.forEach { (stat, amount) -> merge(stat, amount, Double::plus) }
+        }
 
     /** 포지션 훈련 보너스까지 반영한 레벨. 표도 그 레벨로 찾아야 한다. */
     private fun levelOf(scored: ScoreResponse.SkillScore, level: Int): Int {
@@ -278,15 +305,18 @@ class DeckScoreService private constructor(
             } else {
                 scored.skills.map { it.copy(breakdown = emptyList()) }
             },
-            perStat = scored.engine.perStat,
+            perStat = scored.engine?.perStat.orEmpty(),
             warnings = scored.warnings,
-            finalStats = scored.resolved.finalStats.map { (stat, value) ->
+            finalStats = scored.resolved?.finalStats.orEmpty().map { (stat, value) ->
                 DeckScoreResponse.TeamBuffInfo.StatAmount(stat, value.roundToScore())
             },
             teamBuff = scored.teamBuff.map { (stat, value) ->
                 DeckScoreResponse.TeamBuffInfo.StatAmount(stat, value)
             },
-            statSources = scored.resolved.sources.map {
+            tacticBuff = scored.tacticBuff.map { (stat, value) ->
+                DeckScoreResponse.TeamBuffInfo.StatAmount(stat, value)
+            },
+            statSources = scored.resolved?.sources.orEmpty().map {
                 DeckScoreResponse.StatSourceInfo(it.stat, it.kind.name, it.amount)
             },
             statEntries = scored.statScore.entries.map {

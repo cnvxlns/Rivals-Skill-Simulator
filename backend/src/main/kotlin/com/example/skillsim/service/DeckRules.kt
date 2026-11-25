@@ -1,5 +1,7 @@
 package com.example.skillsim.service
 
+import com.example.skillsim.enums.BullpenTactic
+import com.example.skillsim.enums.RelieverRole
 import com.example.skillsim.model.DeckRoster
 
 /**
@@ -76,6 +78,27 @@ internal object DeckRules {
     /** 이 덱에 있어야 할 자리 전체. 26개다. */
     fun expectedSlots(starterCount: Int, closerCount: Int): List<String> =
         LINEUP_SLOTS + BENCH_SLOTS + pitcherSlots(starterCount, closerCount)
+
+    const val WIN_DIVISION_MIN = 3
+    const val CHASE_AGGRESSIVE_MIN = 2
+    val BULLPEN_TACTIC_STATS = setOf("구위", "변화", "제구", "구속", "수비")
+
+    fun bullpenTacticBonus(
+        role: RelieverRole?,
+        winTactic: BullpenTactic,
+        chaseTactic: BullpenTactic,
+        winCount: Int,
+        chaseCount: Int,
+    ): Double = when (role) {
+        RelieverRole.WIN -> when (winTactic) {
+            BullpenTactic.DEFAULT -> 0.0
+            BullpenTactic.AGGRESSIVE -> 2.0
+            BullpenTactic.DIVISION -> if (winCount >= WIN_DIVISION_MIN) 4.0 else 0.0
+        }
+        RelieverRole.CHASE ->
+            if (chaseTactic == BullpenTactic.AGGRESSIVE && chaseCount >= CHASE_AGGRESSIVE_MIN) 2.0 else 0.0
+        else -> 0.0
+    }
 
     fun isBench(slot: String): Boolean = slot in BENCH_SLOTS
 

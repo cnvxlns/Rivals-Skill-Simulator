@@ -287,12 +287,21 @@ export type AuthResponse = {
 
 /* ── 덱 ──────────────────────────────────────────────── */
 
-/** 중계 하위 역할. 저장·표시만 하고 점수에는 반영되지 않는다. */
+/** 중계 투수 보직. */
 export enum RelieverRole {
   WIN = 'WIN',
   CHASE = 'CHASE',
   LONG = 'LONG',
 }
+
+export enum BullpenTactic {
+  DEFAULT = 'DEFAULT',
+  AGGRESSIVE = 'AGGRESSIVE',
+  DIVISION = 'DIVISION',
+}
+
+export type WinTactic = BullpenTactic;
+export type ChaseTactic = BullpenTactic.DEFAULT | BullpenTactic.AGGRESSIVE;
 
 /** 주전 타자 9자리. */
 export const LINEUP_SLOTS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
@@ -365,6 +374,14 @@ export type DeckScoreChoice = {
 };
 
 /** 덱 편집기가 화면을 그리는 데 쓰는 규칙. 서버가 CSV에서 만들어 준다. */
+export type BenchTeamBuffSkill = {
+  skillId: string;
+  name: string;
+  cardType: string;
+  maxLevel: number;
+  levelLabels: string[];
+};
+
 export type DeckRules = {
   ladders: {
     ladder: DeckScoreLadder;
@@ -385,6 +402,7 @@ export type DeckRules = {
   }[];
   partWeights: Record<string, number>;
   partScale: number;
+  benchTeamBuffSkills: BenchTeamBuffSkill[];
 };
 
 export type DeckRuleEffect = {
@@ -430,7 +448,7 @@ export type DeckPlayer = {
   slot: string;
   /** 선수 이름. 표시용이며 점수에는 영향이 없다. */
   playerName?: string | null;
-  /** 후보만 직접 정한다. 주전과 투수는 백엔드가 자리에서 유도한다. */
+  /** 기존 후보의 포지션은 보존한다. 주전과 투수는 백엔드가 자리에서 유도한다. */
   position?: string;
   cardGrade: CardGrade | string;
   cardVariant?: CardVariant | string;
@@ -477,6 +495,8 @@ export type DeckSaveRequest = {
   positionTraining?: PositionTraining;
   /** 덱 스코어 보상에서 고른 칸들. 임계값마다 좌·우 중 하나다. */
   deckScoreChoices?: DeckScoreChoice[];
+  winTactic?: WinTactic;
+  chaseTactic?: ChaseTactic;
 };
 
 export type DeckRoster = {
@@ -485,6 +505,8 @@ export type DeckRoster = {
   players: DeckPlayer[];
   /** 덱 스코어 보상에서 고른 칸들. 임계값마다 좌·우 중 하나다. */
   deckScoreChoices?: DeckScoreChoice[];
+  winTactic?: WinTactic;
+  chaseTactic?: ChaseTactic;
 };
 
 export type DeckPartScore = {
@@ -548,6 +570,7 @@ export type DeckPlayerScore = {
   skillScore: number;
   finalStats: DeckStatAmount[];
   teamBuff: DeckStatAmount[];
+  tacticBuff: DeckStatAmount[];
   statSources: DeckStatSource[];
   statEntries: DeckStatScoreEntry[];
 };

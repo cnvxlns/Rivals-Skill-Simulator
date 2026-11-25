@@ -1,6 +1,8 @@
 package com.example.skillsim.service
 
 import com.example.skillsim.config.DeckDataLoader
+import com.example.skillsim.config.ScoreDataLoader
+import com.example.skillsim.repository.InMemoryScoreSkillRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
@@ -12,7 +14,18 @@ import org.junit.jupiter.api.Test
  */
 class DeckRulesServiceTest {
 
-    private val rules = DeckRulesService(DeckDataLoader().apply { run() }).rules()
+    private val repository = InMemoryScoreSkillRepository().also { ScoreDataLoader(it).run() }
+    private val rules = DeckRulesService(DeckDataLoader().apply { run() }, repository).rules()
+
+    @Test
+    fun `후보가 발동할 수 있는 팀 버프와 레벨만 내려준다`() {
+        val skills = rules.benchTeamBuffSkills.associateBy { it.skillId }
+        assertThat(skills.keys).containsExactlyInAnyOrder("HOF_012", "WBC_005", "M_006")
+        assertThat(skills.getValue("HOF_012").levelLabels).containsExactly("D", "C", "B", "A", "S", "S1")
+        assertThat(skills.getValue("WBC_005").cardType).isEqualTo("WBC")
+        assertThat(skills.getValue("WBC_005").maxLevel).isEqualTo(3)
+        assertThat(skills.getValue("M_006").levelLabels).containsExactly("S")
+    }
 
     @Test
     fun `사다리 둘을 임계값 전부와 함께 내준다`() {

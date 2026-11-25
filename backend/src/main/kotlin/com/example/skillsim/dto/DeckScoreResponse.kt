@@ -49,7 +49,7 @@ data class DeckScoreResponse(
         val amount: Double,
     )
 
-    /** 능력치 점수의 스탯별 내역. */
+    /** 능력치 점수의 스탯별 내역. value에는 교체 전술 버프가 포함된다. */
     data class StatScoreEntry(
         val stat: String,
         val value: Double,
@@ -97,7 +97,8 @@ data class DeckScoreResponse(
 
     /**
      * @param score 최종 점수. 능력치 점수와 스킬 점수의 합이다(워크북의 `J + O = P`).
-     * @param finalStats 팀 버프를 뺀 최종 능력치. @param teamBuff 이 선수가 받은 팀 버프.
+     * @param finalStats 팀·교체 전술 버프를 뺀 최종 능력치.
+     * @param teamBuff 이 선수가 받은 팀 버프. @param tacticBuff 교체 전술 버프.
      * @param statSources 능력치가 어디서 왔는지. @param statEntries 능력치 점수의 스탯별 내역.
      */
     data class PlayerScore(
@@ -110,7 +111,6 @@ data class DeckScoreResponse(
         val skillScore: Double,
         val battingOrder: Int?,
         val pitcherSlot: Int?,
-        /** 저장·표시용이며 점수에는 반영되지 않는다. */
         val relieverRole: RelieverRole?,
         val perSkill: List<ScoreResponse.SkillScore>,
         val perStat: List<ScoreResponse.StatScore>,
@@ -119,5 +119,6 @@ data class DeckScoreResponse(
         val teamBuff: List<TeamBuffInfo.StatAmount> = emptyList(),
         val statSources: List<StatSourceInfo> = emptyList(),
         val statEntries: List<StatScoreEntry> = emptyList(),
+        val tacticBuff: List<TeamBuffInfo.StatAmount> = emptyList(),
     )
 }

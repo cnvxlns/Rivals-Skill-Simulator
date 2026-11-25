@@ -2,7 +2,9 @@ package com.example.skillsim.service
 
 import com.example.skillsim.dto.DeckPlayerRequest
 import com.example.skillsim.dto.DeckSaveRequest
+import com.example.skillsim.enums.BullpenTactic
 import com.example.skillsim.enums.Handedness
+import com.example.skillsim.enums.RelieverRole
 import com.example.skillsim.model.DeckPlayer
 import com.example.skillsim.model.DeckRoster
 import com.example.skillsim.model.DeckScoreChoice
@@ -57,12 +59,17 @@ internal class DeckValidator(
             toPlayer(player, slots[index])
         }
         validateBattingOrders(players)
+        val winTactic = request.winTactic ?: BullpenTactic.DEFAULT
+        val chaseTactic = request.chaseTactic ?: BullpenTactic.DEFAULT
+        validateBullpen(players, winTactic, chaseTactic)
 
         return DeckRoster(
             starterCount = starterCount,
             closerCount = closerCount,
             players = players,
             deckScoreChoices = resolveDeckScoreChoices(request),
+            winTactic = winTactic,
+            chaseTactic = chaseTactic,
         )
     }
 
@@ -156,6 +163,24 @@ internal class DeckValidator(
         }
     }
 
+    private fun validateBullpen(
+        players: List<DeckPlayer>,
+        winTactic: BullpenTactic,
+        chaseTactic: BullpenTactic,
+    ) {
+        val counts = players.mapNotNull { it.relieverRole }.groupingBy { it }.eachCount()
+        for (role in RelieverRole.entries) {
+            require((counts[role] ?: 0) >= 1) { "Bullpen must have at least one $role reliever." }
+        }
+        require(winTactic != BullpenTactic.DIVISION || counts.getValue(RelieverRole.WIN) >= DeckRules.WIN_DIVISION_MIN) {
+            "DIVISION needs at least ${DeckRules.WIN_DIVISION_MIN} WIN relievers."
+        }
+        require(chaseTactic != BullpenTactic.DIVISION) { "DIVISION is only for WIN relievers." }
+        require(chaseTactic != BullpenTactic.AGGRESSIVE || counts.getValue(RelieverRole.CHASE) >= DeckRules.CHASE_AGGRESSIVE_MIN) {
+            "AGGRESSIVE needs at least ${DeckRules.CHASE_AGGRESSIVE_MIN} CHASE relievers."
+        }
+    }
+
     private fun toPlayer(request: DeckPlayerRequest, slot: String): DeckPlayer {
         // 등급 자리에 예전 단일 cardType이 와도 받아 준다. 변형은 거기서 꺼낸다.
         val rawGrade = request.cardGrade ?: request.cardType
@@ -236,8 +261,7 @@ internal class DeckValidator(
     /** 주전·투수는 자리에서 유도하고 후보만 받는다. 불일치를 만들 여지를 없앤다. */
     private fun resolvePosition(request: DeckPlayerRequest, slot: String): String {
         DeckRules.positionForSlot(slot)?.let { return it }
-        val position = SkillRules.normalizePosition(request.position)
-        require(position.isNotEmpty()) { "$slot: Bench position is required." }
+        val position = SkillRules.normalizePosition(request.position).ifEmpty { "BATTER" }
         require(SkillRules.matchesPosition(position, "BATTER")) {
             "$slot: Bench position must be a batter position, but was ${request.position}."
         }
@@ -277,9 +301,14 @@ internal class DeckValidator(
     ): List<DeckSkillSelection> {
         val requested = request.skills.orEmpty()
         val slotCount = CardRules.slotCount(cardGrade)
-        // ScoreService.calculate는 미만도 허용하지만, 저장되는 덱은 완성품이므로 정확히 요구한다.
-        require(requested.size == slotCount) {
-            "$slot: $cardGrade card must have exactly $slotCount skills, but had ${requested.size}."
+        if (DeckRules.isBench(slot)) {
+            require(requested.size <= slotCount) {
+                "$slot: $cardGrade card can have at most $slotCount skills, but had ${requested.size}."
+            }
+        } else {
+            require(requested.size == slotCount) {
+                "$slot: $cardGrade card must have exactly $slotCount skills, but had ${requested.size}."
+            }
         }
 
         val allowedPools = skillPoolsFor(cardGrade, cardVariant)

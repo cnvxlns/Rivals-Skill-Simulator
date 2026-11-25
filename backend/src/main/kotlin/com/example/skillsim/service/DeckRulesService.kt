@@ -4,11 +4,15 @@ import com.example.skillsim.config.DeckDataLoader
 import com.example.skillsim.dto.DeckRulesResponse
 import com.example.skillsim.model.DeckScoreLadder
 import com.example.skillsim.model.DeckScoreSide
+import com.example.skillsim.repository.ScoreSkillRepository
 import org.springframework.stereotype.Service
 
 /** 덱 편집기가 쓰는 규칙을 한 덩어리로 내준다. 계산은 하지 않고 데이터를 모양만 바꾼다. */
 @Service
-class DeckRulesService(private val deckData: DeckDataLoader) {
+class DeckRulesService(
+    private val deckData: DeckDataLoader,
+    private val scoreSkillRepository: ScoreSkillRepository,
+) {
 
     fun rules(): DeckRulesResponse {
         val byTier = deckData.deckScoreRewards.groupBy {
@@ -32,8 +36,24 @@ class DeckRulesService(private val deckData: DeckDataLoader) {
             growth = growthLimits(),
             partWeights = DeckRules.PART_WEIGHTS.mapKeys { it.key.name },
             partScale = DeckRules.PART_SCALE,
+            benchTeamBuffSkills = benchTeamBuffSkills(),
         )
     }
+
+    private fun benchTeamBuffSkills(): List<DeckRulesResponse.BenchTeamBuffSkill> =
+        deckData.teamBuffSkills.mapNotNull { (skillId, effects) ->
+            if (effects.none { it.requiresSlot == null && it.condition == "ALWAYS" }) return@mapNotNull null
+            val skill = scoreSkillRepository.findBySkillKey(skillId) ?: return@mapNotNull null
+            if (!SkillRules.matchesPosition(skill.position, "BATTER")) return@mapNotNull null
+            val maxLevel = SkillRules.maxLevel(skill)
+            DeckRulesResponse.BenchTeamBuffSkill(
+                skillId = skillId,
+                name = skill.name,
+                cardType = SkillRules.normalizeSkillPool(skill.cardType),
+                maxLevel = maxLevel,
+                levelLabels = SkillRules.gradeLabels(skill.cardType, maxLevel),
+            )
+        }
 
     private fun effects(
         byTier: Map<Triple<DeckScoreLadder, Int, DeckScoreSide>, List<com.example.skillsim.model.DeckScoreReward>>,

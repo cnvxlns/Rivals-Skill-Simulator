@@ -1,5 +1,6 @@
 package com.example.skillsim.model
 
+import com.example.skillsim.enums.BullpenTactic
 import com.example.skillsim.enums.Handedness
 import com.example.skillsim.enums.RelieverRole
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -18,6 +19,8 @@ class DeckRosterJsonTest {
     private fun roster() = DeckRoster(
         starterCount = 5,
         closerCount = 2,
+        winTactic = BullpenTactic.DIVISION,
+        chaseTactic = BullpenTactic.AGGRESSIVE,
         players = listOf(
             DeckPlayer(
                 slot = "SS",
@@ -63,6 +66,8 @@ class DeckRosterJsonTest {
         assertThat(player.battingOrder).isNull()
         assertThat(player.relieverRole).isNull()
         assertThat(player.stats).isEmpty()
+        assertThat(parsed.winTactic).isEqualTo(BullpenTactic.DEFAULT)
+        assertThat(parsed.chaseTactic).isEqualTo(BullpenTactic.DEFAULT)
     }
 
     @Test

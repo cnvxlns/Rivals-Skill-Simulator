@@ -36,8 +36,8 @@ export type PitcherField = 'starters' | 'relievers' | 'closers';
  * 저장을 막는다. 중계 4~7은 선발 4~6과 마무리 1~2에서 나오는 폭이다.
  */
 export const PITCHER_RANGES: Record<PitcherField, number[]> = {
-  starters: [4, 5, 6],
-  relievers: [4, 5, 6, 7],
+  starters: [5],
+  relievers: [4, 5, 6],
   closers: [1, 2],
 };
 
@@ -197,11 +197,77 @@ export function moveRelieverRows<T extends { role: RelieverRole }>(
   return RELIEVER_ROLES.flatMap((role) => groups[role]);
 }
 
+export type BullpenLane = RelieverRole | 'CLOSERS';
+
+export function moveBullpenRows<T extends { slot: string; role: RelieverRole }>(
+  relievers: readonly T[],
+  closers: readonly T[],
+  slot: string,
+  targetLane: BullpenLane,
+  targetIndex: number,
+) {
+  const isMovingCloser = slot.startsWith('CP');
+  const sourceLane: BullpenLane = isMovingCloser
+    ? 'CLOSERS'
+    : relievers.find((row) => row.slot === slot)?.role ?? RelieverRole.LONG;
+  const groups: Record<RelieverRole, T[]> = {
+    [RelieverRole.WIN]: relievers.filter((row) => row.role === RelieverRole.WIN),
+    [RelieverRole.CHASE]: relievers.filter((row) => row.role === RelieverRole.CHASE),
+    [RelieverRole.LONG]: relievers.filter((row) => row.role === RelieverRole.LONG),
+  };
+  const closerRows = [...closers];
+  const source = sourceLane === 'CLOSERS' ? closerRows : groups[sourceLane];
+  const target = targetLane === 'CLOSERS' ? closerRows : groups[targetLane];
+  const sourceIndex = source.findIndex((row) => row.slot === slot);
+  if (sourceIndex < 0) return { relievers, closers };
+  if (sourceLane === targetLane) {
+    source.splice(targetIndex, 0, ...source.splice(sourceIndex, 1));
+  } else {
+    const sourceMinimum = 1;
+    const targetMaximum = targetLane === 'CLOSERS' ? 2 : Infinity;
+    const mustSwap = source.length <= sourceMinimum || target.length >= targetMaximum;
+    if (mustSwap) {
+      const targetIndexSafe = Math.min(Math.max(targetIndex, 0), target.length - 1);
+      const targetPlayer = target[targetIndexSafe];
+      if (!targetPlayer) return { relievers, closers };
+      const moving = source[sourceIndex];
+      source[sourceIndex] = targetPlayer;
+      target[targetIndexSafe] = moving;
+    } else {
+      const moving = source.splice(sourceIndex, 1)[0];
+      target.splice(Math.min(Math.max(targetIndex, 0), target.length), 0, moving);
+    }
+  }
+  const nextRelievers = RELIEVER_ROLES.flatMap((role) =>
+    groups[role].map((row) => ({ ...row, role })),
+  );
+  return { relievers: nextRelievers, closers: closerRows.map((row) => ({ ...row, role: RelieverRole.LONG })) };
+}
+
+export function swapPitcherRows<T extends { role: RelieverRole }>(
+  relievers: readonly T[],
+  closers: readonly T[],
+  relieverIndex: number,
+  closerIndex: number,
+) {
+  if (!relievers[relieverIndex] || !closers[closerIndex]) {
+    return { relievers, closers };
+  }
+  const nextRelievers = [...relievers];
+  const nextClosers = [...closers];
+  const reliever = nextRelievers[relieverIndex];
+  const closer = nextClosers[closerIndex];
+  nextRelievers[relieverIndex] = { ...closer, role: reliever.role };
+  nextClosers[closerIndex] = { ...reliever, role: RelieverRole.LONG };
+  return { relievers: nextRelievers, closers: nextClosers };
+}
+
 function assignRelieverSlots(
   players: Record<string, DeckPlayer>,
   rows: readonly { player: DeckPlayer; role: RelieverRole }[],
 ): Record<string, DeckPlayer> {
   const next = { ...players };
+  Object.keys(next).filter((slot) => /^RP\d+$/.test(slot)).forEach((slot) => delete next[slot]);
   rows.forEach(({ player, role }, index) => {
     const slot = `RP${index + 1}`;
     next[slot] = player.slot === slot && player.relieverRole === role
@@ -340,6 +406,7 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
 
   const pitcherTotal = starterCount + relieverCount + closerCount;
   const isPitcherStaffValid = pitcherTotal === PITCHER_COUNT;
+  const needsStarterConversion = starterCount !== 5;
 
   /** 세 자리를 각자 고른다. 서로 건드리지 않는다. */
   const setPitcherCount = useCallback((field: PitcherField, value: number) => {
@@ -375,7 +442,8 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
   const brokenSlots = useMemo(() => Object.keys(skillProblems), [skillProblems]);
   // 합이 12가 아니면 자리 수 자체가 26이 아니므로 저장도 채점도 할 수 없다.
   const isComplete =
-    completedCount === allSlots.length && isPitcherStaffValid && brokenSlots.length === 0;
+    completedCount === allSlots.length && isPitcherStaffValid &&
+    starterCount === 5 && brokenSlots.length === 0;
 
   const updatePlayer = useCallback((slot: string, patch: Partial<DeckPlayer>) => {
     setRoster((prev) => {
@@ -438,17 +506,79 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
     });
   }, []);
 
-  const moveReliever = useCallback((fromIndex: number, targetRole: RelieverRole, targetIndex: number) => {
+  const moveReliever = useCallback((slot: string, targetRole: BullpenLane, targetIndex: number) => {
     setRoster((prev) => {
-      const rows = relieverSlotsFor(prev.relieverCount).map((slot) => {
-        const player = prev.players[slot];
-        return { player, role: player.relieverRole ?? RelieverRole.LONG };
+      const rows = relieverSlotsFor(prev.relieverCount).map((relieverSlot) => {
+        const player = prev.players[relieverSlot];
+        return { ...player, role: player.relieverRole ?? RelieverRole.LONG };
       });
-      const moved = moveRelieverRows(rows, fromIndex, targetRole, targetIndex);
-      return moved === rows ? prev : validateTactics({
+      const closers = Array.from({ length: prev.closerCount }, (_, index) => ({
+        ...prev.players[`CP${index + 1}`],
+        role: RelieverRole.LONG,
+      }));
+      const moved = moveBullpenRows(rows, closers, slot, targetRole, targetIndex);
+      if (moved.relievers === rows && moved.closers === closers) return prev;
+      const players = assignRelieverSlots(prev.players, moved.relievers.map((player) => ({
+        player,
+        role: player.role,
+      })));
+      Object.keys(players).filter((key) => /^CP\d+$/.test(key)).forEach((key) => delete players[key]);
+      moved.closers.forEach((player, index) => {
+        const nextSlot = `CP${index + 1}`;
+        players[nextSlot] = {
+          ...player,
+          slot: nextSlot,
+          relieverRole: null,
+          pitcherSlot: prev.starterCount + prev.relieverCount + index + 1,
+          statsSlot: player.statsSlot ?? (player.slot !== nextSlot && player.stats ? player.slot : undefined),
+        };
+      });
+      return validateTactics({
         ...prev,
-        players: assignRelieverSlots(prev.players, moved),
+        closerCount: moved.closers.length,
+        relieverCount: moved.relievers.length,
+        players,
       });
+    });
+  }, []);
+
+  const convertStarter = useCallback((slot: string, role: RelieverRole) => {
+    setRoster((prev) => {
+      const player = prev.players[slot];
+      if (!player || prev.starterCount === 5) return prev;
+      const relieverCount = PITCHER_COUNT - 5 - prev.closerCount;
+      const players = { ...prev.players };
+      if (prev.starterCount > 5) {
+        if (!/^SP[1-6]$/.test(slot)) return prev;
+        const rows = relieverSlotsFor(prev.relieverCount).map((relieverSlot) => ({
+          player: prev.players[relieverSlot],
+          role: prev.players[relieverSlot].relieverRole ?? RelieverRole.LONG,
+        }));
+        const converted = { ...player, relieverRole: role };
+        rows.push({ player: converted, role });
+        const next = { ...players };
+        delete next[slot];
+        const reassigned = assignRelieverSlots(next, rows);
+        return normalizeRoster({ ...prev, starterCount: 5, relieverCount, players: reassigned });
+      }
+      if (!/^RP\d+$/.test(slot)) return prev;
+      const rows = relieverSlotsFor(prev.relieverCount).map((relieverSlot) => ({
+        player: prev.players[relieverSlot],
+        role: prev.players[relieverSlot].relieverRole ?? RelieverRole.LONG,
+      }));
+      const donor = rows.findIndex(({ player: candidate }) => candidate.slot === slot);
+      if (donor < 0) return prev;
+      const promoted = rows.splice(donor, 1)[0].player;
+      const reassigned = assignRelieverSlots(players, rows);
+      delete reassigned[slot];
+      reassigned.SP5 = {
+        ...promoted,
+        slot: 'SP5',
+        relieverRole: null,
+        pitcherSlot: 5,
+        statsSlot: promoted.statsSlot ?? (promoted.stats ? promoted.slot : undefined),
+      };
+      return normalizeRoster({ ...prev, starterCount: 5, relieverCount, players: reassigned });
     });
   }, []);
 
@@ -641,6 +771,8 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
     updatePlayer,
     moveBattingOrder,
     moveReliever,
+    needsStarterConversion,
+    convertStarter,
     winTactic,
     chaseTactic,
     setWinTactic,

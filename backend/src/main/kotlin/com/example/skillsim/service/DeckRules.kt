@@ -21,21 +21,21 @@ internal object DeckRules {
     /** 후보 타자 자리. */
     val BENCH_SLOTS = (1..5).map { "BENCH$it" }
 
-    val STARTER_COUNT_RANGE = 4..6
+    /** 새 덱은 선발 다섯 명으로 고정한다. 기존 저장 덱은 읽을 때 원본 인원을 유지한다. */
+    val STARTER_COUNT_RANGE = 5..5
     val CLOSER_COUNT_RANGE = 1..2
 
     /**
      * 중계 인원의 범위. 총원이 12로 고정이라 선발·마무리 범위에서 파생된다.
      *
-     * 선발 4~6, 마무리 1~2이므로 중계는 12−6−2=4에서 12−4−1=7 사이다.
+     * 선발 5, 마무리 1~2이므로 중계는 5~6명이다.
      */
-    val RELIEVER_COUNT_RANGE = 4..7
+    val RELIEVER_COUNT_RANGE = 5..6
 
     /**
-     * 유효한 (선발, 중계, 마무리) 조합 전체. 6가지뿐이다.
+     * 유효한 (선발, 중계, 마무리) 조합 전체.
      *
-     * 셋 중 둘을 정하면 합이 12로 고정이라 나머지는 산술적으로 유일하게 정해진다.
-     * 다만 그 값이 범위를 벗어날 수 있어(예: 선발4 + 중계4 → 마무리4) 조합 자체를 검사한다.
+     * 선발은 다섯 명이며 마무리 수에 따라 중계 인원이 정해진다.
      */
     val VALID_PITCHER_COMBOS: List<Triple<Int, Int, Int>> =
         STARTER_COUNT_RANGE.flatMap { starters ->
@@ -71,8 +71,8 @@ internal object DeckRules {
      * 달라진다. 덱과 무관하게 구단 단위로 저장하는 포지션 훈련은 이 목록을 기준으로 받는다.
      */
     val ALL_SLOTS: List<String> = LINEUP_SLOTS + BENCH_SLOTS +
-        (1..STARTER_COUNT_RANGE.last).map { "$STARTER_PREFIX$it" } +
-        (1..RELIEVER_COUNT_RANGE.last).map { "$RELIEVER_PREFIX$it" } +
+        (1..6).map { "$STARTER_PREFIX$it" } +
+        (1..7).map { "$RELIEVER_PREFIX$it" } +
         (1..CLOSER_COUNT_RANGE.last).map { "$CLOSER_PREFIX$it" }
 
     /** 이 덱에 있어야 할 자리 전체. 26개다. */

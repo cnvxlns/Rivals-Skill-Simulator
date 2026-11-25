@@ -42,6 +42,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
   const { t } = useTranslation();
   const { colors, typography, radius, spacing, tabularNums } = useAppTheme();
   const { width, isWide, isSplit } = useResponsive();
+  const availableVariants = variantsFor(calc.cardGrade);
 
   const controlWidth = isSplit ? '18.5%' : isWide ? '31%' : '47.5%';
   const statWidth = isSplit ? '23.5%' : isWide ? '31%' : '47.5%';
@@ -206,9 +207,25 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
               selected={calc.cardGrade}
               options={cardGradeOptions}
               optionLabel={(option) => cardTypeLabel(option)}
-              onSelect={(option) => calc.setCardGrade(option)}
+              onSelect={(option) => {
+                calc.setCardGrade(option);
+                if (!variantsFor(option).includes(calc.cardVariant)) {
+                  calc.setCardVariant(CardVariant.NONE);
+                }
+              }}
             />
           </View>
+          {availableVariants.length > 1 ? (
+            <View style={controlField}>
+              <LabeledDropdown
+                label={t('label_card_variant')}
+                selected={calc.cardVariant}
+                options={availableVariants}
+                optionLabel={(option) => (option === CardVariant.NONE ? t('option_variant_none') : option)}
+                onSelect={calc.setCardVariant}
+              />
+            </View>
+          ) : null}
           <View style={controlField}>
             <LabeledDropdown
               label={t('label_position')}

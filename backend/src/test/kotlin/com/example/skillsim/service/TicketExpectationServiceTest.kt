@@ -1,13 +1,20 @@
 package com.example.skillsim.service
 
 import com.example.skillsim.config.ScoreDataLoader
+import com.example.skillsim.dto.ScoreSelection
+import com.example.skillsim.dto.TicketExpectationRequest
 import com.example.skillsim.enums.Level
+import com.example.skillsim.model.ScoreEffect
+import com.example.skillsim.model.ScoreSkill
 import com.example.skillsim.repository.InMemoryScoreSkillRepository
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.assertj.core.api.Assertions.within
 import org.junit.jupiter.api.Test
 import org.springframework.core.io.ClassPathResource
+import org.springframework.web.server.ResponseStatusException
 
 class TicketExpectationServiceTest {
 
@@ -159,4 +166,115 @@ class TicketExpectationServiceTest {
         assertThat(evaluate(listOf(gold.skillKey), grade = "SIGNATURE").slotOneLockable).isTrue()
         assertThat(evaluate(listOf(gold.skillKey), grade = "HOF").slotOneLockable).isFalse()
     }
+
+    @Test
+    fun `빈 칸을 건너뛰지 않고 레벨 보호를 적용한 뒤 합계만 반올림한다`() {
+        val tickets = fixtureService(
+            listOf(skill("G_001", 1), skill("G_002", 1), skill("G_003", 1)),
+            powerWeight = 0.004,
+        ).evaluate(
+            TicketExpectationRequest(
+                cardGrade = "SIGNATURE",
+                position = "C",
+                selections = listOf(null, ScoreSelection("G_001", 9), null),
+                lockSlotOne = true,
+            ),
+        )
+
+        assertThat(tickets.slotOneLockable).isFalse()
+        assertThat(tickets.currentTotal).isZero()
+        assertThat(tickets.tickets).allSatisfy { ticket ->
+            assertThat(ticket.improveChance).isCloseTo(1.0, within(1e-12))
+            assertThat(ticket.betterCombinations).isNotEmpty().allSatisfy { combination ->
+                assertThat(combination.total).isEqualTo(0.01)
+                assertThat(combination.gain).isEqualTo(0.01)
+                assertThat(combination.slots[0].level).isNotEqualTo("S4")
+                assertThat(combination.slots[1].level).isEqualTo("S4")
+            }
+        }
+    }
+
+    @Test
+    fun `첫 슬롯만 변경하면 나머지 스킬과 빈 슬롯을 그대로 둔다`() {
+        val request = TicketExpectationRequest(
+            cardGrade = "SIGNATURE",
+            position = "C",
+            selections = listOf(ScoreSelection("G_001", 1), null, ScoreSelection("G_003", 7)),
+            rerollFirstSlotOnly = true,
+        )
+        val tickets = fixtureService(listOf(skill("G_001", 1), skill("G_002", 3), skill("G_003", 2)))
+            .evaluate(request)
+
+        assertThat(tickets.currentTotal).isEqualTo(3.0)
+        assertThat(tickets.tickets).allSatisfy { ticket ->
+            assertThat(ticket.improveChance).isCloseTo(0.5, within(1e-12))
+            assertThat(ticket.betterCombinations).isNotEmpty().allSatisfy { combination ->
+                assertThat(combination.slots.map { it.skillId }).containsExactly("G_002", null, "G_003")
+                assertThat(combination.slots[0].name).isEqualTo("G_002")
+                assertThat(combination.slots[2].level).isEqualTo("S2")
+                assertThat(combination.total).isEqualTo(5.0)
+                assertThat(combination.gain).isEqualTo(2.0)
+            }
+            assertThat(ticket.betterCombinations.sumOf { it.chance }).isCloseTo(0.5, within(1e-12))
+        }
+    }
+
+    @Test
+    fun `지원하지 않는 첫 슬롯 모드 요청은 거절한다`() {
+        val fixture = fixtureService(listOf(skill("G_001", 1)))
+        val request = TicketExpectationRequest(
+            cardGrade = "HOF",
+            position = "C",
+            selections = listOf(ScoreSelection("G_001", 1)),
+            rerollFirstSlotOnly = true,
+        )
+
+        assertThatThrownBy { fixture.evaluate(request) }
+            .isInstanceOf(ResponseStatusException::class.java)
+            .hasMessageContaining("400 BAD_REQUEST")
+        assertThatThrownBy { fixture.evaluate(request.copy(cardGrade = "SIGNATURE", lockSlotOne = true)) }
+            .isInstanceOf(ResponseStatusException::class.java)
+            .hasMessageContaining("400 BAD_REQUEST")
+    }
+
+    @Test
+    fun `기본 능력치 조건을 현재 점수와 후보 점수에 함께 적용한다`() {
+        val request = TicketExpectationRequest(
+            cardGrade = "SIGNATURE",
+            position = "C",
+            selections = listOf(ScoreSelection("G_001", 1), ScoreSelection("G_002", 1)),
+            rerollFirstSlotOnly = true,
+        )
+        val fixture = fixtureService(
+            listOf(skill("G_001", 10, "기본주루수비합155이상"), skill("G_002", 4), skill("G_003", 2)),
+        )
+        val below = fixture.evaluate(request.copy(baseStats = mapOf("주루" to 70.0, "수비" to 80.0)))
+        val above = fixture.evaluate(request.copy(baseStats = mapOf("주루" to 75.0, "수비" to 80.0)))
+
+        assertThat(below.currentTotal).isEqualTo(4.0)
+        assertThat(below.tickets.first().betterCombinations.first().total).isEqualTo(6.0)
+        assertThat(above.currentTotal).isEqualTo(14.0)
+        assertThat(above.tickets.first().averageTotal).isEqualTo(10.0)
+        assertThat(above.tickets.first().betterCombinations).isEmpty()
+    }
+
+    private fun fixtureService(skills: List<ScoreSkill>, powerWeight: Double = 1.0): TicketExpectationService {
+        val fixture = InMemoryScoreSkillRepository().apply { saveAll(skills) }
+        return TicketExpectationService(
+            fixture,
+            RollEngine(fixture),
+            ScoreService(fixture, ScoreCalculator(), mapOf("파워" to powerWeight)),
+        )
+    }
+
+    private fun skill(skillKey: String, effectValue: Int, condition: String = "ALWAYS"): ScoreSkill = ScoreSkill(
+        skillKey = skillKey,
+        cardType = "NORMAL",
+        position = "BATTER",
+        name = skillKey,
+        description = "",
+        effects = mutableListOf(
+            ScoreEffect(stat = "파워", condition = condition, values = List(9) { effectValue }.joinToString("/")),
+        ),
+    )
 }

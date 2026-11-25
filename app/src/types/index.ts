@@ -582,6 +582,14 @@ export type DeckScoreResponse = {
 /** 스킬 변경권 세 종류. 백엔드 TicketType과 같은 이름을 쓴다. */
 export type TicketKind = 'SKILL_CHANGE' | 'PREMIUM_SKILL_CHANGE' | 'SUPREME_SKILL_CHANGE';
 
+export type TicketCombination = {
+  slots: { skillId: string | null; name: string | null; level: string }[];
+  total: number;
+  gain: number;
+  /** 변경권 한 장으로 이 슬롯 순서와 레벨이 그대로 나올 확률. */
+  chance: number;
+};
+
 export type TicketOutcome = {
   ticket: TicketKind;
   /** 결과를 무를 수 있는가. 일반 변경권만 false다. */
@@ -594,6 +602,8 @@ export type TicketOutcome = {
   averageTotal: number;
   /** 장수별 누적 성공 확률. */
   chanceWithin: Record<string, number>;
+  /** 개선 조합 중 점수가 높은 순서로 일부를 내려준다. */
+  betterCombinations?: TicketCombination[];
 };
 
 export type TicketExpectationResponse = {
@@ -607,13 +617,16 @@ export type TicketExpectationRequest = {
   cardGrade: string;
   cardVariant?: string;
   position: string;
-  selections: ScoreSelection[];
+  /** 실제 슬롯 순서로 보낸다. 빈 슬롯은 null이다. */
+  selections: (ScoreSelection | null)[];
   battingOrder?: number | null;
   pitcherSlot?: number | null;
   userStats?: Record<string, number>;
+  baseStats?: Record<string, number>;
   throwHand?: Handedness;
   batHand?: Handedness;
   lockSlotOne?: boolean;
+  rerollFirstSlotOnly?: boolean;
   /** 자리에 붙은 보너스. 새로 뽑힌 스킬도 목록에 있으면 오른다. */
   trainingBonuses?: SkillLevelBonus[];
 };

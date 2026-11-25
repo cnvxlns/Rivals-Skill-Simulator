@@ -766,7 +766,7 @@ class ScoreCalculator {
             )
         }
 
-        return Result(round(weightedTotal), perSkill, totalPerStat.roundedCopy())
+        return Result(round(weightedTotal), perSkill, totalPerStat.roundedCopy(), weightedTotal)
     }
 
     internal fun valueAt(values: String?, level: Int): Double {
@@ -857,6 +857,7 @@ class ScoreCalculator {
         val total: Double,
         val perSkill: List<SkillScore>,
         val perStat: Map<String, Double>,
+        internal val unroundedTotal: Double = total,
     )
 
     data class SkillScore(

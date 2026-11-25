@@ -172,7 +172,7 @@ internal object RollTables {
  * 옛 `CardType`(등급·변형·풀이 뒤섞인 축)을 지금의 등급 + 변형으로 다시 그린 것이다.
  * 옛 축을 되살리면 `1e10e9e`에서 갈라 놓은 것을 도로 무너뜨리게 된다.
  */
-internal enum class RollFamily {
+enum class RollFamily {
     /** 시즌·라이브·임팩트·프라임·시그니처. 기본 티어만 나온다. */
     NORMAL,
 

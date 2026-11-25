@@ -11,9 +11,10 @@ import jakarta.validation.constraints.NotEmpty
  * [ScoreRequest]와 같은 조건을 받고 잠금·레벨 보호만 더한다. 계산기가 이미 들고 있는 값
  * 그대로라 화면에서 새로 물어볼 것이 거의 없다.
  *
- * @param selections 지금 끼워 둔 스킬. 비어 있는 칸은 빼고 보내면 그만큼 0점으로 본다.
+ * @param selections 지금 끼워 둔 스킬. 중간에 비어 있는 칸은 null로 보내 슬롯 위치를 유지한다.
  * @param lockSlotOne 첫 슬롯 잠금. 등급이 허용하지 않으면 무시하고 응답의
  *   `slotOneLockable`이 false로 내려간다.
+ * @param rerollFirstSlotOnly 첫 슬롯만 변경한다. 첫 슬롯 잠금이 가능한 경우에만 지원한다.
  *
  * 스킬레벨보호권은 받지 않는다. 쓰지 않고 돌리는 사람이 없다시피 해서 늘 켠 것으로 본다
  * ([TicketExpectationService]).
@@ -25,7 +26,7 @@ data class TicketExpectationRequest(
     @field:NotBlank
     val position: String? = null,
     @field:NotEmpty
-    val selections: List<ScoreSelection>? = null,
+    val selections: List<ScoreSelection?>? = null,
     val battingOrder: Int? = null,
     val pitcherSlot: Int? = null,
     val userStats: Map<String, Double>? = null,
@@ -40,4 +41,6 @@ data class TicketExpectationRequest(
      */
     @field:Valid
     val trainingBonuses: List<SkillLevelBonus>? = null,
+    val baseStats: Map<String, Double>? = null,
+    val rerollFirstSlotOnly: Boolean = false,
 )

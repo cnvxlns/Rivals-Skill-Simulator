@@ -187,6 +187,20 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
   const [shownSet, setShownSet] = useState<'a' | 'b'>('a');
   const visibleSets = sideBySide ? [0, 1] : [calc.compare && shownSet === 'b' ? 1 : 0];
   const setLabel = (index: number) => t(index === 0 ? 'calculator_set_a' : 'calculator_set_b');
+  const showsPitcherSlot = calc.position === Position.PITCHER &&
+    (calc.subPosition === 'SP' || calc.subPosition === 'RP');
+
+  function renderPitcherSlot(setIndex: number) {
+    return (
+      <LabeledDropdown
+        label={t('label_pitcher_slot')}
+        selected={calc.pitcherSlots[setIndex]}
+        options={calc.subPosition === 'SP' ? [null, 1, 2, 3, 4, 5] : [null, 1, 2, 3, 4, 5, 6]}
+        optionLabel={(option) => (option == null ? '-' : String(option))}
+        onSelect={(option) => calc.updatePitcherSlot(setIndex, option)}
+      />
+    );
+  }
 
   /** 한 벌의 스킬 슬롯 격자. 비교를 켜면 좌우로 두 번 그린다. */
   function renderSlots(setIndex: number) {
@@ -376,17 +390,8 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
               />
             </View>
           ) : null}
-          {calc.position === Position.PITCHER &&
-          (calc.subPosition === 'SP' || calc.subPosition === 'RP') ? (
-            <View style={controlField}>
-              <LabeledDropdown
-                label={t('label_pitcher_slot')}
-                selected={calc.pitcherSlot}
-                options={calc.subPosition === 'SP' ? [null, 1, 2, 3, 4, 5] : [null, 1, 2, 3, 4, 5, 6]}
-                optionLabel={(option) => (option == null ? '-' : String(option))}
-                onSelect={(option) => calc.updatePitcherSlot(option)}
-              />
-            </View>
+          {showsPitcherSlot && !calc.compare ? (
+            <View style={controlField}>{renderPitcherSlot(0)}</View>
           ) : null}
         </View>
       </SectionCard>
@@ -485,6 +490,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
             {sideBySide ? (
               <Text style={[typography.label, { color: colors.secondaryText }]}>{setLabel(setIndex)}</Text>
             ) : null}
+            {showsPitcherSlot && calc.compare ? renderPitcherSlot(setIndex) : null}
             {renderSlots(setIndex)}
           </View>
         ))}
@@ -733,6 +739,11 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
         style={sideBySide ? { flex: 1, minWidth: 0 } : undefined}
       >
         <ScoreHero label={t('score_total')} value={result.total} compact={sideBySide} />
+        {calc.compare && showsPitcherSlot ? (
+          <Text style={[typography.label, { color: colors.secondaryText }]}>
+            {t('label_pitcher_slot')} {calc.pitcherSlots[setIndex]}
+          </Text>
+        ) : null}
         {delta != null ? (
           <Text
             style={[

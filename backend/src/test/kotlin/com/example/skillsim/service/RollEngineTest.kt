@@ -8,6 +8,7 @@ import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
 import kotlin.random.Random
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.assertj.core.api.Assertions.within
 import org.junit.jupiter.api.Test
 import org.springframework.core.io.ClassPathResource
@@ -42,6 +43,7 @@ class RollEngineTest {
         position: String = "C",
         lockSlotOne: Boolean = false,
         currentSkillKeys: List<String?> = listOf(null, null, null, null),
+        momentSkillKey: String? = null,
     ) = RollEngine.RollInput(
         grade = grade,
         variant = variant,
@@ -50,6 +52,7 @@ class RollEngineTest {
         currentSkillKeys = currentSkillKeys,
         currentLevels = listOf(null, null, null, null),
         lockSlotOne = lockSlotOne,
+        momentSkillKey = momentSkillKey,
     )
 
     /** 뽑은 티어의 비율. 20,000회면 35%가 ±1.5%p 안에 들어온다. */
@@ -146,18 +149,59 @@ class RollEngineTest {
     }
 
     @Test
-    fun `슈프림 모먼트는 첫 칸에서만 모먼트 전용이 나온다`() {
+    fun `슈프림 모먼트는 첫 칸에서만 포지션 내 여러 모먼트 스킬이 나온다`() {
         val random = Random(5)
         var momentFirst = 0
         var momentElsewhere = 0
+        val rolledMomentKeys = mutableSetOf<String>()
         repeat(TRIALS) {
             val slots = engine.roll(input("SUPREME_MOMENT", TicketType.SUPREME_SKILL_CHANGE), random)
-            if (slots[0].skill?.let { SkillTier.of(it) } == SkillTier.MOMENT) momentFirst++
+            val firstSkill = slots[0].skill
+            if (firstSkill != null && SkillTier.of(firstSkill) == SkillTier.MOMENT) {
+                momentFirst++
+                rolledMomentKeys += firstSkill.skillKey
+            }
             if (slots.drop(1).any { it.skill?.let { s -> SkillTier.of(s) } == SkillTier.MOMENT }) momentElsewhere++
         }
 
         assertThat(momentFirst * 100.0 / TRIALS).isCloseTo(30.0, within(2.0))
+        assertThat(rolledMomentKeys.size).isGreaterThan(1)
         assertThat(momentElsewhere).isZero()
+    }
+
+    @Test
+    fun `일반 모먼트는 지정된 고유 모먼트 스킬 하나만 첫 칸에 6퍼센트로 나온다`() {
+        val random = Random(17)
+        val targetKey = "M_003"
+        var targetFirst = 0
+        var otherMomentFirst = 0
+        var momentElsewhere = 0
+        repeat(TRIALS) {
+            val slots = engine.roll(
+                input("MOMENT", TicketType.SUPREME_SKILL_CHANGE, momentSkillKey = targetKey),
+                random,
+            )
+            val firstSkill = slots[0].skill
+            if (firstSkill != null && SkillTier.of(firstSkill) == SkillTier.MOMENT) {
+                if (firstSkill.skillKey == targetKey) targetFirst++ else otherMomentFirst++
+            }
+            if (slots.drop(1).any { it.skill?.let { s -> SkillTier.of(s) } == SkillTier.MOMENT }) momentElsewhere++
+        }
+
+        assertThat(targetFirst * 100.0 / TRIALS).isCloseTo(6.0, within(1.5))
+        assertThat(otherMomentFirst).isZero()
+        assertThat(momentElsewhere).isZero()
+
+        // 첫 슬롯에 이미 모먼트 스킬이 있으면 별도 momentSkillKey 없이도 그 스킬을 고유 스킬로 쓴다.
+        val inferred = engine.roll(
+            input("MOMENT", TicketType.SUPREME_SKILL_CHANGE, currentSkillKeys = listOf(targetKey, null, null)),
+            Random(19),
+        )
+        assertThat(inferred).hasSize(3)
+
+        assertThatThrownBy {
+            engine.roll(input("MOMENT", TicketType.SUPREME_SKILL_CHANGE), Random(19))
+        }.isInstanceOf(IllegalArgumentException::class.java)
     }
 
     @Test

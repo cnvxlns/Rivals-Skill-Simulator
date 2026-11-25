@@ -639,6 +639,8 @@ export type TicketExpectationRequest = {
   trainingBonuses?: SkillLevelBonus[];
   /** 카드 초월 레벨(0~15). 시그니처 블랙은 기본 +1·9초월 +2, HOF·시그니처는 9초월 +1을 첫 슬롯에 적용한다. */
   transcendenceLevel?: number;
+  /** 일반 모먼트 카드에서 첫 슬롯에 등장할 수 있는 고유 모먼트 스킬 ID. */
+  momentSkillId?: string;
 };
 
 export type DeckSummary = {

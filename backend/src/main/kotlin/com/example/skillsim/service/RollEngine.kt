@@ -11,8 +11,9 @@ import org.springframework.stereotype.Component
  * 스킬 변경권을 한 장 썼을 때 나오는 결과를 뽑는다.
  *
  * 커밋 `6ef8a77`에서 걷어냈던 `SkillService`의 롤 부분을 되살린 것이다. 그때는 시뮬레이터
- * 화면이 쓰던 코드였고, 지금은 "몇 장 쓰면 나아지나"를 세는 데 쓴다. 그래서 초기 획득이나
- * 모먼트 테마 목록처럼 화면 전용이던 부분은 가져오지 않았다.
+ * 화면이 쓰던 코드였고, 지금은 "몇 장 쓰면 나아지나"를 세는 데 쓴다. 일반 `MOMENT`는 카드마다
+ * 정해진 고유 모먼트 스킬 하나만 첫 슬롯에 나오고, `SUPREME_MOMENT`는 포지션에 맞는 모든
+ * 모먼트 스킬이 첫 슬롯 후보가 된다.
  *
  * 옛 코드의 `CardType`은 등급·변형·스킬풀이 뒤섞인 축이었다. 여기서는 [RollFamily]로 다시
  * 그려 지금의 등급 + 변형 축을 쓴다.
@@ -36,6 +37,7 @@ class RollEngine(
      * @param currentLevels 지금 레벨. 레벨 보호가 이 값 아래로 떨어지지 않게 막는다.
      * @param lockSlotOne 첫 슬롯을 그대로 두는가. [canLockSlotOne]이 아니면 무시한다.
      * @param protectLevels 슬롯별 레벨 보호 사용 여부.
+     * @param momentSkillKey 일반 `MOMENT` 카드에서 첫 슬롯에 뜰 수 있는 고유 모먼트 스킬 키. 첫 슬롯이 이미 모먼트 스킬이면 생략 가능.
      */
     data class RollInput(
         val grade: String,
@@ -46,6 +48,7 @@ class RollEngine(
         val currentLevels: List<Level?>,
         val lockSlotOne: Boolean = false,
         val protectLevels: List<Boolean> = emptyList(),
+        val momentSkillKey: String? = null,
     )
 
     fun roll(input: RollInput, random: Random): List<RolledSlot> {
@@ -114,14 +117,22 @@ class RollEngine(
 
         return when (family) {
             // 모먼트 전용은 최고급을 썼을 때 첫 칸에서만 나온다. 둘째·셋째 칸에는 안 나온다.
+            // 일반 모먼트는 카드에 정해진 고유 모먼트 스킬 하나만, 슈프림 모먼트는 포지션 내 전체 모먼트 풀이 후보가 된다.
             RollFamily.MOMENT ->
                 if (ticket == TicketType.SUPREME_SKILL_CHANGE && slotIndex == 0) {
-                    val table = RollTables.momentSlotOneTable(gradeOf(input))
+                    val grade = gradeOf(input)
+                    val table = RollTables.momentSlotOneTable(grade)
                     val tier = pick(table.mapValues { it.value.values.sum() }, SkillTier.GOLD, random)
                     val pool = if (tier == SkillTier.MOMENT) "MOMENT" else "NORMAL"
                     val level = pick(table.getValue(tier), Level.S, random)
+                    val skill = if (grade == "MOMENT") {
+                        val momentSkill = resolveMomentSkill(input, used)
+                        if (tier == SkillTier.MOMENT) momentSkill else pickSkill(pool, tier, used, position, random)
+                    } else {
+                        pickSkill(pool, tier, used, position, random)
+                    }
                     RolledSlot(
-                        pickSkill(pool, tier, used, position, random),
+                        skill,
                         applyProtection(level, currentLevel, protect, pool),
                     )
                 } else {
@@ -202,6 +213,35 @@ class RollEngine(
         val matches = available.filter { SkillTier.of(it) == tier }
         val pool2 = matches.ifEmpty { available }
         return pool2[random.nextInt(pool2.size)]
+    }
+
+    private fun resolveMomentSkill(input: RollInput, used: Set<String>): ScoreSkill? {
+        val requestedKey = input.momentSkillKey?.trim()?.takeIf(String::isNotEmpty)
+            ?.let { SkillRules.normalizeRequired(it, "Moment skill selection is required.") }
+        val slotOneMomentKey = input.currentSkillKeys.firstOrNull()?.takeIf(String::isNotBlank)
+            ?.let { SkillRules.normalizeRequired(it, "Skill selection is required.") }
+            ?.let(scoreSkillRepository::findBySkillKey)
+            ?.takeIf { SkillTier.of(it) == SkillTier.MOMENT }
+            ?.skillKey
+        val momentKey = when {
+            requestedKey != null -> {
+                if (slotOneMomentKey != null && slotOneMomentKey != requestedKey) {
+                    throw IllegalArgumentException("Slot 1 moment skill must match the card's fixed moment skill.")
+                }
+                requestedKey
+            }
+            slotOneMomentKey != null -> slotOneMomentKey
+            else -> throw IllegalArgumentException("Moment skill key is required for MOMENT cards.")
+        }
+        val skill = scoreSkillRepository.findBySkillKey(momentKey)
+        if (
+            skill == null ||
+            SkillTier.of(skill) != SkillTier.MOMENT ||
+            !SkillRules.matchesPosition(skill.position, input.position)
+        ) {
+            throw IllegalArgumentException("Selected moment skill is unavailable for this card: $momentKey")
+        }
+        return skill.takeIf { it.skillKey !in used }
     }
 
     private fun gradeOf(input: RollInput): String = CardRules.resolveGrade(input.grade)

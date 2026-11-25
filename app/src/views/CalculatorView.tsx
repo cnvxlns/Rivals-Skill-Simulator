@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View, ViewStyle } from 'react-native';
-import { CARD_GRADES_LOW_TO_HIGH, CardVariant, Handedness, Position, SubPosition, TicketCombination, variantsFor } from '../types';
+import { CARD_GRADES_LOW_TO_HIGH, CardGrade, CardVariant, Handedness, Position, SubPosition, TicketCombination, variantsFor } from '../types';
 import { TicketScope, useScoreCalculator } from '../lib/useScoreCalculator';
 import { canPlaceSkill } from '../lib/cardRules';
 import { useTranslation } from '../lib/i18n';
@@ -618,21 +618,56 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
    * 계산기가 이미 들고 있는 조건을 그대로 쓰므로 여기서 새로 물어보는 건 잠금 여부뿐이다.
    */
   function renderTickets() {
+    const showMomentSkillPicker = calc.cardGrade === CardGrade.MOMENT;
+    const momentSkillOptions = [
+      '',
+      ...(calc.momentSkillId && !calc.momentSkills.some((skill) => skill.skillId === calc.momentSkillId)
+        ? [calc.momentSkillId]
+        : []),
+      ...calc.momentSkills.map((skill) => skill.skillId),
+    ];
     return (
       <SectionCard title={t('ticket_title')}>
         <View style={{ gap: spacing.md }}>
           <Text style={[typography.label, { color: colors.secondaryText }]}>{t('ticket_desc')}</Text>
 
-          {calc.firstSlotOptionsAvailable ? (
-            <View style={{ maxWidth: 320 }}>
-              <LabeledDropdown
-                label={t('ticket_scope')}
-                selected={calc.ticketScope}
-                options={TICKET_SCOPES}
-                optionLabel={(scope) => t(TICKET_SCOPE_LABEL_KEYS[scope])}
-                onSelect={calc.setTicketScope}
-              />
+          {showMomentSkillPicker || calc.firstSlotOptionsAvailable ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+              {showMomentSkillPicker ? (
+                <View style={{ flexBasis: 280, maxWidth: 320, flexGrow: 1 }}>
+                  <LabeledDropdown
+                    label={t('ticket_moment_skill')}
+                    selected={calc.momentSkillId}
+                    options={momentSkillOptions}
+                    optionLabel={(skillId) =>
+                      calc.momentSkills.find((skill) => skill.skillId === skillId)?.name ??
+                      calc.skills.find((skill) => skill.skillId === skillId)?.name ??
+                      (skillId ? skillId : t('score_select_skill'))
+                    }
+                    onSelect={calc.setMomentSkillId}
+                    disabled={calc.firstSlotHasMomentSkill || calc.momentSkills.length === 0}
+                    searchable
+                    searchPlaceholder={t('score_table_search_placeholder')}
+                  />
+                </View>
+              ) : null}
+              {calc.firstSlotOptionsAvailable ? (
+                <View style={{ flexBasis: 280, maxWidth: 320, flexGrow: 1 }}>
+                  <LabeledDropdown
+                    label={t('ticket_scope')}
+                    selected={calc.ticketScope}
+                    options={TICKET_SCOPES}
+                    optionLabel={(scope) => t(TICKET_SCOPE_LABEL_KEYS[scope])}
+                    onSelect={calc.setTicketScope}
+                  />
+                </View>
+              ) : null}
             </View>
+          ) : null}
+          {showMomentSkillPicker ? (
+            <Text style={[typography.label, { color: colors.secondaryText }]}>
+              {t(calc.firstSlotHasMomentSkill ? 'ticket_moment_skill_locked_hint' : 'ticket_moment_skill_hint')}
+            </Text>
           ) : null}
           {calc.ticketScope === 'firstOnly' ? (
             <Text style={[typography.label, { color: colors.secondaryText }]}>{t('ticket_scope_first_only_hint')}</Text>

@@ -36,6 +36,8 @@ class TicketExpectationSolver {
         val candidates: List<SkillCandidate>,
         /** 0부터 세는 고정 슬롯. 후보가 null이면 빈 칸을 유지한다. */
         val fixedSlots: Map<Int, Pair<SkillCandidate?, Level>> = emptyMap(),
+        /** 일반 `MOMENT` 카드의 첫 슬롯에 등장할 수 있는 고유 모먼트 스킬 키. */
+        val momentSkillKey: String? = null,
     )
 
     data class CombinationSlot(val skillKey: String?, val level: Level)
@@ -188,8 +190,28 @@ class TicketExpectationSolver {
         private var averageTotal = 0.0
 
         init {
+            val eligibleCandidates = if (input.grade == "MOMENT") {
+                val momentCandidates = input.candidates.filter { it.pool == "MOMENT" }
+                if (input.momentSkillKey != null && momentCandidates.none { it.skillKey == input.momentSkillKey }) {
+                    throw IllegalArgumentException("Unknown moment candidate: ${input.momentSkillKey}")
+                }
+                val targetMomentKey = input.momentSkillKey ?: momentCandidates.singleOrNull()?.skillKey
+                if (
+                    targetMomentKey == null &&
+                    0 in open &&
+                    input.ticket == TicketType.SUPREME_SKILL_CHANGE &&
+                    momentCandidates.isNotEmpty()
+                ) {
+                    throw IllegalArgumentException(
+                        "momentSkillKey is required for MOMENT cards when multiple moment candidates exist.",
+                    )
+                }
+                input.candidates.filter { it.pool != "MOMENT" || it.skillKey == targetMomentKey }
+            } else {
+                input.candidates
+            }
             var bucketIndex = 0
-            pools = input.candidates.filterNot { it.skillKey in fixedKeys }.groupBy { it.pool }.mapValues { (_, pool) ->
+            pools = eligibleCandidates.filterNot { it.skillKey in fixedKeys }.groupBy { it.pool }.mapValues { (_, pool) ->
                 pool.groupBy { it.tier }.map { (tier, skills) -> Bucket(bucketIndex++, tier, skills) }
             }
             used = IntArray(bucketIndex)

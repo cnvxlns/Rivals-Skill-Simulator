@@ -125,18 +125,35 @@ class TicketExpectationSolverTest {
     }
 
     @Test
-    fun `the first slot uses the correct supreme rates for Moment and HOF`() {
+    fun `the first slot uses fixed moment skill on Moment and full pool on Supreme Moment and HOF`() {
         val gold = List(3) { candidate("G_00${it + 1}", SkillTier.GOLD, mapOf(Level.S to 1.0)) }
-        val moment = candidate("M_001", SkillTier.MOMENT, mapOf(Level.S to 5.0))
-        val momentInput = input(gold + moment, 3.0, RollFamily.MOMENT, TicketType.SUPREME_SKILL_CHANGE)
-        for ((grade, chance) in mapOf("MOMENT" to 0.06, "SUPREME_MOMENT" to 0.30)) {
-            val result = solver.solve(momentInput.copy(grade = grade))
-            assertEquals(chance, result.improveChance, 1e-12)
-            assertEquals(3, result.betterCombinations.size)
-            for (combo in result.betterCombinations) {
-                assertEquals(moment.skillKey, combo.slots.first().skillKey)
-                assertEquals(chance / 3, combo.chance, 1e-12)
-            }
+        val momentA = candidate("M_001", SkillTier.MOMENT, mapOf(Level.S to 5.0))
+        val momentB = candidate("M_002", SkillTier.MOMENT, mapOf(Level.S to 9.0))
+        val momentInput = input(gold + momentA + momentB, 3.0, RollFamily.MOMENT, TicketType.SUPREME_SKILL_CHANGE)
+
+        val fixedMoment = solver.solve(momentInput.copy(grade = "MOMENT", momentSkillKey = momentA.skillKey))
+        assertEquals(0.06, fixedMoment.improveChance, 1e-12)
+        assertEquals(3, fixedMoment.betterCombinations.size)
+        for (combo in fixedMoment.betterCombinations) {
+            assertEquals(momentA.skillKey, combo.slots.first().skillKey)
+            assertEquals(7.0, combo.total, 1e-12)
+            assertEquals(0.06 / 3, combo.chance, 1e-12)
+        }
+
+        // 다른 테마의 모먼트 스킬(M_002=9점)이 풀에 있어도 M_001 카드에서는 등장하지 않는다.
+        val cappedMoment = solver.solve(
+            momentInput.copy(grade = "MOMENT", currentTotal = 7.0, momentSkillKey = momentA.skillKey),
+        )
+        assertEquals(0.0, cappedMoment.improveChance, 1e-12)
+        assertTrue(cappedMoment.betterCombinations.isEmpty())
+
+        val supremeMoment = solver.solve(momentInput.copy(grade = "SUPREME_MOMENT"))
+        assertEquals(0.30, supremeMoment.improveChance, 1e-12)
+        assertEquals(6, supremeMoment.betterCombinations.size)
+        assertEquals(List(3) { 11.0 } + List(3) { 7.0 }, supremeMoment.betterCombinations.map { it.total })
+        for (combo in supremeMoment.betterCombinations) {
+            assertTrue(combo.slots.first().skillKey in setOf(momentA.skillKey, momentB.skillKey))
+            assertEquals(0.15 / 3, combo.chance, 1e-12)
         }
 
         val hof = candidate("HOF_001", SkillTier.HOF, mapOf(Level.S to 5.0))

@@ -181,14 +181,6 @@ class RollEngine(
         )
     }
 
-    private fun wbcChanceFor(family: RollFamily, ticket: TicketType): Double =
-        if (family == RollFamily.WBC_BLACK && ticket == TicketType.PREMIUM_SKILL_CHANGE) {
-            // 블랙 선추첨(5%)을 통과한 뒤에 재는 조건부 확률이라 마진을 되돌려 놓는다.
-            0.005 / 0.95
-        } else {
-            RollTables.wbcSlotChance(ticket)
-        }
-
     /**
      * 같은 티어 안에서는 균등하게 고른다.
      *
@@ -212,18 +204,7 @@ class RollEngine(
         return pool2[random.nextInt(pool2.size)]
     }
 
-    /** 뽑은 레벨이 지금보다 낮으면 보호가 켜져 있을 때 지금 레벨을 지킨다. */
-    private fun applyProtection(rolled: Level, current: Level?, protect: Boolean, pool: String): Level {
-        val ladder = SkillRules.gradeLadder(pool)
-        val safeRolled = coerce(rolled, ladder)
-        val safeCurrent = current?.let { coerce(it, ladder) } ?: return safeRolled
-        return if (protect && ladder.indexOf(safeRolled) < ladder.indexOf(safeCurrent)) safeCurrent else safeRolled
-    }
-
     private fun gradeOf(input: RollInput): String = CardRules.resolveGrade(input.grade)
-
-    private fun coerce(level: Level, ladder: List<Level>): Level =
-        if (level in ladder) level else ladder[level.ordinal.coerceIn(0, ladder.size - 1)]
 
     private fun <T> pick(weights: Map<T, Double>, fallback: T, random: Random): T {
         val total = weights.values.sum()
@@ -237,6 +218,21 @@ class RollEngine(
     }
 
     companion object {
+        internal fun wbcChanceFor(family: RollFamily, ticket: TicketType): Double =
+            if (family == RollFamily.WBC_BLACK && ticket == TicketType.PREMIUM_SKILL_CHANGE) {
+                0.005 / 0.95
+            } else {
+                RollTables.wbcSlotChance(ticket)
+            }
+
+        /** 뽑은 레벨이 지금보다 낮으면 보호가 켜져 있을 때 지금 레벨을 지킨다. */
+        internal fun applyProtection(rolled: Level, current: Level?, protect: Boolean, pool: String): Level {
+            val ladder = SkillRules.gradeLadder(pool)
+            val rolledIndex = SkillRules.levelIndex(rolled, pool)
+            val currentIndex = if (protect) SkillRules.levelIndex(current, pool) else rolledIndex
+            return ladder[maxOf(rolledIndex, currentIndex) - 1]
+        }
+
         /**
          * 이 등급이 첫 슬롯을 잠글 수 있는가.
          *

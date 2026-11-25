@@ -838,9 +838,9 @@ class ScoreCalculator {
     /**
      * 채점할 스킬 한 칸.
      *
-     * @param level 포지션 훈련 보너스가 붙기 전 **기본 레벨**. 화면에서 고른 값이고,
+     * @param level 보너스가 붙기 전 **기본 레벨**. 화면에서 고른 값이고,
      *   스킬레벨보호권이 지키는 것도 이 레벨이다.
-     * @param levelBonus 포지션 훈련이 슬롯에 붙여 준 레벨 보너스([PositionTrainingRules]).
+     * @param levelBonus 포지션특훈과 초월로 슬롯에 붙은 레벨 보너스의 합.
      */
     data class Selection(val skill: ScoreSkill, val level: Int, val levelBonus: Int = 0) {
         /**

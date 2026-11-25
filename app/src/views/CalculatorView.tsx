@@ -76,41 +76,51 @@ function TicketCombinations({ combinations }: { combinations: TicketCombination[
       {expanded ? (
         <View style={{ gap: spacing.sm }}>
           <Text style={[typography.label, { color: colors.secondaryText }]}>{t('ticket_combinations_hint')}</Text>
-          {combinations.map(({ slots, total, gain, chance }) => (
-            <View
-              key={slots.map((slot) => `${slot.skillId ?? ''}/${slot.level}`).join('|')}
-              style={{
-                gap: spacing.sm,
-                padding: spacing.mdl,
-                borderRadius: radius.card,
-                borderWidth: 1,
-                borderColor: colors.outline,
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: spacing.md }}>
-                <Text style={[typography.card, { color: colors.onSurface }, tabularNums]}>
-                  {t('score_total')} {total.toFixed(2)}{' '}
-                  <Text style={{ color: colors.statMine }}>(+{gain.toFixed(2)})</Text>
-                </Text>
-                <Text style={[typography.label, { color: colors.secondaryText }, tabularNums]}>
-                  {t('ticket_chance_per_one')} {formatTicketChance(chance, 3)}
-                </Text>
-              </View>
-              {slots.map((slot, index) => (
-                <View key={index} style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm }}>
+          {combinations.map(({ slots, total, gain, chance }) => {
+            const pinnedCount = slots.filter((slot) => slot.slot != null).length;
+            return (
+              <View
+                key={slots.map((slot) => `${slot.slot ?? '*'}:${slot.skillId ?? ''}/${slot.level}`).join('|')}
+                style={{
+                  gap: spacing.sm,
+                  padding: spacing.mdl,
+                  borderRadius: radius.card,
+                  borderWidth: 1,
+                  borderColor: colors.outline,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: spacing.md }}>
+                  <Text style={[typography.card, { color: colors.onSurface }, tabularNums]}>
+                    {t('score_total')} {total.toFixed(2)}{' '}
+                    <Text style={{ color: colors.statMine }}>(+{gain.toFixed(2)})</Text>
+                  </Text>
                   <Text style={[typography.label, { color: colors.secondaryText }, tabularNums]}>
-                    {t('slot_label')} {index + 1}
+                    {t('ticket_chance_per_one')} {formatTicketChance(chance, 3)}
                   </Text>
-                  <Text style={[typography.body, { color: colors.onSurface, flex: 1 }]}>
-                    {slot.skillId ? slot.name || slot.skillId : t('score_no_skills')}
-                  </Text>
-                  {slot.skillId ? (
-                    <Text style={[typography.label, { color: colors.secondaryText }, tabularNums]}>{slot.level}</Text>
-                  ) : null}
                 </View>
-              ))}
-            </View>
-          ))}
+                {slots.map((slot, index) => (
+                  <View key={index} style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm }}>
+                    {slot.slot != null ? (
+                      <Text style={[typography.label, { color: colors.secondaryText }, tabularNums]}>
+                        {pinnedCount === 1 && slot.slot === 1
+                          ? t('ticket_first_slot')
+                          : `${t('slot_label')} ${slot.slot}`}
+                      </Text>
+                    ) : null}
+                    <Text style={[typography.body, { color: colors.onSurface, flex: 1 }]}>
+                      {slot.skillId ? slot.name || slot.skillId : t('score_no_skills')}
+                    </Text>
+                    {slot.skillId ? (
+                      <Text style={[typography.label, { color: colors.secondaryText }, tabularNums]}>
+                        {slot.level}
+                        {slot.appliedGrade && slot.appliedGrade !== slot.level ? ` → ${slot.appliedGrade}` : ''}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            );
+          })}
         </View>
       ) : null}
     </View>
@@ -514,17 +524,31 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
   );
 
   /**
-   * 포지션특훈이 이 자리에 붙여 준 스킬 레벨 보너스.
+   * 자리의 포지션특훈과 카드의 초월이 붙여 준 스킬 레벨 보너스.
    *
    * 보너스는 선수가 아니라 자리에 붙는다. 그래서 A·B가 함께 쓰고, 변경권으로 새로 뽑힌
    * 스킬도 목록에 있으면 오른다. 위에서 고르는 레벨은 보너스가 붙기 전 기본 레벨이다.
    */
   function renderTrainingBonuses() {
     const chosen = calc.trainingBonuses.filter((entry) => entry.skillId).map((entry) => entry.skillId);
+    const transcendenceHint = calc.hasTranscended
+      ? t('score_transcendence_first_slot_applied').replace('{bonus}', String(calc.firstSlotBonus))
+      : calc.baseFirstSlotBonus > 0
+        ? t('score_transcendence_first_slot_with_base')
+            .replace('{base}', String(calc.baseFirstSlotBonus))
+            .replace('{bonus}', String(calc.nineTranscendenceBonus))
+        : t('score_transcendence_first_slot_when_achieved').replace(
+            '{bonus}',
+            String(calc.nineTranscendenceBonus),
+          );
     return (
-      <SectionCard title={t('training_title')}>
+      <SectionCard
+        title={t(calc.canTranscendFirstSlot ? 'training_and_transcendence_title' : 'training_title')}
+      >
         <View style={{ gap: spacing.md }}>
-          <Text style={[typography.label, { color: colors.secondaryText }]}>{t('training_desc')}</Text>
+          <Text style={[typography.label, { color: colors.secondaryText }]}>
+            {t(calc.canTranscendFirstSlot ? 'training_and_transcendence_desc' : 'training_desc')}
+          </Text>
           <View style={controlGrid}>
             {calc.trainingBonuses.map((entry, index) => (
               <View key={`training-${index}`} style={[controlField, { gap: spacing.sm }]}>
@@ -562,6 +586,20 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                 />
               </View>
             ))}
+            {calc.canTranscendFirstSlot ? (
+              <View style={[controlField, { gap: spacing.sm }]}>
+                <LabeledDropdown
+                  label={t('score_transcendence_nine')}
+                  selected={calc.hasTranscended}
+                  options={[false, true]}
+                  optionLabel={(achieved) =>
+                    t(achieved ? 'score_transcendence_achieved' : 'score_transcendence_pending')
+                  }
+                  onSelect={calc.updateTranscendence}
+                />
+                <Text style={[typography.label, { color: colors.secondaryText }]}>{transcendenceHint}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
       </SectionCard>
@@ -740,10 +778,10 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                         {skill.name}
                       </Text>
                     </TooltipTarget>
-                    {/* 특훈으로 오른 칸은 실제로 채점한 등급을 알려 준다. 고른 레벨과 다르다. */}
+                    {/* 레벨 보너스가 붙은 스킬은 실제로 채점한 등급을 함께 표시한다. */}
                     {skill.levelBonus ? (
                       <Text style={[typography.label, { color: colors.muted }]} numberOfLines={1}>
-                        {t('training_applied_prefix')}
+                        {t('score_level_bonus_prefix')}
                         {`+${skill.levelBonus}`}
                         {skill.appliedGrade ? ` · ${skill.appliedGrade}` : ''}
                       </Text>

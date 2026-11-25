@@ -2,6 +2,7 @@ package com.example.skillsim.service
 
 import com.example.skillsim.config.ScoreDataLoader
 import com.example.skillsim.dto.ScoreSelection
+import com.example.skillsim.dto.SkillLevelBonus
 import com.example.skillsim.dto.TicketExpectationRequest
 import com.example.skillsim.enums.Level
 import com.example.skillsim.model.ScoreEffect
@@ -185,11 +186,12 @@ class TicketExpectationServiceTest {
         assertThat(tickets.currentTotal).isZero()
         assertThat(tickets.tickets).allSatisfy { ticket ->
             assertThat(ticket.improveChance).isCloseTo(1.0, within(1e-12))
+            assertThat(ticket.betterCombinations.map { it.slots.toSet() }).doesNotHaveDuplicates()
             assertThat(ticket.betterCombinations).isNotEmpty().allSatisfy { combination ->
                 assertThat(combination.total).isEqualTo(0.01)
                 assertThat(combination.gain).isEqualTo(0.01)
-                assertThat(combination.slots[0].level).isNotEqualTo("S4")
-                assertThat(combination.slots[1].level).isEqualTo("S4")
+                assertThat(combination.slots.count { it.level == "S4" }).isEqualTo(1)
+                assertThat(combination.slots.map { it.slot }).containsOnlyNulls()
             }
         }
     }
@@ -258,6 +260,113 @@ class TicketExpectationServiceTest {
         assertThat(above.tickets.first().betterCombinations).isEmpty()
     }
 
+    @Test
+    fun `모든 슬롯을 바꿀 때 첫 슬롯 보너스를 받는 조합만 개선 확률에 넣는다`() {
+        val fixture = fixtureService(transcendenceSkills())
+        val request = TicketExpectationRequest(
+            cardGrade = "SIGNATURE",
+            position = "C",
+            selections = listOf(ScoreSelection("G_001", 5), ScoreSelection("G_002", 5), ScoreSelection("G_003", 5)),
+            transcendenceLevel = 9,
+        )
+        val result = fixture.evaluate(request)
+        assertThat(result.currentTotal).isEqualTo(15.0)
+        assertThat(result.tickets).allSatisfy { ticket ->
+            assertThat(ticket.improveChance).isCloseTo(1.0 / 3.0, within(1e-12))
+            val combination = ticket.betterCombinations.single()
+            assertThat(combination.total).isEqualTo(18.0)
+            assertThat(combination.chance).isCloseTo(1.0 / 3.0, within(1e-12))
+            assertThat(combination.slots.first().skillId).isEqualTo("G_002")
+            assertThat(combination.slots.map { it.level }).containsExactly("S", "S", "S")
+            assertThat(combination.slots.map { it.appliedGrade }).containsExactly("S1", "S", "S")
+            assertThat(combination.slots.map { it.slot }).containsExactly(1, null, null)
+        }
+
+        val locked = fixture.evaluate(request.copy(lockSlotOne = true))
+        assertThat(locked.tickets).allSatisfy { ticket ->
+            assertThat(ticket.improveChance).isZero()
+            assertThat(ticket.averageTotal).isEqualTo(15.0)
+        }
+        val emptyFirst = fixture.evaluate(request.copy(selections = listOf(null, ScoreSelection("G_002", 5))))
+        assertThat(emptyFirst.currentTotal).isEqualTo(4.0)
+    }
+
+    @Test
+    fun `첫 슬롯만 바꿀 때 초월은 첫 슬롯에 적용하고 뒤에 놓인 포지션특훈은 유지한다`() {
+        val result = fixtureService(transcendenceSkills()).evaluate(
+            TicketExpectationRequest(
+                cardGrade = "SIGNATURE",
+                position = "C",
+                selections = listOf(ScoreSelection("G_001", 5), null, ScoreSelection("G_003", 5)),
+                rerollFirstSlotOnly = true,
+                trainingBonuses = listOf(SkillLevelBonus("G_003", 2)),
+                transcendenceLevel = 9,
+            ),
+        )
+
+        assertThat(result.currentTotal).isEqualTo(13.0)
+        assertThat(result.tickets).allSatisfy { ticket ->
+            assertThat(ticket.improveChance).isCloseTo(0.5, within(1e-12))
+            val improved = ticket.betterCombinations.single()
+            assertThat(improved.total).isEqualTo(15.0)
+            assertThat(improved.slots.map { it.skillId }).containsExactly("G_002", null, "G_003")
+            assertThat(improved.slots.map { it.appliedGrade }).containsExactly("S1", null, "S2")
+        }
+    }
+
+    @Test
+    fun `시그니처 블랙은 기본 첫 슬롯 +1과 9초월 +2를 각각 기댓값에 반영한다`() {
+        val skills = listOf(
+            skillWithValues("BLACK_001", "1/2/3/4/5/8/12", pool = "BLACK"),
+            skillWithValues("G_001", "1/2/3/4/5/6/7/8/9"),
+            skillWithValues("G_002", "1/2/3/4/5/6/7/8/9"),
+            skillWithValues("G_003", "1/2/3/4/5/6/7/8/9"),
+        )
+        val fixture = fixtureService(skills)
+        val baseRequest = TicketExpectationRequest(
+            cardGrade = "SIGNATURE_BLACK",
+            position = "C",
+            selections = listOf(
+                ScoreSelection("G_001", 5),
+                ScoreSelection("BLACK_001", 5),
+                ScoreSelection("G_002", 5),
+                ScoreSelection("G_003", 5),
+            ),
+        )
+
+        // 기본(9초월 미달성): 첫 슬롯 G_001이 S->S1(6), 나머지 S(5+5+5)로 합계 21.
+        // 최고급 변경권에서 BLACK_001이 첫 슬롯(확률 1/4)에 오면 S->S1(8) + 5 + 5 + 5 = 23이다.
+        // 나머지 2~4번 슬롯의 3! = 6개 순열은 하나의 조합으로 합쳐져 확률이 그대로 0.25가 된다.
+        val baseResult = fixture.evaluate(baseRequest)
+        assertThat(baseResult.currentTotal).isEqualTo(21.0)
+        val baseSupreme = baseResult.tickets.first { it.ticket == "SUPREME_SKILL_CHANGE" }
+        assertThat(baseSupreme.improveChance).isCloseTo(0.25, within(1e-12))
+        val baseCombo = baseSupreme.betterCombinations.single()
+        assertThat(baseCombo.total).isEqualTo(23.0)
+        assertThat(baseCombo.chance).isCloseTo(0.25, within(1e-12))
+        assertThat(baseCombo.slots.first().skillId).isEqualTo("BLACK_001")
+        assertThat(baseCombo.slots.map { it.appliedGrade }).containsExactly("S1", "S", "S", "S")
+        assertThat(baseCombo.slots.map { it.slot }).containsExactly(1, null, null, null)
+
+        // 9초월 달성: 첫 슬롯 G_001이 S->S2(7)로 합계 22, BLACK_001이 첫 슬롯이면 S->S2(12)로 합계 27이다.
+        val nineResult = fixture.evaluate(baseRequest.copy(transcendenceLevel = 9))
+        assertThat(nineResult.currentTotal).isEqualTo(22.0)
+        val nineSupreme = nineResult.tickets.first { it.ticket == "SUPREME_SKILL_CHANGE" }
+        assertThat(nineSupreme.improveChance).isCloseTo(0.25, within(1e-12))
+        val nineCombo = nineSupreme.betterCombinations.single()
+        assertThat(nineCombo.total).isEqualTo(27.0)
+        assertThat(nineCombo.chance).isCloseTo(0.25, within(1e-12))
+        assertThat(nineCombo.slots.first().skillId).isEqualTo("BLACK_001")
+        assertThat(nineCombo.slots.map { it.appliedGrade }).containsExactly("S2", "S", "S", "S")
+        assertThat(nineCombo.slots.map { it.slot }).containsExactly(1, null, null, null)
+    }
+
+    private fun transcendenceSkills() = listOf(
+        skillWithValues("G_001", "1/2/3/4/5/6/7/8/9"),
+        skillWithValues("G_002", "1/1/1/1/4/8/8/8/8"),
+        skillWithValues("G_003", "1/2/3/4/5/6/7/8/9"),
+    )
+
     private fun fixtureService(skills: List<ScoreSkill>, powerWeight: Double = 1.0): TicketExpectationService {
         val fixture = InMemoryScoreSkillRepository().apply { saveAll(skills) }
         return TicketExpectationService(
@@ -267,14 +376,22 @@ class TicketExpectationServiceTest {
         )
     }
 
-    private fun skill(skillKey: String, effectValue: Int, condition: String = "ALWAYS"): ScoreSkill = ScoreSkill(
+    private fun skill(skillKey: String, effectValue: Int, condition: String = "ALWAYS"): ScoreSkill =
+        skillWithValues(skillKey, List(9) { effectValue }.joinToString("/"), condition)
+
+    private fun skillWithValues(
+        skillKey: String,
+        values: String,
+        condition: String = "ALWAYS",
+        pool: String = "NORMAL",
+    ) = ScoreSkill(
         skillKey = skillKey,
-        cardType = "NORMAL",
+        cardType = pool,
         position = "BATTER",
         name = skillKey,
         description = "",
         effects = mutableListOf(
-            ScoreEffect(stat = "파워", condition = condition, values = List(9) { effectValue }.joinToString("/")),
+            ScoreEffect(stat = "파워", condition = condition, values = values),
         ),
     )
 }

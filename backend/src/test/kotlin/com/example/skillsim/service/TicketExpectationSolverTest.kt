@@ -19,20 +19,22 @@ class TicketExpectationSolverTest {
         val candidates = listOf(
             candidate("G_001", SkillTier.GOLD, mapOf(Level.S to 5.304)),
             candidate("G_002", SkillTier.GOLD, mapOf(Level.S to 4.104)),
+            candidate("G_003", SkillTier.GOLD, mapOf(Level.S to 3.712)),
             candidate("S_001", SkillTier.SILVER, mapOf(Level.S to 3.105)),
             candidate("S_002", SkillTier.SILVER, mapOf(Level.S to 2.299)),
             candidate("B_001", SkillTier.BRONZE, mapOf(Level.S to 1.654)),
         )
-        val current = 13.36
-        val input = input(candidates, current, slotCount = 4)
-        val outcomes = mutableMapOf<List<CombinationSlot>, Pair<Double, Double>>()
+        val current = 7.50
+        val input = input(candidates, current, slotCount = 3)
+        val outcomes = mutableMapOf<Set<CombinationSlot>, Pair<Double, Double>>()
         val tierChances = mapOf(SkillTier.IRON to 0.35, SkillTier.BRONZE to 0.30, SkillTier.SILVER to 0.20, SkillTier.GOLD to 0.15)
 
         // All levels are protected at S. Enumerate concrete rolls from a tiny pool as a reference,
-        // including repeated paths through unavailable tiers.
+        // grouping permutations into unordered combinations and summing their probabilities.
         fun draw(remaining: List<SkillCandidate>, slots: List<CombinationSlot>, total: Double, chance: Double) {
             if (slots.size == input.slotCount) {
-                outcomes[slots] = total to ((outcomes[slots]?.second ?: 0.0) + chance)
+                val combination = slots.toSet()
+                outcomes[combination] = total to ((outcomes[combination]?.second ?: 0.0) + chance)
                 return
             }
             for ((tier, tierChance) in tierChances) {
@@ -53,13 +55,14 @@ class TicketExpectationSolverTest {
         val result = solver.solve(input)
 
         assertTrue(better.size > 10)
+        assertTrue(result.pinnedSlots.isEmpty())
         assertEquals(chance, result.improveChance, 1e-12)
         assertEquals(outcomes.values.sumOf { it.first * it.second }, result.averageTotal, 1e-12)
         assertEquals(better.values.sumOf { (score, p) -> (score - current) * p } / chance, result.averageGain!!, 1e-12)
         assertEquals(better.values.map { it.first.rounded() }.sortedDescending().take(10), result.betterCombinations.map { it.total })
-        assertEquals(10, result.betterCombinations.distinctBy { it.slots }.size)
+        assertEquals(10, result.betterCombinations.distinctBy { it.slots.toSet() }.size)
         for (combo in result.betterCombinations) {
-            assertEquals(better.getValue(combo.slots).second, combo.chance, 1e-12)
+            assertEquals(better.getValue(combo.slots.toSet()).second, combo.chance, 1e-12)
         }
     }
 
@@ -94,12 +97,12 @@ class TicketExpectationSolverTest {
         val result = solver.solve(input(listOf(locked, a, b), 15.0).copy(lockedSlotOne = locked to Level.S))
         assertEquals(1.0, result.improveChance, 1e-12)
         assertEquals(1.0, result.averageGain!!, 1e-12)
-        assertEquals(2, result.betterCombinations.size)
-        for (combo in result.betterCombinations) {
-            assertEquals(locked.skillKey, combo.slots.first().skillKey)
-            assertEquals(setOf(a.skillKey, b.skillKey), combo.slots.drop(1).map { it.skillKey }.toSet())
-            assertEquals(0.5, combo.chance, 1e-12)
-        }
+        assertEquals(setOf(0), result.pinnedSlots)
+        assertEquals(1, result.betterCombinations.size)
+        val combo = result.betterCombinations.single()
+        assertEquals(locked.skillKey, combo.slots.first().skillKey)
+        assertEquals(listOf(b.skillKey, a.skillKey), combo.slots.drop(1).map { it.skillKey })
+        assertEquals(1.0, combo.chance, 1e-12)
     }
 
     @Test
@@ -114,12 +117,11 @@ class TicketExpectationSolverTest {
         assertEquals(0.00000081, result.improveChance, 1e-16)
         assertEquals(1.2, result.averageTotal, 1e-12)
         assertEquals(1.0, result.averageGain!!, 1e-12)
-        assertEquals(10, result.betterCombinations.size)
-        for (combo in result.betterCombinations) {
-            assertEquals(0.00000081 / 24, combo.chance, 1e-16)
-            assertEquals(1, combo.slots.count { it.skillKey == black.skillKey })
-            assertTrue(combo.slots.all { it.level == Level.S })
-        }
+        assertEquals(1, result.betterCombinations.size)
+        val combo = result.betterCombinations.single()
+        assertEquals(0.00000081, combo.chance, 1e-16)
+        assertEquals(1, combo.slots.count { it.skillKey == black.skillKey })
+        assertTrue(combo.slots.all { it.level == Level.S })
     }
 
     @Test
@@ -130,10 +132,10 @@ class TicketExpectationSolverTest {
         for ((grade, chance) in mapOf("MOMENT" to 0.06, "SUPREME_MOMENT" to 0.30)) {
             val result = solver.solve(momentInput.copy(grade = grade))
             assertEquals(chance, result.improveChance, 1e-12)
-            assertEquals(6, result.betterCombinations.size)
+            assertEquals(3, result.betterCombinations.size)
             for (combo in result.betterCombinations) {
                 assertEquals(moment.skillKey, combo.slots.first().skillKey)
-                assertEquals(chance / 6, combo.chance, 1e-12)
+                assertEquals(chance / 3, combo.chance, 1e-12)
             }
         }
 
@@ -141,7 +143,29 @@ class TicketExpectationSolverTest {
         val hofInput = input(gold + hof, 3.0, RollFamily.HOF, TicketType.SUPREME_SKILL_CHANGE)
         val result = solver.solve(hofInput)
         assertEquals(1.0 - 0.9 * 0.9 * 0.9, result.improveChance, 1e-12)
+        // HOF_001 + 골드 2개(3종), 골드 1개+빈칸 1개(3종), 빈칸 2개(1종)로 총 7개 고유 조합이다.
+        assertEquals(7, result.betterCombinations.size)
+        assertEquals(result.improveChance, result.betterCombinations.sumOf { it.chance }, 1e-12)
         assertTrue(result.betterCombinations.all { combo -> combo.slots.count { it.skillKey == hof.skillKey } == 1 })
+    }
+
+    @Test
+    fun `first slot bonus keeps boosted first skill distinct while merging remaining slot permutations`() {
+        val candidates = listOf(
+            SkillCandidate("G_001", "NORMAL", SkillTier.GOLD, mapOf(Level.S to 5.0), mapOf(Level.S to 9.0)),
+            SkillCandidate("G_002", "NORMAL", SkillTier.GOLD, mapOf(Level.S to 4.0), mapOf(Level.S to 6.0)),
+            SkillCandidate("G_003", "NORMAL", SkillTier.GOLD, mapOf(Level.S to 3.0), mapOf(Level.S to 3.0)),
+        )
+        val result = solver.solve(input(candidates, 12.0))
+        assertEquals(setOf(0), result.pinnedSlots)
+        // 첫 슬롯이 G_001(9+4+3=16)인 조합 1개와 첫 슬롯이 G_002(6+5+3=14)인 조합 1개로 나뉘고,
+        // 각 조합 안에서 2·3번 슬롯의 2! 순열은 하나로 합쳐진다.
+        assertEquals(2, result.betterCombinations.size)
+        assertEquals(listOf(16.0, 14.0), result.betterCombinations.map { it.total })
+        assertEquals(listOf("G_001", "G_002", "G_003"), result.betterCombinations[0].slots.map { it.skillKey })
+        assertEquals(listOf("G_002", "G_001", "G_003"), result.betterCombinations[1].slots.map { it.skillKey })
+        assertEquals(1.0 / 3.0, result.betterCombinations[0].chance, 1e-12)
+        assertEquals(1.0 / 3.0, result.betterCombinations[1].chance, 1e-12)
     }
 
     @Test

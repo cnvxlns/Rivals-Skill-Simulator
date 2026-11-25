@@ -23,10 +23,12 @@ class PositionTrainingTest {
     private val gold = scoreSkill("G_001", "NORMAL", "BATTER", effect("파워", "1/2/3/4/5/6/7/8/9"))
     private val silver = scoreSkill("S_001", "NORMAL", "C", effect("파워", "1/2/3/4/5/6/7/8/9"))
     private val hof = scoreSkill("HOF_001", "HOF", "BATTER", effect("파워", "1/2/3/4/5/6"))
+    private val black = scoreSkill("BLACK_001", "BLACK", "BATTER", effect("파워", "1/2/3/4/5/6/7"))
+    private val wbc = scoreSkill("WBC_001", "WBC", "BATTER", effect("파워", "1/2/3"))
     private val pitcher = scoreSkill("G_900", "NORMAL", "SP", effect("구위", "1/2/3/4/5/6/7/8/9"))
 
     private val repository = InMemoryScoreSkillRepository().apply {
-        saveAll(listOf(gold, silver, hof, pitcher))
+        saveAll(listOf(gold, silver, hof, black, wbc, pitcher))
     }
 
     private val service = ScoreService(repository, ScoreCalculator(), mapOf("파워" to 1.0, "구위" to 1.0))
@@ -67,6 +69,82 @@ class PositionTrainingTest {
         assertThat(top.total).isEqualTo(9.0)
         assertThat(boosted.total).isEqualTo(9.0)
         assertThat(boosted.perSkill[0].appliedGrade).isEqualTo(Level.S4.name)
+    }
+
+    @Test
+    fun `카드 등급과 9초월 달성 여부에 맞춰 첫 슬롯만 오른다`() {
+        // 시그니처 블랙은 9초월 시그니처 진화 형태라 기본 +1, 9초월 달성 시 +2다.
+        val firstSlotBonuses = mapOf(
+            "SIGNATURE" to (0 to 1),
+            "HOF" to (0 to 1),
+            "SIGNATURE_BLACK" to (1 to 2),
+            "PRIME" to (0 to 0),
+        )
+        for ((grade, bonuses) in firstSlotBonuses) {
+            val (baseBonus, nineBonus) = bonuses
+            for (transcendence in listOf(null, 0, 8, 9, 15)) {
+                val response = service.calculate(
+                    request(level = 5, bonuses = null, grade = grade).copy(
+                        cardVariant = if (grade == "SIGNATURE") "FA" else null,
+                        selections = listOf(ScoreSelection("G_001", 5), ScoreSelection("S_001", 5)),
+                        transcendenceLevel = transcendence,
+                    ),
+                )
+                val expectedBonus = if (transcendence != null && transcendence >= 9) nineBonus else baseBonus
+                assertThat(response.total).isEqualTo(10.0 + expectedBonus)
+                assertThat(response.perSkill.map { it.levelBonus }).containsExactly(expectedBonus, 0)
+            }
+        }
+
+        val blackBase = service.calculate(
+            request(level = 5, bonuses = null, skillId = black.skillKey, grade = "SIGNATURE_BLACK"),
+        )
+        assertThat(blackBase.total).isEqualTo(6.0)
+        assertThat(blackBase.perSkill.single().appliedGrade).isEqualTo(Level.S1.name)
+
+        val blackNine = service.calculate(
+            request(level = 5, bonuses = null, skillId = black.skillKey, grade = "SIGNATURE_BLACK")
+                .copy(transcendenceLevel = 9),
+        )
+        assertThat(blackNine.total).isEqualTo(7.0)
+        assertThat(blackNine.perSkill.single().appliedGrade).isEqualTo(Level.S2.name)
+
+        val wbcBlackBase = service.calculate(
+            request(level = 1, bonuses = null, skillId = wbc.skillKey, grade = "SIGNATURE_BLACK")
+                .copy(cardVariant = "WBC"),
+        )
+        assertThat(wbcBlackBase.total).isEqualTo(2.0)
+        assertThat(wbcBlackBase.perSkill.single().appliedGrade).isEqualTo(Level.S1.name)
+
+        val wbcBlackNine = service.calculate(
+            request(level = 1, bonuses = null, skillId = wbc.skillKey, grade = "SIGNATURE_BLACK")
+                .copy(cardVariant = "WBC", transcendenceLevel = 9),
+        )
+        assertThat(wbcBlackNine.total).isEqualTo(3.0)
+        assertThat(wbcBlackNine.perSkill.single().appliedGrade).isEqualTo(Level.S2.name)
+    }
+
+    @Test
+    fun `범위를 벗어난 초월 레벨은 거절한다`() {
+        for (invalid in listOf(-1, 16)) {
+            assertThatThrownBy {
+                service.calculate(request(level = 5, bonuses = null).copy(transcendenceLevel = invalid))
+            }
+                .isInstanceOf(ResponseStatusException::class.java)
+                .hasMessageContaining("Transcendence level")
+        }
+    }
+
+    @Test
+    fun `초월과 포지션특훈 보너스는 함께 적용하고 스킬 상한을 지킨다`() {
+        val response = service.calculate(
+            request(level = 6, bonuses = listOf(SkillLevelBonus("G_001", 2)), grade = "SIGNATURE_BLACK")
+                .copy(transcendenceLevel = 9),
+        )
+
+        assertThat(response.total).isEqualTo(9.0)
+        assertThat(response.perSkill.single().levelBonus).isEqualTo(4)
+        assertThat(response.perSkill.single().appliedGrade).isEqualTo(Level.S4.name)
     }
 
     /** 끼우지 않은 스킬에 걸린 보너스는 지금 점수를 건드리지 않는다. 변경권으로 나올 때를 위한 값이다. */

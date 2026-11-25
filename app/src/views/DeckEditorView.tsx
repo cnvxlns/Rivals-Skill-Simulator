@@ -271,18 +271,21 @@ export default function DeckEditorView({
 
   const starterSlots = editor.pitcherSlots.filter((s) => s.startsWith('SP'));
   const closerSlots = editor.pitcherSlots.filter((s) => s.startsWith('CP'));
-  const relieverRows = editor.pitcherSlots.filter((s) => s.startsWith('RP')).map((slot) => {
+  const bullpenCard = (slot: string) => {
     const player = editor.players[slot];
     const done = isPlayerComplete(player);
     const name = player?.playerName?.trim();
     return {
       slot,
-      role: player?.relieverRole ?? RelieverRole.LONG,
       name: name || (done ? cardLabel(player) : t('deck_slot_empty')),
       subtitle: name && done ? cardLabel(player) : undefined,
       accent: chipAccent(player)?.hex,
     };
-  });
+  };
+  const relieverRows = editor.pitcherSlots.filter((slot) => slot.startsWith('RP')).map((slot) => ({
+    ...bullpenCard(slot),
+    role: editor.players[slot]?.relieverRole ?? RelieverRole.LONG,
+  }));
   return (
     <View style={{ gap: spacing.lg }}>
       <SectionCard
@@ -415,25 +418,16 @@ export default function DeckEditorView({
       {section('ROTATION', starterSlots)}
 
       <SectionCard title={t(PART_LABEL_KEYS.BULLPEN)}>
-        <View style={{ gap: spacing.lg }}>
-          <BullpenRoleLane
-            rows={relieverRows}
-            winTactic={editor.winTactic}
-            chaseTactic={editor.chaseTactic}
-            onWinTacticChange={editor.setWinTactic}
-            onChaseTacticChange={editor.setChaseTactic}
-            onMove={editor.moveReliever}
-            onPress={setEditing}
-          />
-          <View style={{ gap: spacing.sm }}>
-            <Text accessibilityRole="header" style={{ ...typography.card, color: colors.onSurface }}>
-              {t('deck_label_closers')}
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-              {closerSlots.map((slot) => slotChip(slot))}
-            </View>
-          </View>
-        </View>
+        <BullpenRoleLane
+          rows={relieverRows}
+          closers={closerSlots.map(bullpenCard)}
+          winTactic={editor.winTactic}
+          chaseTactic={editor.chaseTactic}
+          onWinTacticChange={editor.setWinTactic}
+          onChaseTacticChange={editor.setChaseTactic}
+          onMove={editor.moveReliever}
+          onPress={setEditing}
+        />
       </SectionCard>
 
       <DeckImportCard onApply={editor.applyImport} onApplyTraining={training.mergeSlots} />

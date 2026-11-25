@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { pickFile } from '../components/FilePicker';
-import { InfoBanner, PrimaryActionButton, SectionCard } from '../components/ui';
+import { InfoBanner, PrimaryActionButton } from '../components/ui';
 import { apiErrorMessage, importDeckWorkbook } from '../lib/api';
 import { useTranslation } from '../lib/i18n';
 import { useAppTheme } from '../theme/useTheme';
@@ -56,53 +56,53 @@ export default function DeckImportCard({
   const warnings = (result?.warnings ?? []).filter((w) => w.code !== 'POSITION_TRAINING_FOUND');
 
   return (
-    <SectionCard title={t('deck_import_title')}>
-      <View style={{ gap: spacing.md }}>
-        <Text style={{ ...typography.body, color: colors.secondaryText }}>
-          {t('deck_import_hint')}
+    <View style={{ gap: spacing.md }}>
+      <Text accessibilityRole="header" style={{ ...typography.label, color: colors.secondaryText }}>
+        {t('deck_import_title')}
+      </Text>
+      <PrimaryActionButton
+        text={t('deck_import_button')}
+        onPress={upload}
+        loading={busy}
+      />
+      <Text style={{ ...typography.body, color: colors.secondaryText }}>
+        {t('deck_import_hint')}
+      </Text>
+
+      {error ? <InfoBanner text={error} tone="error" /> : null}
+
+      {result ? (
+        <Text style={{ ...typography.label, color: colors.secondaryText }}>
+          {t('deck_import_done').replace('{n}', String(result.deck.players.length))}
         </Text>
+      ) : null}
 
-        <PrimaryActionButton
-          text={t('deck_import_button')}
-          onPress={upload}
-          loading={busy}
-        />
+      {training && Object.keys(training.slots).length ? (
+        <View style={{ gap: spacing.sm }}>
+          <InfoBanner text={t('deck_import_training_found')} />
+          <PrimaryActionButton
+            text={t('deck_import_training_apply')}
+            onPress={() => onApplyTraining(training)}
+          />
+        </View>
+      ) : null}
 
-        {error ? <InfoBanner text={error} tone="error" /> : null}
-
-        {result ? (
-          <Text style={{ ...typography.label, color: colors.secondaryText }}>
-            {t('deck_import_done').replace('{n}', String(result.deck.players.length))}
+      {warnings.length ? (
+        <View style={{ gap: spacing.xs }}>
+          <Text style={{ ...typography.label, color: colors.onSurface }}>
+            {t('deck_import_warnings').replace('{n}', String(warnings.length))}
           </Text>
-        ) : null}
-
-        {training && Object.keys(training.slots).length ? (
-          <View style={{ gap: spacing.sm }}>
-            <InfoBanner text={t('deck_import_training_found')} />
-            <PrimaryActionButton
-              text={t('deck_import_training_apply')}
-              onPress={() => onApplyTraining(training)}
-            />
-          </View>
-        ) : null}
-
-        {warnings.length ? (
-          <View style={{ gap: spacing.xs }}>
-            <Text style={{ ...typography.label, color: colors.onSurface }}>
-              {t('deck_import_warnings').replace('{n}', String(warnings.length))}
+          {warnings.map((warning, index) => (
+            <Text
+              key={`${warning.code}-${warning.cell ?? index}`}
+              style={{ ...typography.label, color: colors.muted }}
+            >
+              {warning.cell ? `${warning.cell} · ` : ''}
+              {warning.message}
             </Text>
-            {warnings.map((warning, index) => (
-              <Text
-                key={`${warning.code}-${warning.cell ?? index}`}
-                style={{ ...typography.label, color: colors.muted }}
-              >
-                {warning.cell ? `${warning.cell} · ` : ''}
-                {warning.message}
-              </Text>
-            ))}
-          </View>
-        ) : null}
-      </View>
-    </SectionCard>
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }

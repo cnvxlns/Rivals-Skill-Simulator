@@ -9,6 +9,7 @@ import {
   PrimaryActionButton,
   ScoreHero,
   SectionCard,
+  SegmentedTabs,
   TextField,
 } from '../components/ui';
 import { cardTypeLabel } from '../lib/format';
@@ -141,7 +142,13 @@ export default function DeckEditorView({
       alive = false;
     };
   }, []);
+  const [section, setSection] = useState<'SCORE' | 'EDIT'>('SCORE');
   const [editing, setEditing] = useState<string | null>(null);
+  const [playerPanel, setPlayerPanel] = useState<'PLAYER' | 'TRAINING'>('PLAYER');
+  const openPlayer = (slot: string) => {
+    setPlayerPanel('PLAYER');
+    setEditing(slot);
+  };
   const [rotationWidth, setRotationWidth] = useState(0);
   // 야구장 칸의 실제 크기. 칩을 픽셀로 놓아야 가장자리에서 칸 밖으로 삐져나가지 않는다.
   const [fieldBox, setFieldBox] = useState({ width: 0, height: 0 });
@@ -177,7 +184,7 @@ export default function DeckEditorView({
     return (
       <Pressable
         key={slot}
-        onPress={() => setEditing(slot)}
+        onPress={() => openPlayer(slot)}
         style={({ pressed }) => ({
           ...(pitcherWidth == null
             ? { flexGrow: 1, flexBasis: 150 }
@@ -234,7 +241,7 @@ export default function DeckEditorView({
     const accent = chipAccent(player);
     return (
       <Pressable
-        onPress={() => setEditing(slot)}
+        onPress={() => openPlayer(slot)}
         style={({ pressed }) => ({
           width: chipWidth,
           height: FIELD_CHIP_HEIGHT,
@@ -263,7 +270,7 @@ export default function DeckEditorView({
     );
   };
 
-  const section = (titleKey: keyof typeof PART_LABEL_KEYS, slots: readonly string[]) => (
+  const renderSlotSection = (titleKey: keyof typeof PART_LABEL_KEYS, slots: readonly string[]) => (
     <SectionCard title={t(PART_LABEL_KEYS[titleKey])}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
         {slots.map((slot) => slotChip(slot))}
@@ -292,186 +299,248 @@ export default function DeckEditorView({
   return (
     <View style={{ gap: spacing.lg }}>
       <SectionCard
-        title={initial ? initial.name : t('deck_btn_new')}
+        title={initial ? editor.name || initial.name : t('deck_btn_new')}
         right={<LinkAction text={t('deck_btn_back')} onPress={onDone} />}
       >
-        <View style={{ gap: spacing.lg }}>
-          <TextField
-            label={t('deck_label_name')}
-            value={editor.name}
-            onChangeText={editor.setName}
-            placeholder={t('deck_placeholder_name')}
-            editable={!editor.saving}
-          />
-        </View>
+        <SegmentedTabs
+          tabs={[
+            { key: 'SCORE', label: t('deck_section_scores') },
+            { key: 'EDIT', label: t('deck_section_edit') },
+          ]}
+          selected={section}
+          onSelect={setSection}
+        />
       </SectionCard>
 
-      {/*
-        넓은 화면에서는 야구장과 타순을 한 행에 둔다. 같은 상태를 두 방식으로 보는 것이라
-        나란히 놓여야 서로 맞물리는 게 보인다. 좁으면 세로로 떨어진다.
-      */}
-      <View
-        style={
-          sideBySide
-            // stretch라서 두 카드의 높이가 늘 같다. 야구장이 남는 높이를 채우므로
-            // 예전처럼 한쪽만 짧아 밑이 비지 않는다.
-            ? { flexDirection: 'row', gap: spacing.md, alignItems: 'stretch' }
-            : { gap: spacing.md }
-        }
-      >
-      <SectionCard title={t(PART_LABEL_KEYS.LINEUP)} style={sideBySide ? { flex: 1, minWidth: 0 } : undefined}>
+      <View style={{ display: section === 'EDIT' ? 'flex' : 'none', gap: spacing.lg }}>
+        <SectionCard>
+          <View style={{
+            flexDirection: width >= 720 ? 'row' : 'column',
+            gap: spacing.lg,
+            alignItems: width >= 720 ? 'flex-start' : 'stretch',
+          }}>
+            <View style={width >= 720 ? { flex: 1, minWidth: 0 } : undefined}>
+              <TextField
+                label={t('deck_label_name')}
+                value={editor.name}
+                onChangeText={editor.setName}
+                placeholder={t('deck_placeholder_name')}
+                editable={!editor.saving}
+              />
+            </View>
+            <View style={width >= 720 ? { flex: 1, minWidth: 0 } : undefined}>
+              <DeckImportCard onApply={editor.applyImport} onApplyTraining={training.mergeSlots} />
+            </View>
+          </View>
+        </SectionCard>
+
         {/*
-          야구장을 그리고 그 위 실제 수비 위치에 선수를 얹는다. 그림이 칸을 정확히 채우고
-          칩도 같은 상자를 기준으로 놓이므로 칸의 비율이 달라져도 어긋나지 않는다.
+          넓은 화면에서는 야구장과 타순을 한 행에 둔다. 같은 상태를 두 방식으로 보는 것이라
+          나란히 놓여야 서로 맞물리는 게 보인다. 좁으면 세로로 떨어진다.
         */}
         <View
-          onLayout={(event) => {
-            const { width: w, height: h } = event.nativeEvent.layout;
-            setFieldBox((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
-          }}
           style={
             sideBySide
-              // 타순 칸이 정한 높이를 그대로 받아 채운다.
-              ? { width: '100%', flex: 1, minHeight: 360 }
-              : { width: '100%', maxWidth: 620, alignSelf: 'center', minHeight: FIELD_MIN_HEIGHT }
+              // stretch라서 두 카드의 높이가 늘 같다. 야구장이 남는 높이를 채우므로
+              // 예전처럼 한쪽만 짧아 밑이 비지 않는다.
+              ? { flexDirection: 'row', gap: spacing.md, alignItems: 'stretch' }
+              : { gap: spacing.md }
           }
         >
-          <View style={StyleSheet.absoluteFill}>
-            <BaseballField />
+        <SectionCard title={t(PART_LABEL_KEYS.LINEUP)} style={sideBySide ? { flex: 1, minWidth: 0 } : undefined}>
+          {/*
+            야구장을 그리고 그 위 실제 수비 위치에 선수를 얹는다. 그림이 칸을 정확히 채우고
+            칩도 같은 상자를 기준으로 놓이므로 칸의 비율이 달라져도 어긋나지 않는다.
+          */}
+          <View
+            onLayout={(event) => {
+              const { width: w, height: h } = event.nativeEvent.layout;
+              setFieldBox((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
+            }}
+            style={
+              sideBySide
+                // 타순 칸이 정한 높이를 그대로 받아 채운다.
+                ? { width: '100%', flex: 1, minHeight: 360 }
+                : { width: '100%', maxWidth: 620, alignSelf: 'center', minHeight: FIELD_MIN_HEIGHT }
+            }
+          >
+            <View style={StyleSheet.absoluteFill}>
+              <BaseballField />
+            </View>
+            {fieldBox.width > 0
+              ? Object.entries(LINEUP_FIELD_POSITIONS).map(([slot, pos]) => {
+                  const chipWidth = clamp(fieldBox.width / 3.3, FIELD_CHIP_MIN_WIDTH, FIELD_CHIP_MAX_WIDTH);
+                  const ratio = fieldRatio(pos);
+                  // 가장자리 자리(3루수·지명타자)는 중앙 정렬만 하면 칸 밖으로 나간다. 잘라 넣는다.
+                  const left = clamp(
+                    ratio.x * fieldBox.width - chipWidth / 2,
+                    0,
+                    Math.max(0, fieldBox.width - chipWidth),
+                  );
+                  const top = clamp(
+                    ratio.y * fieldBox.height - FIELD_CHIP_HEIGHT / 2,
+                    0,
+                    Math.max(0, fieldBox.height - FIELD_CHIP_HEIGHT),
+                  );
+                  return (
+                    <View key={slot} style={{ position: 'absolute', left, top }}>
+                      {fieldChip(slot, chipWidth)}
+                    </View>
+                  );
+                })
+              : null}
           </View>
-          {fieldBox.width > 0
-            ? Object.entries(LINEUP_FIELD_POSITIONS).map(([slot, pos]) => {
-                const chipWidth = clamp(fieldBox.width / 3.3, FIELD_CHIP_MIN_WIDTH, FIELD_CHIP_MAX_WIDTH);
-                const ratio = fieldRatio(pos);
-                // 가장자리 자리(3루수·지명타자)는 중앙 정렬만 하면 칸 밖으로 나간다. 잘라 넣는다.
-                const left = clamp(
-                  ratio.x * fieldBox.width - chipWidth / 2,
-                  0,
-                  Math.max(0, fieldBox.width - chipWidth),
-                );
-                const top = clamp(
-                  ratio.y * fieldBox.height - FIELD_CHIP_HEIGHT / 2,
-                  0,
-                  Math.max(0, fieldBox.height - FIELD_CHIP_HEIGHT),
-                );
-                return (
-                  <View key={slot} style={{ position: 'absolute', left, top }}>
-                    {fieldChip(slot, chipWidth)}
-                  </View>
-                );
-              })
-            : null}
-        </View>
-      </SectionCard>
+        </SectionCard>
 
-      {/*
-        타순은 야구장과 따로 둔다. 칩 위치는 수비 포지션이라 끌어 옮겨도 타순이 되지 않는다.
-      */}
-      <SectionCard title={t('deck_batting_order_title')} style={sideBySide ? { flex: 1, minWidth: 0 } : undefined}>
-        <BattingOrderLane
-          rows={editor.lineupByBattingOrder.map((slot) => {
-            const player = editor.players[slot];
-            const done = isPlayerComplete(player);
-            return {
-              slot,
-              title: player?.playerName?.trim() || (done ? cardLabel(player) : t('deck_slot_empty')),
-              subtitle: player?.playerName?.trim() && done ? cardLabel(player) : undefined,
-              done,
-              accent: chipAccent(player)?.hex,
-            };
-          })}
-          onMove={editor.moveBattingOrder}
-          onPress={setEditing}
+        {/*
+          타순은 야구장과 따로 둔다. 칩 위치는 수비 포지션이라 끌어 옮겨도 타순이 되지 않는다.
+        */}
+        <SectionCard title={t('deck_batting_order_title')} style={sideBySide ? { flex: 1, minWidth: 0 } : undefined}>
+          <BattingOrderLane
+            rows={editor.lineupByBattingOrder.map((slot) => {
+              const player = editor.players[slot];
+              const done = isPlayerComplete(player);
+              return {
+                slot,
+                title: player?.playerName?.trim() || (done ? cardLabel(player) : t('deck_slot_empty')),
+                subtitle: player?.playerName?.trim() && done ? cardLabel(player) : undefined,
+                done,
+                accent: chipAccent(player)?.hex,
+              };
+            })}
+            onMove={editor.moveBattingOrder}
+            onPress={openPlayer}
+          />
+        </SectionCard>
+        </View>
+
+        {renderSlotSection('BENCH', BENCH_SLOTS)}
+
+        <SectionCard title={t('deck_strategy_title')}>
+          <View style={{ gap: spacing.lg }}>
+            <Text style={{ ...typography.body, color: colors.secondaryText }}>
+              {t('deck_strategy_hint')}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+              {PITCHER_FIELDS.map(({ field, labelKey }) => (
+                <View key={field} style={{ flexGrow: 1, flexBasis: 160 }}>
+                  <LabeledDropdown
+                    label={t(labelKey)}
+                    selected={editor.pitcherCounts[field]}
+                    // 서로 묶지 않는다. 각 자리는 자기 범위 안에서 자유롭게 고른다.
+                    options={PITCHER_RANGES[field]}
+                    optionLabel={(v) => String(v)}
+                    onSelect={(v) => editor.setPitcherCount(field, v)}
+                  />
+                </View>
+              ))}
+            </View>
+
+            {/* 합이 12가 아니면 저장할 수 없다. 어긋난 값을 보여 주고 막는다. */}
+            {!editor.isPitcherStaffValid ? (
+              <InfoBanner
+                text={`${t('deck_pitcher_sum_prefix')}${editor.pitcherTotal}${t('deck_pitcher_sum_suffix')}`}
+                tone="error"
+              />
+            ) : null}
+          </View>
+        </SectionCard>
+
+        <SectionCard title={t(PART_LABEL_KEYS.ROTATION)}>
+          <View
+            onLayout={({ nativeEvent: { layout } }) => setRotationWidth(layout.width)}
+            style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+          >
+            {rotationWidth > 0 ? starterSlots.map((slot) => slotChip(slot, starterCardWidth)) : null}
+          </View>
+        </SectionCard>
+
+        <SectionCard title={t(PART_LABEL_KEYS.BULLPEN)}>
+          <BullpenRoleLane
+            rows={relieverRows}
+            closers={closerSlots.map(bullpenCard)}
+            winTactic={editor.winTactic}
+            chaseTactic={editor.chaseTactic}
+            onWinTacticChange={editor.setWinTactic}
+            onChaseTacticChange={editor.setChaseTactic}
+            onMove={editor.moveReliever}
+            onPress={openPlayer}
+          />
+        </SectionCard>
+
+        <DeckScoreTierSection
+          ladder="TEAM"
+          rules={rules}
+          chosen={editor.coordination}
+          onChoose={editor.chooseTier}
+          onClear={editor.clearTier}
         />
-      </SectionCard>
+        <DeckScoreTierSection
+          ladder="SPECIAL"
+          rules={rules}
+          chosen={editor.coordination}
+          onChoose={editor.chooseTier}
+          onClear={editor.clearTier}
+        />
+
+        <SectionCard>
+          <View style={{ gap: spacing.md }}>
+            {/* 어느 자리가 왜 막혔는지 먼저 알려 준다. 저장을 눌러야 서버 오류로 아는 것보다 빠르다. */}
+            {editor.brokenSlots.length > 0 ? (
+              <InfoBanner
+                text={`${editor.brokenSlots.join(', ')}: ${t('skill_unavailable')}`}
+                tone="error"
+              />
+            ) : null}
+            {editor.error ? <InfoBanner text={editor.error} tone="error" /> : null}
+            <PrimaryActionButton
+              text={t('deck_btn_save')}
+              onPress={save}
+              enabled={editor.isComplete && !!editor.name.trim() && !editor.saving}
+              loading={editor.saving}
+            />
+            {initial && onDelete ? (
+              <LinkAction text={t('deck_btn_delete')} onPress={() => onDelete(initial.id)} />
+            ) : null}
+          </View>
+        </SectionCard>
       </View>
 
-      {section('BENCH', BENCH_SLOTS)}
-
-      <SectionCard title={t('deck_strategy_title')}>
-        <View style={{ gap: spacing.lg }}>
-          <Text style={{ ...typography.body, color: colors.secondaryText }}>
-            {t('deck_strategy_hint')}
-          </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
-            {PITCHER_FIELDS.map(({ field, labelKey }) => (
-              <View key={field} style={{ flexGrow: 1, flexBasis: 160 }}>
-                <LabeledDropdown
-                  label={t(labelKey)}
-                  selected={editor.pitcherCounts[field]}
-                  // 서로 묶지 않는다. 각 자리는 자기 범위 안에서 자유롭게 고른다.
-                  options={PITCHER_RANGES[field]}
-                  optionLabel={(v) => String(v)}
-                  onSelect={(v) => editor.setPitcherCount(field, v)}
-                />
-              </View>
-            ))}
+      {section === 'SCORE' ? (
+        <>
+          <View style={{
+            flexDirection: width >= 1000 ? 'row' : 'column',
+            alignItems: width >= 1000 ? 'flex-start' : 'stretch',
+            gap: spacing.lg,
+          }}>
+            <SectionCard
+              title={t('deck_score_title')}
+              style={width >= 1000 ? { flex: 1, minWidth: 0 } : undefined}
+            >
+              {editor.score ? (
+                <ScoreHero label={t('deck_score_title')} value={editor.score.total} />
+              ) : (
+                <InfoBanner text={t('deck_error_incomplete')} />
+              )}
+              <Text style={{ ...typography.body, color: colors.secondaryText }}>
+                {editor.completedCount}
+                {t('deck_progress_middle')}
+                {editor.allSlots.length}
+                {t('deck_progress_suffix')}
+              </Text>
+            </SectionCard>
+            <View style={width >= 1000 ? { flex: 2, minWidth: 0 } : undefined}>
+              <DeckPlayerRankingSection
+                players={editor.score?.players.filter(({ slot }) => editor.allSlots.includes(slot)) ?? []}
+                onPress={(slot) => {
+                  setSection('EDIT');
+                  openPlayer(slot);
+                }}
+              />
+            </View>
           </View>
-
-          {/* 합이 12가 아니면 저장할 수 없다. 어긋난 값을 보여 주고 막는다. */}
-          {!editor.isPitcherStaffValid ? (
-            <InfoBanner
-              text={`${t('deck_pitcher_sum_prefix')}${editor.pitcherTotal}${t('deck_pitcher_sum_suffix')}`}
-              tone="error"
-            />
-          ) : null}
-        </View>
-      </SectionCard>
-
-      <SectionCard title={t(PART_LABEL_KEYS.ROTATION)}>
-        <View
-          onLayout={({ nativeEvent: { layout } }) => setRotationWidth(layout.width)}
-          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
-        >
-          {rotationWidth > 0 ? starterSlots.map((slot) => slotChip(slot, starterCardWidth)) : null}
-        </View>
-      </SectionCard>
-
-      <SectionCard title={t(PART_LABEL_KEYS.BULLPEN)}>
-        <BullpenRoleLane
-          rows={relieverRows}
-          closers={closerSlots.map(bullpenCard)}
-          winTactic={editor.winTactic}
-          chaseTactic={editor.chaseTactic}
-          onWinTacticChange={editor.setWinTactic}
-          onChaseTacticChange={editor.setChaseTactic}
-          onMove={editor.moveReliever}
-          onPress={setEditing}
-        />
-      </SectionCard>
-
-      <DeckImportCard onApply={editor.applyImport} onApplyTraining={training.mergeSlots} />
-
-      <DeckScoreTierSection
-        ladder="TEAM"
-        rules={rules}
-        chosen={editor.coordination}
-        onChoose={editor.chooseTier}
-        onClear={editor.clearTier}
-      />
-      <DeckScoreTierSection
-        ladder="SPECIAL"
-        rules={rules}
-        chosen={editor.coordination}
-        onChoose={editor.chooseTier}
-        onClear={editor.clearTier}
-      />
-
-      <DeckTeamBuffCard buffs={editor.score?.teamBuffs ?? []} />
-
-      <DeckTrainingEditor slots={editor.allSlots} state={training} signedIn={!!user} />
-
-      <SectionCard title={t('deck_score_title')}>
-        <View style={{ gap: spacing.md }}>
-          <Text style={{ ...typography.body, color: colors.secondaryText }}>
-            {editor.completedCount}
-            {t('deck_progress_middle')}
-            {editor.allSlots.length}
-            {t('deck_progress_suffix')}
-          </Text>
           {editor.score ? (
-            <>
-              <ScoreHero label={t('deck_score_title')} value={editor.score.total} />
+            <SectionCard title={t('deck_score_details')}>
               <View style={{ gap: spacing.xs }}>
                 {editor.score.parts.map((part) => (
                   <View
@@ -541,35 +610,10 @@ export default function DeckEditorView({
                     </View>
                   ))}
               </View>
-            </>
-          ) : (
-            <InfoBanner text={t('deck_error_incomplete')} />
-          )}
-          {/* 어느 자리가 왜 막혔는지 먼저 알려 준다. 저장을 눌러야 서버 오류로 아는 것보다 빠르다. */}
-          {editor.brokenSlots.length > 0 ? (
-            <InfoBanner
-              text={`${editor.brokenSlots.join(', ')}: ${t('skill_unavailable')}`}
-              tone="error"
-            />
+            </SectionCard>
           ) : null}
-          {editor.error ? <InfoBanner text={editor.error} tone="error" /> : null}
-          <PrimaryActionButton
-            text={t('deck_btn_save')}
-            onPress={save}
-            enabled={editor.isComplete && !!editor.name.trim() && !editor.saving}
-            loading={editor.saving}
-          />
-          {initial && onDelete ? (
-            <LinkAction text={t('deck_btn_delete')} onPress={() => onDelete(initial.id)} />
-          ) : null}
-        </View>
-      </SectionCard>
-
-      {editor.score ? (
-        <DeckPlayerRankingSection
-          players={editor.score.players.filter(({ slot }) => editor.allSlots.includes(slot))}
-          onPress={setEditing}
-        />
+          <DeckTeamBuffCard buffs={editor.score?.teamBuffs ?? []} />
+        </>
       ) : null}
 
       <Modal visible={!!editing} animationType="slide" transparent onRequestClose={() => setEditing(null)}>
@@ -583,19 +627,40 @@ export default function DeckEditorView({
               padding: spacing.lg,
             }}
           >
-            <View style={{ alignItems: 'flex-end', marginBottom: spacing.sm }}>
+            <View style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              justifyContent: editing && !isBench(editing) ? 'space-between' : 'flex-end',
+              alignItems: 'center',
+              gap: spacing.sm,
+              marginBottom: spacing.sm,
+            }}>
+              {editing && !isBench(editing) ? (
+                <SegmentedTabs
+                  tabs={[
+                    { key: 'PLAYER', label: t('deck_player_title') },
+                    { key: 'TRAINING', label: t('deck_training_title') },
+                  ]}
+                  selected={playerPanel}
+                  onSelect={setPlayerPanel}
+                />
+              ) : null}
               <LinkAction text={t('btn_close')} onPress={() => setEditing(null)} />
             </View>
-            <ScrollView>
+            <ScrollView key={playerPanel}>
               {editing && editor.players[editing] ? (
-                <DeckPlayerEditor
-                  slot={editing}
-                  player={editor.players[editing]}
-                  slots={editor.allSlots}
-                  rules={rules}
-                  onChange={(patch) => editor.updatePlayer(editing, patch)}
-                  onChangeBattingOrder={(order) => editor.moveBattingOrder(editing, order)}
-                />
+                playerPanel === 'TRAINING' && !isBench(editing) ? (
+                  <DeckTrainingEditor key={editing} slot={editing} state={training} signedIn={!!user} />
+                ) : (
+                  <DeckPlayerEditor
+                    slot={editing}
+                    player={editor.players[editing]}
+                    slots={editor.allSlots}
+                    rules={rules}
+                    onChange={(patch) => editor.updatePlayer(editing, patch)}
+                    onChangeBattingOrder={(order) => editor.moveBattingOrder(editing, order)}
+                  />
+                )
               ) : null}
             </ScrollView>
           </View>

@@ -358,6 +358,8 @@ export const strings = {
   deck_btn_save: '저장',
   deck_btn_delete: '삭제',
   deck_btn_back: '목록으로',
+  deck_open_calculator: '스킬 점수 계산기로',
+  calculator_back_to_lineup: '라인업으로 돌아가기',
   deck_label_name: '라인업 이름',
   deck_placeholder_name: '예: 주력 라인업',
   deck_label_starters: '선발',

@@ -394,6 +394,7 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
   const [importWarnings, setImportWarnings] = useState<DeckImportWarning[]>([]);
 
   const [score, setScore] = useState<DeckScoreResponse | null>(initial?.score ?? null);
+  const [scoredRequest, setScoredRequest] = useState<typeof toRequest | null>(null);
   const [scoring, setScoring] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -656,7 +657,10 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
       setScoring(true);
       try {
         const result = await scoreDeck(toRequest());
-        if (seq === previewSeq.current) setScore(result);
+        if (seq === previewSeq.current) {
+          setScore(result);
+          setScoredRequest(() => toRequest);
+        }
       } catch (err) {
         if (seq === previewSeq.current) setError(apiErrorMessage(err));
       } finally {
@@ -790,6 +794,7 @@ export function useDeckEditor(initial?: DeckDetail, training?: PositionTraining)
     importWarnings,
     applyImport,
     score,
+    currentScore: isComplete && scoredRequest === toRequest ? score : null,
     scoring,
     saving,
     error,

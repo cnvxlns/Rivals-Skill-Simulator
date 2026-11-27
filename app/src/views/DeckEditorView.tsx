@@ -45,6 +45,7 @@ import DeckTrainingEditor from './DeckTrainingEditor';
 import { fetchDeckRules } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePositionTraining } from '../lib/usePositionTraining';
+import { lineupCalculatorInput, type LineupCalculatorInput } from '../lib/lineupCalculatorInput';
 
 /** 변형이 있으면 등급 뒤에 붙여 보여 준다. 예: Signature Black · WBC */
 const cardLabel = (player: DeckPlayer) => {
@@ -105,13 +106,17 @@ const BUFF_FAMILY_LABEL_KEYS = {
  * 방식이라 화면 감각이 이어진다.
  */
 export default function DeckEditorView({
+  active,
   initial,
   onDone,
   onDelete,
+  onOpenCalculator,
 }: {
+  active: boolean;
   initial?: DeckDetail;
   onDone: () => void;
   onDelete?: (id: number) => void;
+  onOpenCalculator: (input: LineupCalculatorInput) => void;
 }) {
   const { t } = useTranslation();
   const { colors, typography, spacing, radius, cardGradeColor } = useAppTheme();
@@ -137,6 +142,7 @@ export default function DeckEditorView({
   }, []);
   const [section, setSection] = useState<'SCORE' | 'EDIT'>('SCORE');
   const [editing, setEditing] = useState<string | null>(null);
+  const selectedPlayer = editing ? editor.players[editing] : undefined;
   const [playerPanel, setPlayerPanel] = useState<'PLAYER' | 'TRAINING'>('PLAYER');
   const openPlayer = (slot: string) => {
     setPlayerPanel('PLAYER');
@@ -622,7 +628,7 @@ export default function DeckEditorView({
         </>
       ) : null}
 
-      <Modal visible={!!editing} animationType="slide" transparent onRequestClose={() => setEditing(null)}>
+      <Modal visible={active && !!editing} animationType="slide" transparent onRequestClose={() => setEditing(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(7,8,11,0.88)', justifyContent: 'flex-end' }}>
           <View
             style={{
@@ -649,6 +655,15 @@ export default function DeckEditorView({
                   ]}
                   selected={playerPanel}
                   onSelect={setPlayerPanel}
+                />
+              ) : null}
+              {selectedPlayer ? (
+                <LinkAction
+                  text={t('deck_open_calculator')}
+                  onPress={() => {
+                    const score = editor.currentScore?.players.find(({ slot }) => slot === selectedPlayer.slot);
+                    onOpenCalculator(lineupCalculatorInput(selectedPlayer, training.training, score));
+                  }}
                 />
               ) : null}
               <LinkAction text={t('btn_close')} onPress={() => setEditing(null)} />

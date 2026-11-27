@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, Text, View, ViewStyle } from 'react-native';
 import { CARD_GRADES_LOW_TO_HIGH, CardGrade, CardVariant, Handedness, Position, SubPosition, TicketCombination, variantsFor } from '../types';
 import { TicketScope, useScoreCalculator } from '../lib/useScoreCalculator';
+import type { LineupCalculatorInput } from '../lib/lineupCalculatorInput';
 import { canPlaceSkill } from '../lib/cardRules';
 import { useTranslation } from '../lib/i18n';
 import { useAppTheme } from '../theme/useTheme';
@@ -127,8 +128,16 @@ function TicketCombinations({ combinations }: { combinations: TicketCombination[
   );
 }
 
-export default function CalculatorView({ onViewMethodology }: { onViewMethodology?: () => void }) {
-  const calc = useScoreCalculator();
+export default function CalculatorView({
+  lineupInput,
+  onReturnToLineup,
+  onViewMethodology,
+}: {
+  lineupInput?: LineupCalculatorInput;
+  onReturnToLineup?: () => void;
+  onViewMethodology?: () => void;
+}) {
+  const calc = useScoreCalculator(lineupInput);
   const { t } = useTranslation();
   const { colors, typography, radius, spacing, tabularNums } = useAppTheme();
   const { width, isWide, isSplit } = useResponsive();
@@ -155,8 +164,9 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
   };
   // 슬롯은 카드 종류에 따라 3개 또는 4개다. 열 폭 하한을 두고 폭에서 열 수를 구한다.
   // 컨테이너가 gap을 쓰므로 정확히 100/n%로 두면 마지막 열이 다음 줄로 밀린다. 1%p 뺀다.
-  // 사용자 스탯은 기본값으로 두는 경우가 대부분이라 접어둔 채로 시작한다.
-  const [statsOpen, setStatsOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(() =>
+    Boolean(Object.keys(lineupInput?.userStats ?? {}).length || Object.keys(lineupInput?.baseStats ?? {}).length),
+  );
 
   const slotColumns = columnsFor(width, 540, { min: 2, max: 4 });
   const slotBasis = `${100 / slotColumns - 1}%` as const;
@@ -217,7 +227,8 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
           const selectedSkill = calc.skills.find((skill) => skill.skillId === selection?.skillId);
           // 등급을 바꿔도 고른 스킬을 비우지 않으므로 새 카드의 풀 밖인 것이 남을 수 있다.
           const stale = calc.unavailableSlots[setIndex]?.[index] ?? false;
-          const maxLevel = selectedSkill?.maxLevel ?? 1;
+          // 라인업에 저장된 S 초과 레벨도 화면의 선택값과 계산 요청에서 유지한다.
+          const maxLevel = selectedSkill ? Math.max(selectedSkill.maxLevel, selection.level) : 1;
           const levelOptions = Array.from({ length: maxLevel }, (_, levelIndex) => levelIndex + 1);
           return (
             <View
@@ -299,7 +310,19 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
   return (
     <View style={{ gap: spacing.md }}>
       <View style={{ gap: spacing.xs }}>
+        {onReturnToLineup ? (
+          <LinkAction
+            text={t('calculator_back_to_lineup')}
+            onPress={onReturnToLineup}
+            style={{ ...linkTouchTarget, alignSelf: 'flex-start' }}
+          />
+        ) : null}
         <Text style={[typography.title, { color: colors.onSurface }]}>{t('calculator_title')}</Text>
+        {lineupInput ? (
+          <Text style={[typography.card, { color: colors.onSurface }]}>
+            {[lineupInput.playerName, lineupInput.slot].filter(Boolean).join(' · ')}
+          </Text>
+        ) : null}
         <Text style={[typography.label, { color: colors.secondaryText }]}>{t('calculator_desc')}</Text>
       </View>
 
@@ -422,7 +445,7 @@ export default function CalculatorView({ onViewMethodology }: { onViewMethodolog
                 <View key={stat} style={statField}>
                   <NumberField
                     label={tk(`stat_${stat}`)}
-                    value={String(Math.round(calc.userStats[stat] ?? 0))}
+                    value={String(calc.userStats[stat] ?? 0)}
                     onChangeText={(raw) => calc.updateUserStat(stat, parseFloat(raw) || 0)}
                   />
                 </View>

@@ -13,6 +13,7 @@ import ScoreTableView from '@/views/ScoreTableView';
 import CalculatorView from '@/views/CalculatorView';
 import MethodologyView from '@/views/MethodologyView';
 import DeckView from '@/views/DeckView';
+import type { LineupCalculatorInput } from '@/lib/lineupCalculatorInput';
 
 type TabKey = 'table' | 'calculator' | 'deck' | 'methodology';
 
@@ -20,6 +21,8 @@ type TabKey = 'table' | 'calculator' | 'deck' | 'methodology';
 const HIDDEN = { display: 'none' } as const;
 
 export default function HomeScreen() {
+  const scrollView = React.useRef<ScrollView>(null);
+  const [lineupTransfer, setLineupTransfer] = useState<{ input: LineupCalculatorInput; id: number }>();
   const [tab, setTab] = useState<TabKey>('table');
   /**
    * 한 번이라도 연 탭. 여기 담긴 탭은 다시 언마운트하지 않는다.
@@ -35,6 +38,11 @@ export default function HomeScreen() {
   const openTab = (next: TabKey) => {
     setTab(next);
     setVisited((prev) => (prev.includes(next) ? prev : [...prev, next]));
+  };
+  const openLineupCalculator = (input: LineupCalculatorInput) => {
+    setLineupTransfer((prev) => ({ input, id: (prev?.id ?? 0) + 1 }));
+    openTab('calculator');
+    scrollView.current?.scrollTo({ y: 0, animated: false });
   };
   const { t } = useTranslation();
   const { status, elapsedSeconds, retry } = useBackendWarmup();
@@ -98,6 +106,7 @@ export default function HomeScreen() {
           </View>
 
           <ScrollView
+            ref={scrollView}
             style={{ flex: 1 }}
             contentContainerStyle={{
               paddingHorizontal: horizontalPadding,
@@ -119,12 +128,17 @@ export default function HomeScreen() {
             ) : null}
             {visited.includes('calculator') ? (
               <View style={tab === 'calculator' ? undefined : HIDDEN}>
-                <CalculatorView onViewMethodology={() => openTab('methodology')} />
+                <CalculatorView
+                  key={lineupTransfer?.id ?? 0}
+                  lineupInput={lineupTransfer?.input}
+                  onReturnToLineup={lineupTransfer ? () => openTab('deck') : undefined}
+                  onViewMethodology={() => openTab('methodology')}
+                />
               </View>
             ) : null}
             {visited.includes('deck') ? (
               <View style={tab === 'deck' ? undefined : HIDDEN}>
-                <DeckView />
+                <DeckView active={tab === 'deck'} onOpenCalculator={openLineupCalculator} />
               </View>
             ) : null}
             {visited.includes('methodology') ? (

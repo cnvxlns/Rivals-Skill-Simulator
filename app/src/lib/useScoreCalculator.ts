@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calculateScore, fetchScoreSkills, fetchTicketExpectation } from './api';
 import { canPlaceSkill, skillPoolOf, slotCountFor } from './cardRules';
+import type { LineupCalculatorInput } from './lineupCalculatorInput';
 import { defaultSubPosition } from './useScoreContext';
 import {
   CardGrade,
@@ -29,7 +30,7 @@ const DEFAULT_BATTING_ORDER = 1;
 const baseLevelsOnly = (skill: ScoreSkillOption): ScoreSkillOption => {
   const sIndex = skill.levelLabels?.indexOf('S') ?? -1;
   const maxLevel = Math.min(skill.maxLevel, sIndex < 0 ? 5 : sIndex + 1);
-  return { ...skill, maxLevel, levelLabels: skill.levelLabels?.slice(0, maxLevel) };
+  return { ...skill, maxLevel };
 };
 const DEFAULT_USER_STAT = 120;
 const DEFAULT_DECK_SCORE = 500;
@@ -106,34 +107,47 @@ type TicketCalculation = {
   failed?: boolean;
 };
 
-export function useScoreCalculator() {
-  const [cardGrade, setCardGrade] = useState<CardGrade>(CardGrade.SIGNATURE);
-  const [cardVariant, setCardVariant] = useState<CardVariant>(CardVariant.NONE);
-  const [position, setPosition] = useState<Position>(Position.BATTER);
-  const [subPosition, setSubPosition] = useState<SubPosition | ''>(defaultSubPosition(Position.BATTER));
-  const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
-  const [sets, setSets] = useState<ScoreSet[]>(() =>
-    Array.from({ length: SET_COUNT }, () => emptySet(slotCountFor(CardGrade.SIGNATURE))),
+export function useScoreCalculator(lineupInput?: LineupCalculatorInput) {
+  const [cardGrade, setCardGrade] = useState<CardGrade>(lineupInput?.cardGrade ?? CardGrade.SIGNATURE);
+  const [cardVariant, setCardVariant] = useState<CardVariant>(lineupInput?.cardVariant ?? CardVariant.NONE);
+  const [position, setPosition] = useState<Position>(() =>
+    lineupInput && ['SP', 'RP', 'CP'].includes(lineupInput.subPosition) ? Position.PITCHER : Position.BATTER,
   );
+  const [subPosition, setSubPosition] = useState<SubPosition | ''>(() =>
+    lineupInput?.subPosition ?? defaultSubPosition(position),
+  );
+  const [skills, setSkills] = useState<ScoreSkillOption[]>([]);
+  const [sets, setSets] = useState<ScoreSet[]>(() => {
+    const count = slotCountFor(cardGrade);
+    const sets = Array.from({ length: SET_COUNT }, () => emptySet(count));
+    if (lineupInput) {
+      sets[0].selections = sets[0].selections.map((blank, index) => lineupInput.selections[index] ?? blank);
+    }
+    return sets;
+  });
   const [compare, setCompare] = useState(false);
   // 스킬 변경권 기댓값. A 슬롯을 기준으로 본다. 비교를 켜도 기준은 A 하나다.
   const [ticketCalculation, setTicketCalculation] = useState<TicketCalculation | null>(null);
   const [selectedTicketScope, setTicketScope] = useState<TicketScope>('all');
   const [selectedMomentSkillId, setMomentSkillId] = useState('');
-  // 포지션특훈이 이 자리에 붙여 준 스킬 레벨 보너스. 계정에 저장된 구단 설정과 섞지 않는다.
-  const [trainingBonuses, setTrainingBonuses] = useState<SkillLevelBonus[]>(emptyTrainingBonuses);
-  const [hasTranscended, setHasTranscended] = useState(false);
+  const [trainingBonuses, setTrainingBonuses] = useState<SkillLevelBonus[]>(() =>
+    emptyTrainingBonuses().map((blank, index) => lineupInput?.trainingBonuses?.[index] ?? blank),
+  );
+  const [transcendenceLevel, setTranscendenceLevel] = useState(lineupInput?.transcendenceLevel ?? undefined);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userStats, setUserStats] = useState<Record<string, number>>(defaultUserStats);
+  const [userStats, setUserStats] = useState<Record<string, number>>(() => ({
+    ...defaultUserStats(),
+    ...lineupInput?.userStats,
+  }));
   // 기본값을 두지 않는다. 비어 있음이 "모른다"는 뜻이고, 그때는 서버가 표본 확률을 쓴다.
-  const [baseStats, setBaseStats] = useState<Record<string, number>>({});
-  const [battingOrder, setBattingOrder] = useState<number | null>(DEFAULT_BATTING_ORDER);
-  const [pitcherSlots, setPitcherSlots] = useState<[number | null, number | null]>([null, null]);
+  const [baseStats, setBaseStats] = useState<Record<string, number>>(lineupInput?.baseStats ?? {});
+  const [battingOrder, setBattingOrder] = useState<number | null>(lineupInput?.battingOrder ?? DEFAULT_BATTING_ORDER);
+  const [pitcherSlots, setPitcherSlots] = useState<[number | null, number | null]>([lineupInput?.pitcherSlot ?? null, null]);
   const [pitcherSlotA] = pitcherSlots;
-  const [throwHand, setThrowHand] = useState<Handedness>(Handedness.RIGHT);
-  const [batHand, setBatHand] = useState<Handedness>(Handedness.RIGHT);
+  const [throwHand, setThrowHand] = useState<Handedness>(lineupInput?.throwHand ?? Handedness.RIGHT);
+  const [batHand, setBatHand] = useState<Handedness>(lineupInput?.batHand ?? Handedness.RIGHT);
   const calcSeq = useRef(0);
 
   const slotCount = useMemo(() => slotCountFor(cardGrade), [cardGrade]);
@@ -145,8 +159,8 @@ export function useScoreCalculator() {
   const baseFirstSlotBonus = cardGrade === CardGrade.SIGNATURE_BLACK ? 1 : 0;
   const nineTranscendenceBonus =
     cardGrade === CardGrade.SIGNATURE_BLACK ? 2 : canTranscendFirstSlot ? 1 : 0;
+  const hasTranscended = (transcendenceLevel ?? 0) >= 9;
   const firstSlotBonus = hasTranscended ? nineTranscendenceBonus : baseFirstSlotBonus;
-  const transcendenceLevel = hasTranscended && canTranscendFirstSlot ? 9 : undefined;
   /** 비교가 꺼져 있으면 A만 본다. */
   const activeCount = compare ? SET_COUNT : 1;
 
@@ -252,8 +266,10 @@ export function useScoreCalculator() {
     );
   }, [slotCount]);
 
-  useEffect(() => {
-    setSubPosition(defaultSubPosition(position));
+  const changePosition = useCallback((next: Position) => {
+    if (next === position) return;
+    setPosition(next);
+    setSubPosition(defaultSubPosition(next));
     setBattingOrder(DEFAULT_BATTING_ORDER);
     setPitcherSlots([null, null]);
     clearResults();
@@ -319,7 +335,7 @@ export function useScoreCalculator() {
     patchSet(setIndex, (set) => ({
       result: null,
       selections: set.selections.map((selection, idx) => {
-        if (idx !== slotIndex) return selection;
+        if (idx !== slotIndex || selection.skillId === skillId) return selection;
         const nextSkill = skills.find((skill) => skill.skillId === skillId);
         if (!nextSkill) return { skillId, level: 1 };
         if (!selection.skillId) return { skillId, level: nextSkill.maxLevel };
@@ -329,7 +345,7 @@ export function useScoreCalculator() {
         if (!previousSkill) return { skillId, level: nextSkill.maxLevel };
         const previousLabel = previousSkill.levelLabels?.[selection.level - 1];
         const sameLevel = previousLabel ? (nextSkill.levelLabels?.indexOf(previousLabel) ?? -1) + 1 : 0;
-        return { skillId, level: sameLevel || Math.min(selection.level, nextSkill.maxLevel) };
+        return { skillId, level: Math.min(sameLevel || selection.level, nextSkill.maxLevel) };
       }),
     }));
   }, [patchSet, skills]);
@@ -359,7 +375,7 @@ export function useScoreCalculator() {
 
   const updateTranscendence = useCallback((achieved: boolean) => {
     if (achieved === hasTranscended) return;
-    setHasTranscended(achieved);
+    setTranscendenceLevel(achieved ? 9 : undefined);
     clearResults();
   }, [hasTranscended, clearResults]);
 
@@ -608,7 +624,7 @@ export function useScoreCalculator() {
     cardVariant,
     setCardVariant: selectCardVariant,
     position,
-    setPosition,
+    setPosition: changePosition,
     subPosition,
     setSubPosition,
     scorePosition,

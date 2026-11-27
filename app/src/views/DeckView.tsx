@@ -17,6 +17,7 @@ import { useAppTheme } from '../theme/useTheme';
 import { DeckDetail, DeckSummary } from '../types';
 import DeckEditorView from './DeckEditorView';
 import LoginView from './LoginView';
+import type { LineupCalculatorInput } from '../lib/lineupCalculatorInput';
 
 type Mode = { kind: 'list' } | { kind: 'new' } | { kind: 'edit'; deck: DeckDetail };
 
@@ -25,7 +26,10 @@ type Mode = { kind: 'list' } | { kind: 'new' } | { kind: 'edit'; deck: DeckDetai
  *
  * 라우트를 새로 파지 않고 기존 단일 라우트 + 탭 구조를 유지한다.
  */
-export default function DeckView() {
+export default function DeckView({ active, onOpenCalculator }: {
+  active: boolean;
+  onOpenCalculator: (input: LineupCalculatorInput) => void;
+}) {
   const { t } = useTranslation();
   const { colors, typography, spacing, radius } = useAppTheme();
   const { user, loading: authLoading, signOut } = useAuth();
@@ -82,10 +86,16 @@ export default function DeckView() {
   if (!user) return <LoginView />;
 
   if (mode.kind === 'new') {
-    return <DeckEditorView onDone={backToList} />;
+    return <DeckEditorView active={active} onDone={backToList} onOpenCalculator={onOpenCalculator} />;
   }
   if (mode.kind === 'edit') {
-    return <DeckEditorView initial={mode.deck} onDone={backToList} onDelete={removeDeck} />;
+    return <DeckEditorView
+      active={active}
+      initial={mode.deck}
+      onDone={backToList}
+      onDelete={removeDeck}
+      onOpenCalculator={onOpenCalculator}
+    />;
   }
 
   return (
